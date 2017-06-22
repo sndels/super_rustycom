@@ -26,4 +26,26 @@ impl ABus {
             rom:   Rom::new(rom_path),
         }
     }
+
+    pub fn read8(&self, addr: u32) -> u8 {
+        // TODO: Only LoROM, WRAM implemented, under 0x040000
+        // TODO: LUT for speed?
+        if addr < 0x040000 {
+            let bank: usize = (addr >> 16) as usize;
+            let mut offset: usize = (addr & 0x00FFFF) as usize;
+            // WS1 LoROM
+            if offset > 0x7FFF {
+                offset -= 0x8000;
+                self.rom.read8(bank * 0x8000 + offset)
+            } else {
+                panic!("Offset {} not implemented in system area", offset);
+            }
+        } else {
+            panic!("Access to addr {} no implemented!", addr);
+        }
+    }
+
+    pub fn read16_le(&self, addr: u32) -> u16 {
+        self.read8(addr) as u16 + ((self.read8(addr + 1) as u16) << 8)
+    }
 }
