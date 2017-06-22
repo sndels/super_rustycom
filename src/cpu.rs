@@ -45,19 +45,20 @@ impl Cpu {
 
     pub fn run(&mut self, abus: &mut ABus) {
         loop {
-            let opcode = abus.read8(((self.pb as u32) << 16) + self.pc as u32);
-            self.execute(opcode, abus);
+            let addr = ((self.pb as u32) << 16) + self.pc as u32;
+            let opcode = abus.read8(addr);
+            self.execute(opcode, addr, abus);
         }
     }
 
-    fn execute(&mut self, opcode: u8, abus: &mut ABus) {
+    fn execute(&mut self, opcode: u8, addr: u32, abus: &mut ABus) {
         match opcode {
             0x18 => self.op_clc(),
-            0x20 => self.op_jsr(abus),
+            0x20 => self.op_jsr(addr, abus),
             0x78 => self.op_sei(),
             0x9A => self.op_txs(),
-            0xA2 => self.op_ldx_a2(abus),
-            0xC2 => self.op_rep(abus),
+            0xA2 => self.op_ldx(addr, abus),
+            0xC2 => self.op_rep(addr, abus),
             0xFB => self.op_xce(),
             _ => panic!("Unknown opcode {:X}!", opcode),
         }
@@ -69,8 +70,7 @@ impl Cpu {
         self.pc += 1;
     }
 
-    fn op_jsr(&mut self, abus: &mut ABus) {
-        let addr = ((self.pb as u32) << 16) + self.pc as u32;
+    fn op_jsr(&mut self, addr: u32, abus: &mut ABus) {
         let sub_addr = abus.read16_le(addr + 1);
         println!("0x{:x} JSR {:x}", addr, sub_addr);
         abus.push_stack(self.pc + 2, self.s);
@@ -78,8 +78,7 @@ impl Cpu {
         self.pc = sub_addr;
     }
 
-    fn op_ldx_a2(&mut self, abus: &ABus) {
-        let addr = ((self.pb as u32) << 16) + self.pc as u32;
+    fn op_ldx(&mut self, addr: u32, abus: &ABus) {
         if (self.p & 0b0001_0000) == 0 {
             let index = abus.read16_le(addr + 1);
             println!("0x{:x} LDX {:x}", addr, index);
@@ -93,8 +92,7 @@ impl Cpu {
         }
     }
 
-    fn op_rep(&mut self, abus: &ABus) {
-        let addr = ((self.pb as u32) << 16) + self.pc as u32;
+    fn op_rep(&mut self, addr: u32, abus: &ABus) {
         let bits = abus.read8(addr + 1);
         println!("0x{:x} REP {:x}", addr, bits);
         self.p &= !bits;
