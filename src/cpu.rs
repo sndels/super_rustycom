@@ -13,6 +13,17 @@ enum Interrupt {
     IrqBrk8 = 0xFE,
 }
 
+enum PFlag {
+    C = 0b0000_0001,
+    Z = 0b0000_0010,
+    I = 0b0000_0100,
+    D = 0b0000_1000,
+    X = 0b0001_0000,
+    M = 0b0010_0000,
+    V = 0b0100_0000,
+    N = 0b1000_0000,
+}
+
 #[derive(Debug)]
 pub struct Cpu {
     a:  u16,  // Accumulator
@@ -35,7 +46,7 @@ impl Cpu {
             y:  0x00,
             pc: abus.read16_le(0x00FF00 + Interrupt::Reset8 as u32), // TODO: This only applies to LoROM
             s:  0x01FF,
-            p:  0b0011_0100,
+            p:  PFlag::M as u8 | PFlag::X as u8 | PFlag::I as u8,
             d : 0x00,
             pb: 0x0,
             db: 0x0,
@@ -66,7 +77,7 @@ impl Cpu {
 
     fn op_clc(&mut self) {
         println!("0x{:x} CLC", ((self.pb as u32) << 16) + self.pc as u32);
-        self.p &= 0b1111_1110;
+        self.p &= !(PFlag::C as u8);
         self.pc += 1;
     }
 
@@ -79,7 +90,7 @@ impl Cpu {
     }
 
     fn op_ldx(&mut self, addr: u32, abus: &ABus) {
-        if (self.p & 0b0001_0000) == 0 {
+        if (self.p & (PFlag::X as u8)) == 0 {
             let index = abus.read16_le(addr + 1);
             println!("0x{:x} LDX {:x}", addr, index);
             self.x = index;
@@ -101,7 +112,7 @@ impl Cpu {
 
     fn op_sei(&mut self) {
         println!("0x{:x} SEI", ((self.pb as u32) << 16) + self.pc as u32);
-        self.p |= 0b0000_0100;
+        self.p |= PFlag::I as u8;
         self.pc += 1;
     }
 
@@ -114,7 +125,7 @@ impl Cpu {
 
     fn op_xce(&mut self) {
         println!("0x{:x} XCE", ((self.pb as u32) << 16) + self.pc as u32);
-        self.e = self.p & 0b0000_0001 == 1;
+        self.e = self.p & (PFlag::C as u8) == 1;
         self.pc += 1;
     }
 
