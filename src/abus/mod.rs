@@ -48,4 +48,9 @@ impl ABus {
     pub fn read16_le(&self, addr: u32) -> u16 {
         self.read8(addr) as u16 + ((self.read8(addr + 1) as u16) << 8)
     }
+
+    pub fn push_stack(&mut self, value: u16, addr: u16) {
+        self.wram[addr as usize] = (value >> 8) as u8;
+        self.wram[(addr - 1) as usize] = (value & 0xFF) as u8;
+    }
 }
