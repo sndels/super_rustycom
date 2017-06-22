@@ -34,7 +34,7 @@ impl Cpu {
             x:  0x00,
             y:  0x00,
             pc: abus.read16_le(0x00FF00 + Interrupt::Reset8 as u32), // TODO: This only applies to LoROM
-            s:  0xFF,
+            s:  0x01FF,
             p:  0b0011_0100,
             d : 0x00,
             pb: 0x0,
@@ -53,7 +53,10 @@ impl Cpu {
     fn execute(&mut self, opcode: u8, abus: &mut ABus) {
         match opcode {
             0x18 => self.op_clc(),
+            0x20 => self.op_jsr(abus),
             0x78 => self.op_sei(),
+            0x9A => self.op_txs(),
+            0xA2 => self.op_ldx_a2(abus),
             0xC2 => self.op_rep(abus),
             0xFB => self.op_xce(),
             _ => panic!("Unknown opcode {:X}!", opcode),
@@ -64,6 +67,30 @@ impl Cpu {
         println!("0x{:x} CLC", ((self.pb as u32) << 16) + self.pc as u32);
         self.p &= 0b1111_1110;
         self.pc += 1;
+    }
+
+    fn op_jsr(&mut self, abus: &mut ABus) {
+        let addr = ((self.pb as u32) << 16) + self.pc as u32;
+        let sub_addr = abus.read16_le(addr + 1);
+        println!("0x{:x} JSR {:x}", addr, sub_addr);
+        abus.push_stack(self.pc + 2, self.s);
+        self.s -= 2;
+        self.pc = sub_addr;
+    }
+
+    fn op_ldx_a2(&mut self, abus: &ABus) {
+        let addr = ((self.pb as u32) << 16) + self.pc as u32;
+        if (self.p & 0b0001_0000) == 0 {
+            let index = abus.read16_le(addr + 1);
+            println!("0x{:x} LDX {:x}", addr, index);
+            self.x = index;
+            self.pc += 3;
+        } else {
+            let index = abus.read8(addr + 1) as u16;
+            println!("0x{:x} LDX {:x}", addr, index);
+            self.x = index;
+            self.pc += 2;
+        }
     }
 
     fn op_rep(&mut self, abus: &ABus) {
@@ -79,6 +106,13 @@ impl Cpu {
         self.p |= 0b0000_0100;
         self.pc += 1;
     }
+
+    fn op_txs(&mut self) {
+        println!("0x{:x} TXS", ((self.pb as u32) << 16) + self.pc as u32);
+        self.s = self.x;
+        self.pc += 1;
+    }
+
 
     fn op_xce(&mut self) {
         println!("0x{:x} XCE", ((self.pb as u32) << 16) + self.pc as u32);
