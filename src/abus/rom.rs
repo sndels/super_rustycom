@@ -39,4 +39,9 @@ impl Rom {
             lo_rom: rom_bytes.into_boxed_slice(),
         }
     }
+
+    pub fn read8(&self, addr: usize) -> u8{
+        // TODO: HiROM
+        return self.lo_rom[addr];
+    }
 }
