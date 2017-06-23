@@ -62,14 +62,18 @@ impl Cpu {
         }
     }
 
+    // TODO: Page wrapping in emulation mode?
     fn execute(&mut self, opcode: u8, addr: u32, abus: &mut ABus) {
         match opcode {
             0x18 => self.op_clc(),
             0x20 => self.op_jsr(addr, abus),
             0x78 => self.op_sei(),
+            0x8D => self.op_sta(addr, abus),
             0x9A => self.op_txs(),
             0xA2 => self.op_ldx(addr, abus),
+            0xA9 => self.op_lda(addr, abus),
             0xC2 => self.op_rep(addr, abus),
+            0xE2 => self.op_sep(addr, abus),
             0xFB => self.op_xce(),
             _ => panic!("Unknown opcode {:X}!", opcode),
         }
@@ -87,6 +91,45 @@ impl Cpu {
         abus.push_stack(self.pc + 2, self.s);
         self.s -= 2;
         self.pc = sub_addr;
+    }
+
+    fn op_lda(&mut self, addr: u32, abus: &ABus) {
+        if (self.p & (PFlag::M as u8)) == 0 {
+            let result = abus.read16_le(addr + 1);
+            println!("0x{:x} LDA {:x}", addr, result);
+            self.a = result;
+            // Set/reset zero-flag
+            if result == 0 {
+                self.p |= PFlag::Z as u8;
+            } else {
+                self.p &= !(PFlag::Z as u8);
+            }
+            // Set/reset negative-flag
+            if result & 0x8000 > 0 {
+                self.p |= PFlag::N as u8;
+            } else {
+                self.p &= !(PFlag::N as u8);
+            }
+            self.pc += 3;
+        } else {
+            let result = abus.read8(addr + 1) as u16;
+            println!("0x{:x} LDA {:x}", addr, result);
+            self.a = (self.a & 0xFF00) + result;
+            // Set/reset zero-flag
+            if result == 0 {
+                self.p |= PFlag::Z as u8;
+            } else {
+                self.p &= !(PFlag::Z as u8);
+            }
+            // Set/reset negative-flag
+            // TODO: Should this be result & 0x80 or self.a & 0x8000?
+            if result & 0x80 > 0 {
+                self.p |= PFlag::N as u8;
+            } else {
+                self.p &= !(PFlag::N as u8);
+            }
+            self.pc += 2;
+        }
     }
 
     fn op_ldx(&mut self, addr: u32, abus: &ABus) {
@@ -114,6 +157,24 @@ impl Cpu {
         println!("0x{:x} SEI", ((self.pb as u32) << 16) + self.pc as u32);
         self.p |= PFlag::I as u8;
         self.pc += 1;
+    }
+
+    fn op_sep(&mut self, addr: u32, abus: &ABus) {
+        let bits = abus.read8(addr + 1);
+        println!("0x{:x} SEP {:x}", addr, bits);
+        self.p |= bits;
+        self.pc += 2;
+    }
+
+    fn op_sta(&mut self, addr: u32, abus: &mut ABus) {
+        let read_addr = abus.read16_le(addr + 1);
+        println!("0x{:x} STA {:x}", addr, read_addr);
+        if (self.p & (PFlag::M as u8)) == 0 {
+            abus.write16_le(self.a, ((self.pb as u32) << 16) + read_addr as u32);
+        } else {
+            abus.write8(self.a as u8, ((self.pb as u32) << 16) + read_addr as u32);
+        }
+        self.pc += 3;
     }
 
     fn op_txs(&mut self) {
