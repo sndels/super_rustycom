@@ -1,29 +1,5 @@
 use abus::ABus;
 
-enum Interrupt {
-    Cop16 =   0xE4,
-    Brk16 =   0xE6,
-    Abort16 = 0xE8,
-    Nmi16 =   0xEA,
-    Irq16 =   0xEE,
-    Cop8 =    0xF4,
-    Abort8 =  0xF8,
-    Nmi8 =    0xFA,
-    Reset8 =  0xFC,
-    IrqBrk8 = 0xFE,
-}
-
-enum PFlag {
-    C = 0b0000_0001,
-    Z = 0b0000_0010,
-    I = 0b0000_0100,
-    D = 0b0000_1000,
-    X = 0b0001_0000,
-    M = 0b0010_0000,
-    V = 0b0100_0000,
-    N = 0b1000_0000,
-}
-
 #[derive(Debug)]
 pub struct Cpu {
     a:  u16,  // Accumulator
@@ -44,9 +20,9 @@ impl Cpu {
             a:  0x00,
             x:  0x00,
             y:  0x00,
-            pc: abus.read16_le(0x00FF00 + Interrupt::Reset8 as u32), // TODO: This only applies to LoROM
+            pc: abus.read16_le(0x00FF00 + RESET8 as u32), // TODO: This only applies to LoROM
             s:  0x01FF,
-            p:  PFlag::M as u8 | PFlag::X as u8 | PFlag::I as u8,
+            p:  P_M | P_X | P_I,
             d : 0x00,
             pb: 0x0,
             db: 0x0,
@@ -279,30 +255,52 @@ impl Cpu {
     }
 
     // Flag operations
-    fn get_p_c(&self) -> bool { self.p & PFlag::C as u8 > 0 }
-    fn get_p_z(&self) -> bool { self.p & PFlag::Z as u8 > 0 }
-    fn get_p_i(&self) -> bool { self.p & PFlag::I as u8 > 0 }
-    fn get_p_d(&self) -> bool { self.p & PFlag::D as u8 > 0 }
-    fn get_p_x(&self) -> bool { self.p & PFlag::X as u8 > 0 }
-    fn get_p_m(&self) -> bool { self.p & PFlag::M as u8 > 0 }
-    fn get_p_v(&self) -> bool { self.p & PFlag::V as u8 > 0 }
-    fn get_p_n(&self) -> bool { self.p & PFlag::N as u8 > 0 }
+    fn get_p_c(&self) -> bool { self.p & P_C > 0 }
+    fn get_p_z(&self) -> bool { self.p & P_Z > 0 }
+    fn get_p_i(&self) -> bool { self.p & P_I > 0 }
+    fn get_p_d(&self) -> bool { self.p & P_D > 0 }
+    fn get_p_x(&self) -> bool { self.p & P_X > 0 }
+    fn get_p_m(&self) -> bool { self.p & P_M > 0 }
+    fn get_p_v(&self) -> bool { self.p & P_V > 0 }
+    fn get_p_n(&self) -> bool { self.p & P_N > 0 }
 
-    fn set_p_c(&mut self) { self.p |= PFlag::C as u8 }
-    fn set_p_z(&mut self) { self.p |= PFlag::Z as u8 }
-    fn set_p_i(&mut self) { self.p |= PFlag::I as u8 }
-    fn set_p_d(&mut self) { self.p |= PFlag::D as u8 }
-    fn set_p_x(&mut self) { self.p |= PFlag::X as u8 }
-    fn set_p_m(&mut self) { self.p |= PFlag::M as u8 }
-    fn set_p_v(&mut self) { self.p |= PFlag::V as u8 }
-    fn set_p_n(&mut self) { self.p |= PFlag::N as u8 }
+    fn set_p_c(&mut self) { self.p |= P_C }
+    fn set_p_z(&mut self) { self.p |= P_Z }
+    fn set_p_i(&mut self) { self.p |= P_I }
+    fn set_p_d(&mut self) { self.p |= P_D }
+    fn set_p_x(&mut self) { self.p |= P_X }
+    fn set_p_m(&mut self) { self.p |= P_M }
+    fn set_p_v(&mut self) { self.p |= P_V }
+    fn set_p_n(&mut self) { self.p |= P_N }
 
-    fn reset_p_c(&mut self) { self.p &= !(PFlag::C as u8) }
-    fn reset_p_z(&mut self) { self.p &= !(PFlag::Z as u8) }
-    fn reset_p_i(&mut self) { self.p &= !(PFlag::I as u8) }
-    fn reset_p_d(&mut self) { self.p &= !(PFlag::D as u8) }
-    fn reset_p_x(&mut self) { self.p &= !(PFlag::X as u8) }
-    fn reset_p_m(&mut self) { self.p &= !(PFlag::M as u8) }
-    fn reset_p_v(&mut self) { self.p &= !(PFlag::V as u8) }
-    fn reset_p_n(&mut self) { self.p &= !(PFlag::N as u8) }
+    fn reset_p_c(&mut self) { self.p &= !(P_C) }
+    fn reset_p_z(&mut self) { self.p &= !(P_Z) }
+    fn reset_p_i(&mut self) { self.p &= !(P_I) }
+    fn reset_p_d(&mut self) { self.p &= !(P_D) }
+    fn reset_p_x(&mut self) { self.p &= !(P_X) }
+    fn reset_p_m(&mut self) { self.p &= !(P_M) }
+    fn reset_p_v(&mut self) { self.p &= !(P_V) }
+    fn reset_p_n(&mut self) { self.p &= !(P_N) }
 }
+
+// Interrupts
+const COP16: u8   = 0xE4;
+const BRK16: u8   = 0xE6;
+const ABORT16: u8 = 0xE8;
+const NMI16: u8   = 0xEA;
+const IRQ16: u8   = 0xEE;
+const COP8: u8    = 0xF4;
+const ABORT8: u8  = 0xF8;
+const NMI8: u8    = 0xFA;
+const RESET8: u8  = 0xFC;
+const IRQBRK8: u8 = 0xFE;
+
+// P flags
+const P_C: u8 = 0b0000_0001;
+const P_Z: u8 = 0b0000_0010;
+const P_I: u8 = 0b0000_0100;
+const P_D: u8 = 0b0000_1000;
+const P_X: u8 = 0b0001_0000;
+const P_M: u8 = 0b0010_0000;
+const P_V: u8 = 0b0100_0000;
+const P_N: u8 = 0b1000_0000;
