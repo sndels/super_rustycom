@@ -63,6 +63,7 @@ impl Cpu {
     }
 
     // TODO: Page wrapping in emulation mode?
+    // TODO: Wrap flag checks and sets?
     fn execute(&mut self, opcode: u8, addr: u32, abus: &mut ABus) {
         match opcode {
             0x18 => self.op_clc(),
@@ -212,7 +213,37 @@ impl Cpu {
 
     fn op_txs(&mut self) {
         println!("0x{:x} TXS", ((self.pb as u32) << 16) + self.pc as u32);
-        self.s = self.x;
+        if self.e {
+            let result = self.x;
+            self.s = result + 0x0100;
+            // Set/reset zero-flag
+            if result == 0 {
+                self.p |= PFlag::Z as u8;
+            } else {
+                self.p &= !(PFlag::Z as u8);
+            }
+            // Set/reset negative-flag
+            if result & 0x80 > 0 {
+                self.p |= PFlag::N as u8;
+            } else {
+                self.p &= !(PFlag::N as u8);
+            }
+        } else {
+            let result = self.x;
+            self.s = result;
+            // Set/reset zero-flag
+            if result == 0 {
+                self.p |= PFlag::Z as u8;
+            } else {
+                self.p &= !(PFlag::Z as u8);
+            }
+            // Set/reset negative-flag
+            if result & 0x8000 > 0 {
+                self.p |= PFlag::N as u8;
+            } else {
+                self.p &= !(PFlag::N as u8);
+            }
+        }
         self.pc += 1;
     }
 
