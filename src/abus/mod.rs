@@ -1,12 +1,15 @@
 mod rom;
 use self::rom::Rom;
+mod ppu_io;
+use self::ppu_io::PpuIo;
 
 pub struct ABus {
     wram:   [u8; 128000],
     vram:   [u8; 64000],
     oam:    [u8; 544],
     cgram:  [u8; 512],
-    rom: Rom,
+    rom:    Rom,
+    ppu_io: PpuIo,
     // TODO: PPU1,2
     // TODO: PPU control regs
     // TODO: APU com regs
@@ -19,11 +22,12 @@ pub struct ABus {
 impl ABus {
     pub fn new(rom_path: &String) -> ABus {
         ABus {
-            wram:  [0; 128000],
-            vram:  [0; 64000],
-            oam:   [0; 544],
-            cgram: [0; 512],
-            rom:   Rom::new(rom_path),
+            wram:   [0; 128000],
+            vram:   [0; 64000],
+            oam:    [0; 544],
+            cgram:  [0; 512],
+            rom:    Rom::new(rom_path),
+            ppu_io: PpuIo::new(),
         }
     }
 
@@ -60,14 +64,17 @@ impl ABus {
         } else if (offset > 0x1FFF && offset < 0x2100) ||
                   (offset > 0x21FF && offset < 0x4000) {
             panic!("System area {:x} is not used", addr);
-        } else if (offset > 0x20FF && offset < 0x2200) ||
+        } else if (offset > 0x213F && offset < 0x2200) ||
                   (offset > 0x3FFF && offset < 0x6000) {
             panic!("Write to i/o not implemented at addr {:x}", addr);
         } else if offset > 0x5FFF && offset < 0x8000 {
             panic!("Write to expansion not implemented at addr {:x}", addr);
-        } else {
-            // TODO: Only system area wram implemented
+        } else if offset < 0x2000 {
+            // WRAM
             self.wram[offset] = value;
+        } else {
+            // IO PPU
+            self.ppu_io.cpu_write(value, (offset - 0x2100) as u8);
         }
     }
 
