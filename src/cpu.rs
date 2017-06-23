@@ -134,14 +134,38 @@ impl Cpu {
 
     fn op_ldx(&mut self, addr: u32, abus: &ABus) {
         if (self.p & (PFlag::X as u8)) == 0 {
-            let index = abus.read16_le(addr + 1);
-            println!("0x{:x} LDX {:x}", addr, index);
-            self.x = index;
+            let result = abus.read16_le(addr + 1);
+            println!("0x{:x} LDX {:x}", addr, result);
+            self.x = result;
+            // Set/reset zero-flag
+            if result == 0 {
+                self.p |= PFlag::Z as u8;
+            } else {
+                self.p &= !(PFlag::Z as u8);
+            }
+            // Set/reset negative-flag
+            if result & 0x8000 > 0 {
+                self.p |= PFlag::N as u8;
+            } else {
+                self.p &= !(PFlag::N as u8);
+            }
             self.pc += 3;
         } else {
-            let index = abus.read8(addr + 1) as u16;
-            println!("0x{:x} LDX {:x}", addr, index);
-            self.x = index;
+            let result = abus.read8(addr + 1) as u16;
+            println!("0x{:x} LDX {:x}", addr, result);
+            self.x = result;
+            // Set/reset zero-flag
+            if result == 0 {
+                self.p |= PFlag::Z as u8;
+            } else {
+                self.p &= !(PFlag::Z as u8);
+            }
+            // Set/reset negative-flag
+            if result & 0x80 > 0 {
+                self.p |= PFlag::N as u8;
+            } else {
+                self.p &= !(PFlag::N as u8);
+            }
             self.pc += 2;
         }
     }
