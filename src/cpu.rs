@@ -71,6 +71,7 @@ impl Cpu {
             0x78 => self.op_sei(),
             0x8D => self.op_sta(addr, abus),
             0x9A => self.op_txs(),
+            0x9C => self.op_stz(addr, abus),
             0xA2 => self.op_ldx(addr, abus),
             0xA9 => self.op_lda(addr, abus),
             0xC2 => self.op_rep(addr, abus),
@@ -212,6 +213,17 @@ impl Cpu {
             abus.write16_le(self.a, ((self.pb as u32) << 16) + read_addr as u32);
         } else {
             abus.write8(self.a as u8, ((self.pb as u32) << 16) + read_addr as u32);
+        }
+        self.pc += 3;
+    }
+
+    fn op_stz(&mut self, addr: u32, abus: &mut ABus) {
+        let read_addr = abus.read16_le(addr + 1);
+        println!("0x{:x} STZ {:x}", addr, read_addr);
+        if !self.get_p_m() {
+            abus.write16_le(0, ((self.pb as u32) << 16) + read_addr as u32);
+        } else {
+            abus.write8(0, ((self.pb as u32) << 16) + read_addr as u32);
         }
         self.pc += 3;
     }
