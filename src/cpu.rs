@@ -80,9 +80,11 @@ impl Cpu {
         }
     }
 
+    // Instructions
+
     fn op_clc(&mut self) {
         println!("0x{:x} CLC", ((self.pb as u32) << 16) + self.pc as u32);
-        self.p &= !(PFlag::C as u8);
+        self.reset_p_c();
         self.pc += 1;
     }
 
@@ -95,79 +97,79 @@ impl Cpu {
     }
 
     fn op_lda(&mut self, addr: u32, abus: &ABus) {
-        if (self.p & (PFlag::M as u8)) == 0 {
-            let result = abus.read16_le(addr + 1);
-            println!("0x{:x} LDA {:x}", addr, result);
-            self.a = result;
-            // Set/reset zero-flag
-            if result == 0 {
-                self.p |= PFlag::Z as u8;
-            } else {
-                self.p &= !(PFlag::Z as u8);
-            }
-            // Set/reset negative-flag
-            if result & 0x8000 > 0 {
-                self.p |= PFlag::N as u8;
-            } else {
-                self.p &= !(PFlag::N as u8);
-            }
-            self.pc += 3;
-        } else {
+        if self.get_p_m() {
             let result = abus.read8(addr + 1) as u16;
             println!("0x{:x} LDA {:x}", addr, result);
             self.a = (self.a & 0xFF00) + result;
             // Set/reset zero-flag
             if result == 0 {
-                self.p |= PFlag::Z as u8;
+                self.set_p_z();
             } else {
-                self.p &= !(PFlag::Z as u8);
+                self.reset_p_z();
             }
             // Set/reset negative-flag
             // TODO: Should this be result & 0x80 or self.a & 0x8000?
             if result & 0x80 > 0 {
-                self.p |= PFlag::N as u8;
+                self.set_p_n();
             } else {
-                self.p &= !(PFlag::N as u8);
+                self.reset_p_n();
             }
             self.pc += 2;
+        } else {
+            let result = abus.read16_le(addr + 1);
+            println!("0x{:x} LDA {:x}", addr, result);
+            self.a = result;
+            // Set/reset zero-flag
+            if result == 0 {
+                self.set_p_z();
+            } else {
+                self.reset_p_z();
+            }
+            // Set/reset negative-flag
+            if result & 0x8000 > 0 {
+                self.set_p_n();
+            } else {
+                self.reset_p_n();
+            }
+            self.pc += 3;
         }
     }
 
     fn op_ldx(&mut self, addr: u32, abus: &ABus) {
-        if (self.p & (PFlag::X as u8)) == 0 {
-            let result = abus.read16_le(addr + 1);
-            println!("0x{:x} LDX {:x}", addr, result);
-            self.x = result;
-            // Set/reset zero-flag
-            if result == 0 {
-                self.p |= PFlag::Z as u8;
-            } else {
-                self.p &= !(PFlag::Z as u8);
-            }
-            // Set/reset negative-flag
-            if result & 0x8000 > 0 {
-                self.p |= PFlag::N as u8;
-            } else {
-                self.p &= !(PFlag::N as u8);
-            }
-            self.pc += 3;
-        } else {
+        if self.get_p_x() {
             let result = abus.read8(addr + 1) as u16;
             println!("0x{:x} LDX {:x}", addr, result);
             self.x = result;
             // Set/reset zero-flag
             if result == 0 {
-                self.p |= PFlag::Z as u8;
+                self.set_p_z();
             } else {
-                self.p &= !(PFlag::Z as u8);
+                self.reset_p_z();
             }
             // Set/reset negative-flag
             if result & 0x80 > 0 {
-                self.p |= PFlag::N as u8;
+                self.set_p_n();
             } else {
-                self.p &= !(PFlag::N as u8);
+                self.reset_p_n();
             }
             self.pc += 2;
+        } else {
+            let result = abus.read16_le(addr + 1);
+            println!("0x{:x} LDX {:x}", addr, result);
+            self.x = result;
+            // Set/reset zero-flag
+            if result == 0 {
+                self.set_p_z();
+            } else {
+                self.reset_p_z();
+            }
+            // Set/reset negative-flag
+            if result & 0x8000 > 0 {
+                self.set_p_n();
+            } else {
+                self.reset_p_n();
+            }
+            self.pc += 3;
         }
     }
 
@@ -177,10 +179,11 @@ impl Cpu {
         self.p &= !bits;
         // Emulation forces M and X to 1
         if self.e {
-            self.p |= PFlag::M as u8 | PFlag::X as u8;
+            self.set_p_m();
+            self.set_p_x();
         }
         // X = 1 forces XH and YH to 0x00
-        if self.p & PFlag::X as u8 > 0 {
+        if self.get_p_x() {
             self.x &= 0x00FF;
             self.y &= 0x00FF;
         }
@@ -189,7 +192,7 @@ impl Cpu {
 
     fn op_sei(&mut self) {
         println!("0x{:x} SEI", ((self.pb as u32) << 16) + self.pc as u32);
-        self.p |= PFlag::I as u8;
+        self.set_p_i();
         self.pc += 1;
     }
 
@@ -203,7 +206,7 @@ impl Cpu {
     fn op_sta(&mut self, addr: u32, abus: &mut ABus) {
         let read_addr = abus.read16_le(addr + 1);
         println!("0x{:x} STA {:x}", addr, read_addr);
-        if (self.p & (PFlag::M as u8)) == 0 {
+        if !self.get_p_m() {
             abus.write16_le(self.a, ((self.pb as u32) << 16) + read_addr as u32);
         } else {
             abus.write8(self.a as u8, ((self.pb as u32) << 16) + read_addr as u32);
@@ -218,42 +221,42 @@ impl Cpu {
             self.s = result + 0x0100;
             // Set/reset zero-flag
             if result == 0 {
-                self.p |= PFlag::Z as u8;
+                self.set_p_z();
             } else {
-                self.p &= !(PFlag::Z as u8);
+                self.reset_p_z();
             }
             // Set/reset negative-flag
             if result & 0x80 > 0 {
-                self.p |= PFlag::N as u8;
+                self.set_p_n();
             } else {
-                self.p &= !(PFlag::N as u8);
+                self.reset_p_n();
             }
         } else {
             let result = self.x;
             self.s = result;
             // Set/reset zero-flag
             if result == 0 {
-                self.p |= PFlag::Z as u8;
+                self.set_p_z();
             } else {
-                self.p &= !(PFlag::Z as u8);
+                self.reset_p_z();
             }
             // Set/reset negative-flag
             if result & 0x8000 > 0 {
-                self.p |= PFlag::N as u8;
+                self.set_p_n();
             } else {
-                self.p &= !(PFlag::N as u8);
+                self.reset_p_n();
             }
         }
         self.pc += 1;
     }
 
-
     fn op_xce(&mut self) {
         println!("0x{:x} XCE", ((self.pb as u32) << 16) + self.pc as u32);
-        self.e = self.p & (PFlag::C as u8) == 1;
+        self.e = self.get_p_c();
         // Emulation forces M and X -flags to 1
         if self.e {
-            self.p |= PFlag::M  as u8 | PFlag::X as u8;
+            self.set_p_m();
+            self.set_p_x();
             // X = 1 forces XH and YH to 0x00
             self.x &= 0x00FF;
             self.y &= 0x00FF;
@@ -261,4 +264,31 @@ impl Cpu {
         self.pc += 1;
     }
 
+    // Flag operations
+    fn get_p_c(&self) -> bool { self.p & PFlag::C as u8 > 0 }
+    fn get_p_z(&self) -> bool { self.p & PFlag::Z as u8 > 0 }
+    fn get_p_i(&self) -> bool { self.p & PFlag::I as u8 > 0 }
+    fn get_p_d(&self) -> bool { self.p & PFlag::D as u8 > 0 }
+    fn get_p_x(&self) -> bool { self.p & PFlag::X as u8 > 0 }
+    fn get_p_m(&self) -> bool { self.p & PFlag::M as u8 > 0 }
+    fn get_p_v(&self) -> bool { self.p & PFlag::V as u8 > 0 }
+    fn get_p_n(&self) -> bool { self.p & PFlag::N as u8 > 0 }
+
+    fn set_p_c(&mut self) { self.p |= PFlag::C as u8 }
+    fn set_p_z(&mut self) { self.p |= PFlag::Z as u8 }
+    fn set_p_i(&mut self) { self.p |= PFlag::I as u8 }
+    fn set_p_d(&mut self) { self.p |= PFlag::D as u8 }
+    fn set_p_x(&mut self) { self.p |= PFlag::X as u8 }
+    fn set_p_m(&mut self) { self.p |= PFlag::M as u8 }
+    fn set_p_v(&mut self) { self.p |= PFlag::V as u8 }
+    fn set_p_n(&mut self) { self.p |= PFlag::N as u8 }
+
+    fn reset_p_c(&mut self) { self.p &= !(PFlag::C as u8) }
+    fn reset_p_z(&mut self) { self.p &= !(PFlag::Z as u8) }
+    fn reset_p_i(&mut self) { self.p &= !(PFlag::I as u8) }
+    fn reset_p_d(&mut self) { self.p &= !(PFlag::D as u8) }
+    fn reset_p_x(&mut self) { self.p &= !(PFlag::X as u8) }
+    fn reset_p_m(&mut self) { self.p &= !(PFlag::M as u8) }
+    fn reset_p_v(&mut self) { self.p &= !(PFlag::V as u8) }
+    fn reset_p_n(&mut self) { self.p &= !(PFlag::N as u8) }
 }
