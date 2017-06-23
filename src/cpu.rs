@@ -150,6 +150,15 @@ impl Cpu {
         let bits = abus.read8(addr + 1);
         println!("0x{:x} REP {:x}", addr, bits);
         self.p &= !bits;
+        // Emulation forces M and X to 1
+        if self.e {
+            self.p |= PFlag::M as u8 | PFlag::X as u8;
+        }
+        // X = 1 forces XH and YH to 0x00
+        if self.p & PFlag::X as u8 > 0 {
+            self.x &= 0x00FF;
+            self.y &= 0x00FF;
+        }
         self.pc += 2;
     }
 
@@ -187,6 +196,13 @@ impl Cpu {
     fn op_xce(&mut self) {
         println!("0x{:x} XCE", ((self.pb as u32) << 16) + self.pc as u32);
         self.e = self.p & (PFlag::C as u8) == 1;
+        // Emulation forces M and X -flags to 1
+        if self.e {
+            self.p |= PFlag::M  as u8 | PFlag::X as u8;
+            // X = 1 forces XH and YH to 0x00
+            self.x &= 0x00FF;
+            self.y &= 0x00FF;
+        }
         self.pc += 1;
     }
 
