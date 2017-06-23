@@ -56,7 +56,7 @@ impl Cpu {
 
     pub fn run(&mut self, abus: &mut ABus) {
         loop {
-            let addr = ((self.pb as u32) << 16) + self.pc as u32;
+            let addr = self.get_pb_pc();
             let opcode = abus.read8(addr);
             self.execute(opcode, addr, abus);
         }
@@ -80,10 +80,12 @@ impl Cpu {
         }
     }
 
+    fn get_pb_pc(&self) -> u32 { ((self.pb as u32) << 16) + self.pc as u32 }
+
     // Instructions
 
     fn op_clc(&mut self) {
-        println!("0x{:x} CLC", ((self.pb as u32) << 16) + self.pc as u32);
+        println!("0x{:x} CLC", self.get_pb_pc());
         self.reset_p_c();
         self.pc += 1;
     }
@@ -191,7 +193,7 @@ impl Cpu {
     }
 
     fn op_sei(&mut self) {
-        println!("0x{:x} SEI", ((self.pb as u32) << 16) + self.pc as u32);
+        println!("0x{:x} SEI", self.get_pb_pc());
         self.set_p_i();
         self.pc += 1;
     }
@@ -215,7 +217,7 @@ impl Cpu {
     }
 
     fn op_txs(&mut self) {
-        println!("0x{:x} TXS", ((self.pb as u32) << 16) + self.pc as u32);
+        println!("0x{:x} TXS", self.get_pb_pc());
         if self.e {
             let result = self.x;
             self.s = result + 0x0100;
@@ -251,7 +253,7 @@ impl Cpu {
     }
 
     fn op_xce(&mut self) {
-        println!("0x{:x} XCE", ((self.pb as u32) << 16) + self.pc as u32);
+        println!("0x{:x} XCE", self.get_pb_pc());
         self.e = self.get_p_c();
         // Emulation forces M and X -flags to 1
         if self.e {
