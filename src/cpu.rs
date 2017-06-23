@@ -58,6 +58,7 @@ impl Cpu {
     }
 
     fn get_pb_pc(&self) -> u32 { ((self.pb as u32) << 16) + self.pc as u32 }
+    fn get_pb_addr(&self, addr: u16) -> u32 { ((self.pb as u32) << 16) + addr as u32 }
 
     // Instructions
 
@@ -186,9 +187,9 @@ impl Cpu {
         let read_addr = abus.read16_le(addr + 1);
         println!("0x{:x} STA {:x}", addr, read_addr);
         if !self.get_p_m() {
-            abus.write16_le(self.a, ((self.pb as u32) << 16) + read_addr as u32);
+            abus.write16_le(self.a, self.get_pb_addr(read_addr));
         } else {
-            abus.write8(self.a as u8, ((self.pb as u32) << 16) + read_addr as u32);
+            abus.write8(self.a as u8, self.get_pb_addr(read_addr));
         }
         self.pc += 3;
     }
@@ -197,9 +198,9 @@ impl Cpu {
         let read_addr = abus.read16_le(addr + 1);
         println!("0x{:x} STZ {:x}", addr, read_addr);
         if !self.get_p_m() {
-            abus.write16_le(0, ((self.pb as u32) << 16) + read_addr as u32);
+            abus.write16_le(0, self.get_pb_addr(read_addr));
         } else {
-            abus.write8(0, ((self.pb as u32) << 16) + read_addr as u32);
+            abus.write8(0, self.get_pb_addr(read_addr));
         }
         self.pc += 3;
     }
