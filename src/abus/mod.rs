@@ -8,6 +8,7 @@ pub struct ABus {
     oam:      [u8; 544],
     cgram:    [u8; 512],
     rom:      Rom,
+    mpy_div:  MpyDiv,
     // PPU IO
     ppu_io:   [u8; 64],
     bg_ofs:   [DoubleReg; 8],
@@ -17,6 +18,14 @@ pub struct ABus {
     rd_cgram: DoubleReg,
     op_hct:   DoubleReg,
     op_vct:   DoubleReg,
+    // "On-chip" CPU W
+    nmitimen: u8,
+    wrio:     u8,
+    htime:    u16,
+    vtime:    u16,
+    mdmaen:   u8,
+    hdmaen:   u8,
+    memsel:   u8,
     // TODO: PPU1,2
     // TODO: PPU control regs
     // TODO: APU com regs
@@ -35,6 +44,7 @@ impl ABus {
             oam:      [0; 544],
             cgram:    [0; 512],
             rom:      Rom::new(rom_path),
+            mpy_div:  MpyDiv::new(),
             ppu_io:   [0; 64],
             bg_ofs:   [DoubleReg::new(); 8],
             m7:       [DoubleReg::new(); 6],
@@ -43,6 +53,13 @@ impl ABus {
             rd_cgram: DoubleReg::new(),
             op_hct:   DoubleReg::new(),
             op_vct:   DoubleReg::new(),
+            nmitimen: 0x00,
+            wrio:     0xFF,
+            htime:    0x01FF,
+            vtime:    0x01FF,
+            mdmaen:   0x00,
+            hdmaen:   0x00,
+            memsel:   0x00,
         };
         abus.ppu_io[mmap::INIDISP] = 0x08;
         abus.ppu_io[mmap::BGMODE]  = 0x0F;
@@ -175,20 +192,20 @@ impl ABus {
                     mmap::WMADDM   => panic!("Write {:#01$x}: WMADDM not implemented", addr, 8),
                     mmap::WMADDH   => panic!("Write {:#01$x}: WMADDH not implemented", addr, 8),
                     mmap::JOYWR    => panic!("Write {:#01$x}: JOYWR not implemented", addr, 8),
-                    mmap::NMITIMEN => panic!("Write {:#01$x}: NMITIMEN not implemented", addr, 8),
-                    mmap::WRIO     => panic!("Write {:#01$x}: WRIO not implemented", addr, 8),
-                    mmap::WRMPYA   => panic!("Write {:#01$x}: WRMPYA not implemented", addr, 8),
-                    mmap::WRMPYB   => panic!("Write {:#01$x}: WRMPYB not implemented", addr, 8),
-                    mmap::WRDIVL   => panic!("Write {:#01$x}: WRDIVL not implemented", addr, 8),
-                    mmap::WRDIVH   => panic!("Write {:#01$x}: WRDIVH not implemented", addr, 8),
-                    mmap::WRDIVB   => panic!("Write {:#01$x}: WRDIVB not implemented", addr, 8),
-                    mmap::HTIMEL   => panic!("Write {:#01$x}: HTIMEL not implemented", addr, 8),
-                    mmap::HTIMEH   => panic!("Write {:#01$x}: HTIMEH not implemented", addr, 8),
-                    mmap::VTIMEL   => panic!("Write {:#01$x}: VTIMEL not implemented", addr, 8),
-                    mmap::VTIMEH   => panic!("Write {:#01$x}: VTIMEH not implemented", addr, 8),
-                    mmap::MDMAEN   => panic!("Write {:#01$x}: MDMAEN not implemented", addr, 8),
-                    mmap::HDMAEN   => panic!("Write {:#01$x}: HDMAEN not implemented", addr, 8),
-                    mmap::MEMSEL   => panic!("Write {:#01$x}: HDMAEN not implemented", addr, 8),
+                    mmap::NMITIMEN => self.nmitimen = value,
+                    mmap::WRIO     => self.wrio = value,
+                    mmap::WRMPYA   => self.mpy_div.set_mpy_a(value),
+                    mmap::WRMPYB   => self.mpy_div.set_mpy_b(value),
+                    mmap::WRDIVL   => self.mpy_div.set_dividend_low(value),
+                    mmap::WRDIVH   => self.mpy_div.set_dividend_high(value),
+                    mmap::WRDIVB   => self.mpy_div.set_divisor(value),
+                    mmap::HTIMEL   => self.htime = (self.htime & 0xFF00) | value as u16,
+                    mmap::HTIMEH   => self.htime = ((value as u16) << 8) | (self.htime & 0x00FF),
+                    mmap::VTIMEL   => self.vtime = (self.vtime & 0xFF00) | value as u16,
+                    mmap::VTIMEH   => self.vtime = ((value as u16) << 8) | (self.vtime & 0x00FF),
+                    mmap::MDMAEN   => self.mdmaen = value, // TODO: Start transfer
+                    mmap::HDMAEN   => self.hdmaen = value,
+                    mmap::MEMSEL   => self.memsel = value,
                     mmap::DMA_FIRST...mmap::DMA_LAST => { // DMA
                         panic!("Write {:#01$x}: DMA not implemented", addr, 8)
                     }
