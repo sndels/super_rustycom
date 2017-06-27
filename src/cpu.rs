@@ -189,6 +189,34 @@ impl Cpu {
                     self.pc += 3;
                 }
             }
+            TAX => {
+                println!("0x{:x} TAX", addr);
+                let result = self.a;
+                if self.get_p_x() {
+                    self.x = result & 0x00FF;
+                    // Set/reset negative-flag
+                    if result & 0x80 > 0 {
+                        self.set_p_n();
+                    } else {
+                        self.reset_p_n();
+                    }
+                } else {
+                    self.x = result;
+                    // Set/reset negative-flag
+                    if result & 0x8000 > 0 {
+                        self.set_p_n();
+                    } else {
+                        self.reset_p_n();
+                    }
+                }
+                // Set/reset zero-flag
+                if result == 0 {
+                    self.set_p_z();
+                } else {
+                    self.reset_p_z();
+                }
+                self.pc += 1;
+            }
             REP => {
                 let bits = abus.read8(addr + 1);
                 println!("0x{:x} REP {:x}", addr, bits);
@@ -205,11 +233,52 @@ impl Cpu {
                 }
                 self.pc += 2;
             }
+            BNE => {
+                let offset = abus.read8(addr + 1) as i8;
+                println!("0x{:x} BNE {:x}", addr, offset);
+                if !self.get_p_z() {
+                    self.pc += 2;
+                    if offset < 0 {// TODO: Check negative offset, wrapping for u8 or u16?
+                        self.pc -= offset.abs() as u16;
+                    } else {
+                        self.pc += offset.abs() as u16;
+                    }
+                } else {
+                    self.pc += 2;
+                }
+            }
             SEP => {
                 let bits = abus.read8(addr + 1);
                 println!("0x{:x} SEP {:x}", addr, bits);
                 self.p |= bits;
                 self.pc += 2;
+            }
+            INX => {
+                println!("0x{:x} INX", addr);
+                if self.get_p_x() {
+                    self.x = ((self.x as u8) + 1) as u16;
+                    // Set/reset negative-flag
+                    if self.x & 0x80 > 0 {
+                        self.set_p_n();
+                    } else {
+                        self.reset_p_n();
+                    }
+                } else {
+                    self.x += 1;
+                    // Set/reset negative-flag
+                    if self.x & 0x8000 > 0 {
+                        self.set_p_n();
+                    } else {
+                        self.reset_p_n();
+                    }
+                }
+                // Set/reset zero-flag
+                if self.x == 0 {
+                    self.set_p_z();
+                } else {
+                    self.reset_p_z();
+                }
+                self.pc += 1;
             }
             XCE => {
                 println!("0x{:x} XCE", addr);
@@ -291,6 +360,9 @@ const TXS: u8 = 0x9A;
 const STZ: u8 = 0x9C;
 const LDX: u8 = 0xA2;
 const LDA: u8 = 0xA9;
+const TAX: u8 = 0xAA;
 const REP: u8 = 0xC2;
+const BNE: u8 = 0xD0;
 const SEP: u8 = 0xE2;
+const INX: u8 = 0xE8;
 const XCE: u8 = 0xFB;
