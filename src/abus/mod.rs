@@ -213,6 +213,66 @@ impl ABus {
     }
 }
 
+struct MpyDiv {
+    mpy_a:    u8,
+    mpy_b:    u8,
+    dividend: u16,
+    divisor:  u8,
+    mpy_res:  u16, // Doubles as division reminder
+    div_res:  u16,
+}
+
+impl MpyDiv {
+    pub fn new() -> MpyDiv {
+        MpyDiv {
+            mpy_a:    0xFF,
+            mpy_b:    0xFF,
+            dividend: 0xFFFF,
+            divisor:  0xFF,
+            mpy_res:  0x0000, // TODO: Check result inits
+            div_res:  0x0000,
+        }
+    }
+
+    pub fn set_mpy_a(&mut self, value: u8) {
+        self.mpy_a = value;
+    }
+
+    pub fn set_mpy_b(&mut self, value: u8) {
+        self.mpy_b = value;
+        self.mpy_res = (self.mpy_a as u16) * (self.mpy_b as u16); // TODO: Actual implementation?, timing
+        self.div_res = self.mpy_b as u16; // TODO: Double-check this side-effect
+    }
+
+    pub fn set_dividend_low(&mut self, value: u8) {
+        self.dividend = (self.dividend & 0xFF00) | value as u16;
+    }
+
+    pub fn set_dividend_high(&mut self, value: u8) {
+        self.dividend = value as u16 | (self.dividend & 0x00FF);
+    }
+
+    pub fn set_divisor(&mut self, value: u8) {
+        self.divisor = value; // TODO: Division, timing 
+    }
+
+    pub fn get_mpy_res_low(&self) -> u8 {
+        self.mpy_res as u8
+    }
+
+    pub fn get_mpy_res_high(&self) -> u8 {
+        (self.mpy_res >> 8) as u8
+    }
+
+    pub fn get_div_res_low(&self) -> u8 {
+        self.div_res as u8
+    }
+
+    pub fn get_div_res_high(&self) -> u8 {
+        (self.div_res >> 8) as u8
+    }
+}
+
 #[derive(Copy, Clone)]
 struct DoubleReg {
     value: u16,
