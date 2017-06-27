@@ -42,218 +42,194 @@ impl Cpu {
     // TODO: Wrap flag checks and sets?
     fn execute(&mut self, opcode: u8, addr: u32, abus: &mut ABus) {
         match opcode {
-            0x18 => self.op_clc(),
-            0x20 => self.op_jsr(addr, abus),
-            0x78 => self.op_sei(),
-            0x8D => self.op_sta(addr, abus),
-            0x9A => self.op_txs(),
-            0x9C => self.op_stz(addr, abus),
-            0xA2 => self.op_ldx(addr, abus),
-            0xA9 => self.op_lda(addr, abus),
-            0xC2 => self.op_rep(addr, abus),
-            0xE2 => self.op_sep(addr, abus),
-            0xFB => self.op_xce(),
+            CLC => {
+                println!("0x{:x} CLC", addr);
+                self.reset_p_c();
+                self.pc += 1;
+            }
+            JSR => {
+                let sub_addr = abus.read16_le(addr + 1);
+                println!("0x{:x} JSR {:x}", addr, sub_addr);
+                abus.push_stack(self.pc + 2, self.s);
+                self.s -= 2;
+                self.pc = sub_addr;
+            }
+            SEI => {
+                println!("0x{:x} SEI", addr);
+                self.set_p_i();
+                self.pc += 1;
+            }
+            STA => {
+                let read_addr = abus.read16_le(addr + 1);
+                println!("0x{:x} STA {:x}", addr, read_addr);
+                if !self.get_p_m() {
+                    abus.write16_le(self.a, self.get_pb_addr(read_addr));
+                } else {
+                    abus.write8(self.a as u8, self.get_pb_addr(read_addr));
+                }
+                self.pc += 3;
+            }
+            TXS => {
+                println!("0x{:x} TXS", addr);
+                if self.e {
+                    let result = self.x;
+                    self.s = result + 0x0100;
+                    // Set/reset zero-flag
+                    if result == 0 {
+                        self.set_p_z();
+                    } else {
+                        self.reset_p_z();
+                    }
+                    // Set/reset negative-flag
+                    if result & 0x80 > 0 {
+                        self.set_p_n();
+                    } else {
+                        self.reset_p_n();
+                    }
+                } else {
+                    let result = self.x;
+                    self.s = result;
+                    // Set/reset zero-flag
+                    if result == 0 {
+                        self.set_p_z();
+                    } else {
+                        self.reset_p_z();
+                    }
+                    // Set/reset negative-flag
+                    if result & 0x8000 > 0 {
+                        self.set_p_n();
+                    } else {
+                        self.reset_p_n();
+                    }
+                }
+                self.pc += 1;
+            }
+            STZ => {
+                let read_addr = abus.read16_le(addr + 1);
+                println!("0x{:x} STZ {:x}", addr, read_addr);
+                if !self.get_p_m() {
+                    abus.write16_le(0, self.get_pb_addr(read_addr));
+                } else {
+                    abus.write8(0, self.get_pb_addr(read_addr));
+                }
+                self.pc += 3;
+            }
+            LDX => {
+                if self.get_p_x() {
+                    let result = abus.read8(addr + 1) as u16;
+                    println!("0x{:x} LDX {:x}", addr, result);
+                    self.x = result;
+                    // Set/reset zero-flag
+                    if result == 0 {
+                        self.set_p_z();
+                    } else {
+                        self.reset_p_z();
+                    }
+                    // Set/reset negative-flag
+                    if result & 0x80 > 0 {
+                        self.set_p_n();
+                    } else {
+                        self.reset_p_n();
+                    }
+                    self.pc += 2;
+                } else {
+                    let result = abus.read16_le(addr + 1);
+                    println!("0x{:x} LDX {:x}", addr, result);
+                    self.x = result;
+                    // Set/reset zero-flag
+                    if result == 0 {
+                        self.set_p_z();
+                    } else {
+                        self.reset_p_z();
+                    }
+                    // Set/reset negative-flag
+                    if result & 0x8000 > 0 {
+                        self.set_p_n();
+                    } else {
+                        self.reset_p_n();
+                    }
+                    self.pc += 3;
+                }
+            }
+            LDA => {
+                if self.get_p_m() {
+                    let result = abus.read8(addr + 1) as u16;
+                    println!("0x{:x} LDA {:x}", addr, result);
+                    self.a = (self.a & 0xFF00) + result;
+                    // Set/reset zero-flag
+                    if result == 0 {
+                        self.set_p_z();
+                    } else {
+                        self.reset_p_z();
+                    }
+                    // Set/reset negative-flag
+                    // TODO: Should this be result & 0x80 or self.a & 0x8000?
+                    if result & 0x80 > 0 {
+                        self.set_p_n();
+                    } else {
+                        self.reset_p_n();
+                    }
+                    self.pc += 2;
+                } else {
+                    let result = abus.read16_le(addr + 1);
+                    println!("0x{:x} LDA {:x}", addr, result);
+                    self.a = result;
+                    // Set/reset zero-flag
+                    if result == 0 {
+                        self.set_p_z();
+                    } else {
+                        self.reset_p_z();
+                    }
+                    // Set/reset negative-flag
+                    if result & 0x8000 > 0 {
+                        self.set_p_n();
+                    } else {
+                        self.reset_p_n();
+                    }
+                    self.pc += 3;
+                }
+            }
+            REP => {
+                let bits = abus.read8(addr + 1);
+                println!("0x{:x} REP {:x}", addr, bits);
+                self.p &= !bits;
+                // Emulation forces M and X to 1
+                if self.e {
+                    self.set_p_m();
+                    self.set_p_x();
+                }
+                // X = 1 forces XH and YH to 0x00
+                if self.get_p_x() {
+                    self.x &= 0x00FF;
+                    self.y &= 0x00FF;
+                }
+                self.pc += 2;
+            }
+            SEP => {
+                let bits = abus.read8(addr + 1);
+                println!("0x{:x} SEP {:x}", addr, bits);
+                self.p |= bits;
+                self.pc += 2;
+            }
+            XCE => {
+                println!("0x{:x} XCE", addr);
+                self.e = self.get_p_c();
+                // Emulation forces M and X -flags to 1
+                if self.e {
+                    self.set_p_m();
+                    self.set_p_x();
+                    // X = 1 forces XH and YH to 0x00
+                    self.x &= 0x00FF;
+                    self.y &= 0x00FF;
+                }
+                self.pc += 1;
+            }
             _ => panic!("Unknown opcode {:X}!", opcode),
         }
     }
 
     fn get_pb_pc(&self) -> u32 { ((self.pb as u32) << 16) + self.pc as u32 }
     fn get_pb_addr(&self, addr: u16) -> u32 { ((self.pb as u32) << 16) + addr as u32 }
-
-    // Instructions
-
-    fn op_clc(&mut self) {
-        println!("0x{:x} CLC", self.get_pb_pc());
-        self.reset_p_c();
-        self.pc += 1;
-    }
-
-    fn op_jsr(&mut self, addr: u32, abus: &mut ABus) {
-        let sub_addr = abus.read16_le(addr + 1);
-        println!("0x{:x} JSR {:x}", addr, sub_addr);
-        abus.push_stack(self.pc + 2, self.s);
-        self.s -= 2;
-        self.pc = sub_addr;
-    }
-
-    fn op_lda(&mut self, addr: u32, abus: &mut ABus) {
-        if self.get_p_m() {
-            let result = abus.read8(addr + 1) as u16;
-            println!("0x{:x} LDA {:x}", addr, result);
-            self.a = (self.a & 0xFF00) + result;
-            // Set/reset zero-flag
-            if result == 0 {
-                self.set_p_z();
-            } else {
-                self.reset_p_z();
-            }
-            // Set/reset negative-flag
-            // TODO: Should this be result & 0x80 or self.a & 0x8000?
-            if result & 0x80 > 0 {
-                self.set_p_n();
-            } else {
-                self.reset_p_n();
-            }
-            self.pc += 2;
-        } else {
-            let result = abus.read16_le(addr + 1);
-            println!("0x{:x} LDA {:x}", addr, result);
-            self.a = result;
-            // Set/reset zero-flag
-            if result == 0 {
-                self.set_p_z();
-            } else {
-                self.reset_p_z();
-            }
-            // Set/reset negative-flag
-            if result & 0x8000 > 0 {
-                self.set_p_n();
-            } else {
-                self.reset_p_n();
-            }
-            self.pc += 3;
-        }
-    }
-
-    fn op_ldx(&mut self, addr: u32, abus: &mut ABus) {
-        if self.get_p_x() {
-            let result = abus.read8(addr + 1) as u16;
-            println!("0x{:x} LDX {:x}", addr, result);
-            self.x = result;
-            // Set/reset zero-flag
-            if result == 0 {
-                self.set_p_z();
-            } else {
-                self.reset_p_z();
-            }
-            // Set/reset negative-flag
-            if result & 0x80 > 0 {
-                self.set_p_n();
-            } else {
-                self.reset_p_n();
-            }
-            self.pc += 2;
-        } else {
-            let result = abus.read16_le(addr + 1);
-            println!("0x{:x} LDX {:x}", addr, result);
-            self.x = result;
-            // Set/reset zero-flag
-            if result == 0 {
-                self.set_p_z();
-            } else {
-                self.reset_p_z();
-            }
-            // Set/reset negative-flag
-            if result & 0x8000 > 0 {
-                self.set_p_n();
-            } else {
-                self.reset_p_n();
-            }
-            self.pc += 3;
-        }
-    }
-
-    fn op_rep(&mut self, addr: u32, abus: &mut ABus) {
-        let bits = abus.read8(addr + 1);
-        println!("0x{:x} REP {:x}", addr, bits);
-        self.p &= !bits;
-        // Emulation forces M and X to 1
-        if self.e {
-            self.set_p_m();
-            self.set_p_x();
-        }
-        // X = 1 forces XH and YH to 0x00
-        if self.get_p_x() {
-            self.x &= 0x00FF;
-            self.y &= 0x00FF;
-        }
-        self.pc += 2;
-    }
-
-    fn op_sei(&mut self) {
-        println!("0x{:x} SEI", self.get_pb_pc());
-        self.set_p_i();
-        self.pc += 1;
-    }
-
-    fn op_sep(&mut self, addr: u32, abus: &mut ABus) {
-        let bits = abus.read8(addr + 1);
-        println!("0x{:x} SEP {:x}", addr, bits);
-        self.p |= bits;
-        self.pc += 2;
-    }
-
-    fn op_sta(&mut self, addr: u32, abus: &mut ABus) {
-        let read_addr = abus.read16_le(addr + 1);
-        println!("0x{:x} STA {:x}", addr, read_addr);
-        if !self.get_p_m() {
-            abus.write16_le(self.a, self.get_pb_addr(read_addr));
-        } else {
-            abus.write8(self.a as u8, self.get_pb_addr(read_addr));
-        }
-        self.pc += 3;
-    }
-
-    fn op_stz(&mut self, addr: u32, abus: &mut ABus) {
-        let read_addr = abus.read16_le(addr + 1);
-        println!("0x{:x} STZ {:x}", addr, read_addr);
-        if !self.get_p_m() {
-            abus.write16_le(0, self.get_pb_addr(read_addr));
-        } else {
-            abus.write8(0, self.get_pb_addr(read_addr));
-        }
-        self.pc += 3;
-    }
-
-    fn op_txs(&mut self) {
-        println!("0x{:x} TXS", self.get_pb_pc());
-        if self.e {
-            let result = self.x;
-            self.s = result + 0x0100;
-            // Set/reset zero-flag
-            if result == 0 {
-                self.set_p_z();
-            } else {
-                self.reset_p_z();
-            }
-            // Set/reset negative-flag
-            if result & 0x80 > 0 {
-                self.set_p_n();
-            } else {
-                self.reset_p_n();
-            }
-        } else {
-            let result = self.x;
-            self.s = result;
-            // Set/reset zero-flag
-            if result == 0 {
-                self.set_p_z();
-            } else {
-                self.reset_p_z();
-            }
-            // Set/reset negative-flag
-            if result & 0x8000 > 0 {
-                self.set_p_n();
-            } else {
-                self.reset_p_n();
-            }
-        }
-        self.pc += 1;
-    }
-
-    fn op_xce(&mut self) {
-        println!("0x{:x} XCE", self.get_pb_pc());
-        self.e = self.get_p_c();
-        // Emulation forces M and X -flags to 1
-        if self.e {
-            self.set_p_m();
-            self.set_p_x();
-            // X = 1 forces XH and YH to 0x00
-            self.x &= 0x00FF;
-            self.y &= 0x00FF;
-        }
-        self.pc += 1;
-    }
 
     // Flag operations
     fn get_p_c(&self) -> bool { self.p & P_C > 0 }
@@ -305,3 +281,16 @@ const P_X: u8 = 0b0001_0000;
 const P_M: u8 = 0b0010_0000;
 const P_V: u8 = 0b0100_0000;
 const P_N: u8 = 0b1000_0000;
+
+// OPCODES
+const CLC: u8 = 0x18;
+const JSR: u8 = 0x20;
+const SEI: u8 = 0x78;
+const STA: u8 = 0x8D;
+const TXS: u8 = 0x9A;
+const STZ: u8 = 0x9C;
+const LDX: u8 = 0xA2;
+const LDA: u8 = 0xA9;
+const REP: u8 = 0xC2;
+const SEP: u8 = 0xE2;
+const XCE: u8 = 0xFB;
