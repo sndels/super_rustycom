@@ -76,7 +76,7 @@ impl Cpu {
         self.pc = sub_addr;
     }
 
-    fn op_lda(&mut self, addr: u32, abus: &ABus) {
+    fn op_lda(&mut self, addr: u32, abus: &mut ABus) {
         if self.get_p_m() {
             let result = abus.read8(addr + 1) as u16;
             println!("0x{:x} LDA {:x}", addr, result);
@@ -115,7 +115,7 @@ impl Cpu {
         }
     }
 
-    fn op_ldx(&mut self, addr: u32, abus: &ABus) {
+    fn op_ldx(&mut self, addr: u32, abus: &mut ABus) {
         if self.get_p_x() {
             let result = abus.read8(addr + 1) as u16;
             println!("0x{:x} LDX {:x}", addr, result);
@@ -153,7 +153,7 @@ impl Cpu {
         }
     }
 
-    fn op_rep(&mut self, addr: u32, abus: &ABus) {
+    fn op_rep(&mut self, addr: u32, abus: &mut ABus) {
         let bits = abus.read8(addr + 1);
         println!("0x{:x} REP {:x}", addr, bits);
         self.p &= !bits;
@@ -176,7 +176,7 @@ impl Cpu {
         self.pc += 1;
     }
 
-    fn op_sep(&mut self, addr: u32, abus: &ABus) {
+    fn op_sep(&mut self, addr: u32, abus: &mut ABus) {
         let bits = abus.read8(addr + 1);
         println!("0x{:x} SEP {:x}", addr, bits);
         self.p |= bits;

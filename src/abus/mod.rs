@@ -1,16 +1,22 @@
 mod rom;
 use self::rom::Rom;
-mod ppu_io;
-use self::ppu_io::PpuIo;
 mod mmap;
 
 pub struct ABus {
-    wram:   [u8; 128000],
-    vram:   [u8; 64000],
-    oam:    [u8; 544],
-    cgram:  [u8; 512],
-    rom:    Rom,
-    ppu_io: PpuIo,
+    wram:     [u8; 128000],
+    vram:     [u8; 64000],
+    oam:      [u8; 544],
+    cgram:    [u8; 512],
+    rom:      Rom,
+    // PPU IO
+    ppu_io:   [u8; 64],
+    bg_ofs:   [DoubleReg; 8],
+    m7:       [DoubleReg; 6],
+    cg_data:  DoubleReg,
+    rd_oam:   DoubleReg,
+    rd_cgram: DoubleReg,
+    op_hct:   DoubleReg,
+    op_vct:   DoubleReg,
     // TODO: PPU1,2
     // TODO: PPU control regs
     // TODO: APU com regs
@@ -21,18 +27,43 @@ pub struct ABus {
 }
 
 impl ABus {
+    // TODO: Randomize values?
     pub fn new(rom_path: &String) -> ABus {
-        ABus {
-            wram:   [0; 128000],
-            vram:   [0; 64000],
-            oam:    [0; 544],
-            cgram:  [0; 512],
-            rom:    Rom::new(rom_path),
-            ppu_io: PpuIo::new(),
-        }
+        let mut abus: ABus = ABus {
+            wram:     [0; 128000],
+            vram:     [0; 64000],
+            oam:      [0; 544],
+            cgram:    [0; 512],
+            rom:      Rom::new(rom_path),
+            ppu_io:   [0; 64],
+            bg_ofs:   [DoubleReg::new(); 8],
+            m7:       [DoubleReg::new(); 6],
+            cg_data:  DoubleReg::new(),
+            rd_oam:   DoubleReg::new(),
+            rd_cgram: DoubleReg::new(),
+            op_hct:   DoubleReg::new(),
+            op_vct:   DoubleReg::new(),
+        };
+        abus.ppu_io[mmap::INIDISP] = 0x08;
+        abus.ppu_io[mmap::BGMODE]  = 0x0F;
+        abus.ppu_io[mmap::VMAIN]  |= 0xF;
+        abus.m7[0].write(0xFF);
+        abus.m7[0].write(0x00);
+        abus.m7[1].write(0xFF);
+        abus.m7[1].write(0x00);
+        abus.ppu_io[mmap::SETINI] = 0x00;
+        abus.ppu_io[mmap::MPYL]   = 0x01;
+        abus.ppu_io[mmap::MPYM]   = 0x00;
+        abus.ppu_io[mmap::MPYH]   = 0x00;
+        abus.op_hct.write(0xFF);
+        abus.op_hct.write(0x01);
+        abus.op_vct.write(0xFF);
+        abus.op_vct.write(0x01);
+        abus.ppu_io[mmap::STAT78] |= 0b0100_000;
+        abus
     }
 
-    pub fn read8(&self, addr: u32) -> u8 {
+    pub fn read8(&mut self, addr: u32) -> u8 {
         // TODO: Only LoROM, WRAM implemented, under 0x040000
         // TODO: LUT for speed?
         let bank = (addr >> 16) as usize;
@@ -44,7 +75,19 @@ impl ABus {
                         panic!("Read {:#01$x}: WRAM not implemented", addr, 8)
                     }
                     mmap::PPU_IO_FIRST...mmap::PPU_IO_LAST => { // PPU IO
-                        panic!("Read {:#01$x}: PPU IO not implemented", addr, 8)
+                        let offset = bank_addr - mmap::PPU_IO_FIRST;
+                        if offset < mmap::MPYL {
+                            panic!("Read {:#01$x}: Address write-only", addr, 8);
+                        }
+
+                        // Match on read-twice regs, default to reg array
+                        match offset {
+                            mmap::RDOAM   => self.rd_oam.read(),
+                            mmap::RDCGRAM => self.rd_cgram.read(),
+                            mmap::OPHCT   => self.op_hct.read(),
+                            mmap::OPVCT   => self.op_vct.read(),
+                            _       => self.ppu_io[offset]
+                        }
                     }
                     mmap::APU_IO_FIRST...mmap::APU_IO_LAST => { // APU IO
                         panic!("Read {:#01$x}: APU IO not implemented", addr, 8)
@@ -85,7 +128,7 @@ impl ABus {
         }
     }
 
-    pub fn read16_le(&self, addr: u32) -> u16 {
+    pub fn read16_le(&mut self, addr: u32) -> u16 {
         self.read8(addr) as u16 + ((self.read8(addr + 1) as u16) << 8)
     }
 
@@ -99,7 +142,30 @@ impl ABus {
                         self.wram[bank_addr] = value
                     }
                     mmap::PPU_IO_FIRST...mmap::PPU_IO_LAST => { // PPU IO
-                        self.ppu_io.cpu_write(value, (bank_addr - mmap::PPU_IO_FIRST) as u8)
+                        let offset = bank_addr - mmap::PPU_IO_FIRST;
+                        if offset > mmap::SETINI {
+                            panic!("Write {:#01$x}: Address read-only", addr, 8);
+                        }
+
+                        // Match on write-twice regs, default to reg array
+                        match offset {
+                            mmap::BG1HOFS => self.bg_ofs[0].write(value),
+                            mmap::BG1VOFS => self.bg_ofs[1].write(value),
+                            mmap::BG2HOFS => self.bg_ofs[2].write(value),
+                            mmap::BG2VOFS => self.bg_ofs[3].write(value),
+                            mmap::BG3HOFS => self.bg_ofs[4].write(value),
+                            mmap::BG3VOFS => self.bg_ofs[5].write(value),
+                            mmap::BG4HOFS => self.bg_ofs[6].write(value),
+                            mmap::BG4VOFS => self.bg_ofs[7].write(value),
+                            mmap::M7A     => self.m7[0].write(value),
+                            mmap::M7B     => self.m7[1].write(value),
+                            mmap::M7C     => self.m7[2].write(value),
+                            mmap::M7D     => self.m7[3].write(value),
+                            mmap::M7X     => self.m7[4].write(value),
+                            mmap::M7Y     => self.m7[5].write(value),
+                            mmap::CGDATA  => self.cg_data.write(value),
+                            _       => self.ppu_io[offset] = value
+                        }
                     }
                     mmap::APU_IO_FIRST...mmap::APU_IO_LAST => { // APU IO
                         panic!("Write {:#01$x}: APU IO not implemented", addr, 8)
@@ -146,3 +212,35 @@ impl ABus {
         self.write8((value & 0xFF) as u8, (addr - 1) as u32);
     }
 }
+
+#[derive(Copy, Clone)]
+struct DoubleReg {
+    value: u16,
+    high_active: bool, // TODO: Should there be separate flags for read and write?
+}
+
+impl DoubleReg {
+    pub fn new() -> DoubleReg {
+        DoubleReg {
+            value:           0,
+            high_active: false,
+        }
+    }
+
+    pub fn read(&mut self) -> u8 {
+        let value = if self.high_active { (self.value >> 8) as u8 }
+                    else { (self.value & 0xFF) as u8 };
+        self.high_active = !self.high_active;
+        value
+    }
+
+    pub fn write(&mut self, value: u8) {
+        if self.high_active {
+            self.value = (self.value & 0x00FF) | ((value as u16) << 8);
+        } else {
+            self.value = (self.value & 0xFF00) | value as u16;
+        }
+        self.high_active = !self.high_active;
+    }
+}
+
