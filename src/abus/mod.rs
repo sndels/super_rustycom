@@ -34,18 +34,18 @@ impl ABus {
     pub fn read8(&self, addr: u32) -> u8 {
         // TODO: Only LoROM, WRAM implemented, under 0x040000
         // TODO: LUT for speed?
-        if addr < 0x040000 {
-            let bank: usize = (addr >> 16) as usize;
+        let bank: usize = (addr >> 16) as usize;
+        if bank < 0x04 {
             let mut offset: usize = (addr & 0x00FFFF) as usize;
             // WS1 LoROM
             if offset > 0x7FFF {
                 offset -= 0x8000;
                 self.rom.read8(bank * 0x8000 + offset)
             } else {
-                panic!("Offset {} not implemented in system area", offset);
+                panic!("Read from {} not implemented in system area", offset);
             }
         } else {
-            panic!("Access to addr {} no implemented!", addr);
+            panic!("Read from bank {} no implemented!", bank);
         }
     }
 
@@ -55,30 +55,34 @@ impl ABus {
 
     pub fn write8(&mut self, value: u8, addr: u32) {
         let bank: usize = (addr >> 16) as usize;
-        let mut offset: usize = (addr & 0x00FFFF) as usize;
-        // Panic if the address isn't implemented or is read-only
-        if offset > 0x7FFF {
-            panic!("Attempted write to LoROM at {:x}", addr);
-        } else if (offset > 0x1FFF && offset < 0x2100) ||
-                  (offset > 0x21FF && offset < 0x4000) {
-            panic!("System area {:x} is not used", addr);
-        } else if offset == 0x4200 {
-            // TODO: PPU NMITIMEN, reorder properly
-        } else if offset == 0x4201 {
-            // TODO: JOYPAD WRIO, reorder properly
-        } else if (offset > 0x213F && offset < 0x2200) ||
-                  (offset > 0x3FFF && offset < 0x6000) {
-            panic!("Write to i/o not implemented at addr {:x}", addr);
-        } else if offset > 0x5FFF && offset < 0x8000 {
-            panic!("Write to expansion not implemented at addr {:x}", addr);
-        } else if offset < 0x2000 {
-            // WRAM
-            self.wram[offset] = value;
-        } else if offset > 0x20FF && offset < 0x2140 {
-            // IO PPU
-            self.ppu_io.cpu_write(value, (offset - 0x2100) as u8);
+        if bank < 0x04 {
+            let offset: usize = (addr & 0x00FFFF) as usize;
+            // Panic if the address isn't implemented or is read-only
+            if offset > 0x7FFF {
+                panic!("Attempted write to LoROM at {:x}", addr);
+            } else if (offset > 0x1FFF && offset < 0x2100) ||
+                    (offset > 0x21FF && offset < 0x4000) {
+                panic!("System area {:x} is not used", addr);
+            } else if offset == 0x4200 {
+                // TODO: PPU NMITIMEN, reorder properly
+            } else if offset == 0x4201 {
+                // TODO: JOYPAD WRIO, reorder properly
+            } else if (offset > 0x213F && offset < 0x2200) ||
+                    (offset > 0x3FFF && offset < 0x6000) {
+                panic!("Write to i/o not implemented at addr {:x}", addr);
+            } else if offset > 0x5FFF && offset < 0x8000 {
+                panic!("Write to expansion not implemented at addr {:x}", addr);
+            } else if offset < 0x2000 {
+                // WRAM
+                self.wram[offset] = value;
+            } else if offset > 0x20FF && offset < 0x2140 {
+                // IO PPU
+                self.ppu_io.cpu_write(value, (offset - 0x2100) as u8);
+            } else {
+                panic!("Write to addr {:x} not implemented", addr);
+            }
         } else {
-            panic!("Write to addr {:x} not implemented", addr);
+            panic!("Write to bank {:x} not implemented", bank);
         }
     }
 
