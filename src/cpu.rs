@@ -298,6 +298,25 @@ impl Cpu {
         }
     }
 
+    // Operand fetchers
+    fn fetch_operand_8(&self, abus: &mut ABus) -> u8 {
+        abus.read8(self.get_pb_start() | (self.pc.wrapping_add(1) as u32))
+    }
+
+    fn fetch_operand_16(&self, abus: &mut ABus) -> u16 {
+        let pb = self.get_pb_start();
+        (abus.read8(pb | (self.pc.wrapping_add(1) as u32)) as u16) |
+        ((abus.read8(pb | (self.pc.wrapping_add(2) as u32)) as u16) << 8)
+    }
+
+    fn fetch_operand_24(&self, abus: &mut ABus) -> u32 {
+        let pb = self.get_pb_start();
+        (abus.read8(pb | (self.pc.wrapping_add(1) as u32)) as u32) |
+        ((abus.read8(pb | (self.pc.wrapping_add(2) as u32)) as u32) << 8) |
+        ((abus.read8(pb | (self.pc.wrapping_add(3) as u32)) as u32) << 16)
+    }
+
+    fn get_pb_start(&self) -> u32 { (self.pb as u32) << 16 }
     fn get_pb_pc(&self) -> u32 { ((self.pb as u32) << 16) + self.pc as u32 }
     fn get_pb_addr(&self, addr: u16) -> u32 { ((self.pb as u32) << 16) + addr as u32 }
 
