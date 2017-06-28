@@ -39,36 +39,35 @@ impl Cpu {
     }
 
     // TODO: Page wrapping in emulation mode?
-    // TODO: wrapping_adds to self.pc, even in the middle of instruction
     // TODO: Wrap flag checks and sets?
     fn execute(&mut self, opcode: u8, addr: u32, abus: &mut ABus) {
         match opcode {
             CLC => {
                 println!("0x{:x} CLC", addr);
                 self.reset_p_c();
-                self.pc += 1;
+                self.pc = self.pc.wrapping_add(1);
             }
             JSR => {
-                let sub_addr = abus.read16_le(addr + 1);
+                let sub_addr = self.fetch_operand_16(abus);
                 println!("0x{:x} JSR {:x}", addr, sub_addr);
-                abus.push_stack(self.pc + 2, self.s);
-                self.s -= 2;
+                abus.push_stack(self.pc.wrapping_add(2), self.s);
+                self.s = self.s.wrapping_sub(2);
                 self.pc = sub_addr;
             }
             SEI => {
                 println!("0x{:x} SEI", addr);
                 self.set_p_i();
-                self.pc += 1;
+                self.pc = self.pc.wrapping_add(1);
             }
             STA => {
-                let read_addr = abus.read16_le(addr + 1);
+                let read_addr = self.fetch_operand_16(abus);
                 println!("0x{:x} STA {:x}", addr, read_addr);
                 if !self.get_p_m() {
                     abus.write16_le(self.a, self.get_pb_addr(read_addr));
                 } else {
                     abus.write8(self.a as u8, self.get_pb_addr(read_addr));
                 }
-                self.pc += 3;
+                self.pc = self.pc.wrapping_add(3);
             }
             TXS => {
                 println!("0x{:x} TXS", addr);
@@ -103,17 +102,17 @@ impl Cpu {
                         self.reset_p_n();
                     }
                 }
-                self.pc += 1;
+                self.pc = self.pc.wrapping_add(1);
             }
             STZ => {
-                let read_addr = abus.read16_le(addr + 1);
+                let read_addr = self.fetch_operand_16(abus);
                 println!("0x{:x} STZ {:x}", addr, read_addr);
                 if !self.get_p_m() {
                     abus.write16_le(0, self.get_pb_addr(read_addr));
                 } else {
                     abus.write8(0, self.get_pb_addr(read_addr));
                 }
-                self.pc += 3;
+                self.pc = self.pc.wrapping_add(3);
             }
             LDX => {
                 if self.get_p_x() {
@@ -154,7 +153,7 @@ impl Cpu {
             }
             LDA => {
                 if self.get_p_m() {
-                    let result = abus.read8(addr + 1) as u16;
+                    let result = self.fetch_operand_8(abus) as u16;
                     println!("0x{:x} LDA {:x}", addr, result);
                     self.a = (self.a & 0xFF00) + result;
                     // Set/reset zero-flag
@@ -170,9 +169,9 @@ impl Cpu {
                     } else {
                         self.reset_p_n();
                     }
-                    self.pc += 2;
+                    self.pc = self.pc.wrapping_add(2);
                 } else {
-                    let result = abus.read16_le(addr + 1);
+                    let result = self.fetch_operand_16(abus);
                     println!("0x{:x} LDA {:x}", addr, result);
                     self.a = result;
                     // Set/reset zero-flag
@@ -187,7 +186,7 @@ impl Cpu {
                     } else {
                         self.reset_p_n();
                     }
-                    self.pc += 3;
+                    self.pc = self.pc.wrapping_add(3);
                 }
             }
             TAX => {
@@ -216,10 +215,10 @@ impl Cpu {
                 } else {
                     self.reset_p_z();
                 }
-                self.pc += 1;
+                self.pc = self.pc.wrapping_add(1);
             }
             REP => {
-                let bits = abus.read8(addr + 1);
+                let bits = self.fetch_operand_8(abus);
                 println!("0x{:x} REP {:x}", addr, bits);
                 self.p &= !bits;
                 // Emulation forces M and X to 1
@@ -232,27 +231,27 @@ impl Cpu {
                     self.x &= 0x00FF;
                     self.y &= 0x00FF;
                 }
-                self.pc += 2;
+                self.pc = self.pc.wrapping_add(2);
             }
             BNE => {
-                let offset = abus.read8(addr + 1) as i8;
+                let offset = self.fetch_operand_8(abus) as i8;
                 println!("0x{:x} BNE {:x}", addr, offset);
                 if !self.get_p_z() {
-                    self.pc += 2;
+                    self.pc = self.pc.wrapping_add(2);// TODO: Offset from opcode or end of operand?
                     if offset < 0 {// TODO: Check negative offset, wrapping for u8 or u16?
-                        self.pc -= offset.abs() as u16;
+                        self.pc = self.pc.wrapping_sub(offset.abs() as u16);
                     } else {
-                        self.pc += offset.abs() as u16;
+                        self.pc += self.pc.wrapping_add(offset as u16);
                     }
                 } else {
-                    self.pc += 2;
+                    self.pc = self.pc.wrapping_add(2);
                 }
             }
             SEP => {
-                let bits = abus.read8(addr + 1);
+                let bits = self.fetch_operand_8(abus);
                 println!("0x{:x} SEP {:x}", addr, bits);
                 self.p |= bits;
-                self.pc += 2;
+                self.pc = self.pc.wrapping_add(2);
             }
             INX => {
                 println!("0x{:x} INX", addr);
@@ -279,7 +278,7 @@ impl Cpu {
                 } else {
                     self.reset_p_z();
                 }
-                self.pc += 1;
+                self.pc = self.pc.wrapping_add(1);
             }
             XCE => {
                 println!("0x{:x} XCE", addr);
@@ -292,7 +291,7 @@ impl Cpu {
                     self.x &= 0x00FF;
                     self.y &= 0x00FF;
                 }
-                self.pc += 1;
+                self.pc = self.pc.wrapping_add(1);
             }
             _ => panic!("Unknown opcode {:X}!", opcode),
         }
