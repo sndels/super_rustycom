@@ -39,6 +39,7 @@ impl Cpu {
     }
 
     // TODO: Page wrapping in emulation mode?
+    // TODO: wrapping_adds to self.pc, even in the middle of instruction
     // TODO: Wrap flag checks and sets?
     fn execute(&mut self, opcode: u8, addr: u32, abus: &mut ABus) {
         match opcode {
@@ -256,7 +257,7 @@ impl Cpu {
             INX => {
                 println!("0x{:x} INX", addr);
                 if self.get_p_x() {
-                    self.x = ((self.x as u8) + 1) as u16;
+                    self.x = ((self.x as u8).wrapping_add(1)) as u16;
                     // Set/reset negative-flag
                     if self.x & 0x80 > 0 {
                         self.set_p_n();
@@ -264,7 +265,7 @@ impl Cpu {
                         self.reset_p_n();
                     }
                 } else {
-                    self.x += 1;
+                    self.x = self.x.wrapping_add(1);
                     // Set/reset negative-flag
                     if self.x & 0x8000 > 0 {
                         self.set_p_n();
