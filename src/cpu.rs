@@ -46,7 +46,7 @@ impl Cpu {
                 self.pc = self.pc.wrapping_add(1);
             }
             JSR => {
-                let sub_addr = self.fetch_operand_16(abus);
+                let sub_addr = fetch_operand_16(addr, abus);
                 println!("0x{:x} JSR {:x}", addr, sub_addr);
                 abus.push_stack(self.pc.wrapping_add(2), self.s);
                 self.s = self.s.wrapping_sub(2);
@@ -58,7 +58,7 @@ impl Cpu {
                 self.pc = self.pc.wrapping_add(1);
             }
             STA => {
-                let read_addr = self.fetch_operand_16(abus);
+                let read_addr = fetch_operand_16(addr, abus);
                 println!("0x{:x} STA {:x}", addr, read_addr);
                 if !self.get_p_m() {
                     abus.write16_le(self.a, self.get_pb_addr(read_addr));
@@ -103,7 +103,7 @@ impl Cpu {
                 self.pc = self.pc.wrapping_add(1);
             }
             STZ => {
-                let read_addr = self.fetch_operand_16(abus);
+                let read_addr = fetch_operand_16(addr, abus);
                 println!("0x{:x} STZ {:x}", addr, read_addr);
                 if !self.get_p_m() {
                     abus.write16_le(0, self.get_pb_addr(read_addr));
@@ -151,7 +151,7 @@ impl Cpu {
             }
             LDA => {
                 if self.get_p_m() {
-                    let result = self.fetch_operand_8(abus) as u16;
+                    let result = fetch_operand_8(addr, abus) as u16;
                     println!("0x{:x} LDA {:x}", addr, result);
                     self.a = (self.a & 0xFF00) + result;
                     // Set/reset zero-flag
@@ -169,7 +169,7 @@ impl Cpu {
                     }
                     self.pc = self.pc.wrapping_add(2);
                 } else {
-                    let result = self.fetch_operand_16(abus);
+                    let result = fetch_operand_16(addr, abus);
                     println!("0x{:x} LDA {:x}", addr, result);
                     self.a = result;
                     // Set/reset zero-flag
@@ -216,7 +216,7 @@ impl Cpu {
                 self.pc = self.pc.wrapping_add(1);
             }
             REP => {
-                let bits = self.fetch_operand_8(abus);
+                let bits = fetch_operand_8(addr, abus);
                 println!("0x{:x} REP {:x}", addr, bits);
                 self.p &= !bits;
                 // Emulation forces M and X to 1
@@ -232,7 +232,7 @@ impl Cpu {
                 self.pc = self.pc.wrapping_add(2);
             }
             BNE => {
-                let offset = self.fetch_operand_8(abus) as i8;
+                let offset = fetch_operand_8(addr, abus) as i8;
                 println!("0x{:x} BNE {:x}", addr, offset);
                 if !self.get_p_z() {
                     self.pc = self.pc.wrapping_add(2);// TODO: Offset from opcode or end of operand?
@@ -246,7 +246,7 @@ impl Cpu {
                 }
             }
             SEP => {
-                let bits = self.fetch_operand_8(abus);
+                let bits = fetch_operand_8(addr, abus);
                 println!("0x{:x} SEP {:x}", addr, bits);
                 self.p |= bits;
                 self.pc = self.pc.wrapping_add(2);
@@ -295,24 +295,6 @@ impl Cpu {
         }
     }
 
-    // Operand fetchers
-    fn fetch_operand_8(&self, abus: &mut ABus) -> u8 {
-        abus.read8(self.get_pb_start() | (self.pc.wrapping_add(1) as u32))
-    }
-
-    fn fetch_operand_16(&self, abus: &mut ABus) -> u16 {
-        let pb = self.get_pb_start();
-        (abus.read8(pb | (self.pc.wrapping_add(1) as u32)) as u16) |
-        ((abus.read8(pb | (self.pc.wrapping_add(2) as u32)) as u16) << 8)
-    }
-
-    fn fetch_operand_24(&self, abus: &mut ABus) -> u32 {
-        let pb = self.get_pb_start();
-        (abus.read8(pb | (self.pc.wrapping_add(1) as u32)) as u32) |
-        ((abus.read8(pb | (self.pc.wrapping_add(2) as u32)) as u32) << 8) |
-        ((abus.read8(pb | (self.pc.wrapping_add(3) as u32)) as u32) << 16)
-    }
-
     fn get_pb_start(&self) -> u32 { (self.pb as u32) << 16 }
     pub fn get_pb_pc(&self) -> u32 { ((self.pb as u32) << 16) + self.pc as u32 }
     fn get_pb_addr(&self, addr: u16) -> u32 { ((self.pb as u32) << 16) + addr as u32 }
@@ -357,6 +339,25 @@ impl Cpu {
     fn reset_p_m(&mut self) { self.p &= !(P_M) }
     fn reset_p_v(&mut self) { self.p &= !(P_V) }
     fn reset_p_n(&mut self) { self.p &= !(P_N) }
+}
+
+pub fn bank_wrapping_add(addr: u32, offset: u16) -> u32 {
+    (addr & 0xFF0000 ) | ((addr as u16).wrapping_add(offset) as u32)
+}
+
+pub fn fetch_operand_8(addr: u32, abus: &mut ABus) -> u8 {
+    abus.read8(bank_wrapping_add(addr, 1))
+}
+
+pub fn fetch_operand_16(addr: u32, abus: &mut ABus) -> u16 {
+    (abus.read8(bank_wrapping_add(addr, 1)) as u16) |
+    ((abus.read8(bank_wrapping_add(addr, 2)) as u16) << 8)
+}
+
+pub fn fetch_operand_24(addr: u32, abus: &mut ABus) -> u32 {
+    (abus.read8(bank_wrapping_add(addr, 1)) as u32) |
+    ((abus.read8(bank_wrapping_add(addr, 2)) as u32) << 8) |
+    ((abus.read8(bank_wrapping_add(addr, 2)) as u32) << 16)
 }
 
 // Interrupts
