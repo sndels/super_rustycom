@@ -9,8 +9,8 @@ pub struct Cpu {
     s:  u16,  // Stack pointer
     p:  u8,   // Processor status register
     d:  u16,  // Zeropage offset
-    pb: u8,   // Data bank
-    db: u8,   // Program cunter bank
+    pb: u8,   // Program counter bank
+    db: u8,   // Data bank
     e:  bool, // Emulation mode
 }
 
@@ -30,12 +30,10 @@ impl Cpu {
         }
     }
 
-    pub fn run(&mut self, abus: &mut ABus) {
-        loop {
-            let addr = self.get_pb_pc();
-            let opcode = abus.read8(addr);
-            self.execute(opcode, addr, abus);
-        }
+    pub fn step(&mut self, abus: &mut ABus) {
+        let addr = self.get_pb_pc();
+        let opcode = abus.read8(addr);
+        self.execute(opcode, addr, abus);
     }
 
     // TODO: Page wrapping in emulation mode?
@@ -316,8 +314,21 @@ impl Cpu {
     }
 
     fn get_pb_start(&self) -> u32 { (self.pb as u32) << 16 }
-    fn get_pb_pc(&self) -> u32 { ((self.pb as u32) << 16) + self.pc as u32 }
+    pub fn get_pb_pc(&self) -> u32 { ((self.pb as u32) << 16) + self.pc as u32 }
     fn get_pb_addr(&self, addr: u16) -> u32 { ((self.pb as u32) << 16) + addr as u32 }
+
+    pub fn print(&self) {
+        println!("A:  {:#01$X}", self.a, 6);
+        println!("X:  {:#01$X}", self.x, 6);
+        println!("Y:  {:#01$X}", self.y, 6);
+        println!("P:  {:01$b}", self.p, 8);
+        println!("PB: {:#01$X}", self.pb, 4);
+        println!("PC: {:#01$X}", self.pc, 6);
+        println!("DB: {:#01$X}", self.db, 4);
+        println!("S:  {:#01$X}", self.s, 6);
+        println!("D:  {:#01$X}", self.d, 6);
+        println!("E:  {}", self.e);
+    }
 
     // Flag operations
     fn get_p_c(&self) -> bool { self.p & P_C > 0 }
