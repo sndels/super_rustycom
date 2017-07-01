@@ -1,7 +1,9 @@
 use std::io::{self, Write};
 use std::u32;
+use cpu;
 use cpu::Cpu;
 use abus::ABus;
+use op;
 
 pub struct Debugger {
     pub breakpoint:  u32,
@@ -17,6 +19,8 @@ impl Debugger {
     }
 
     pub fn take_command(&mut self, cpu: &mut Cpu, abus: &mut ABus) {
+        print!("Cursor at: ");
+        disassemble(cpu.get_pb_pc(), cpu, abus);
         print!("(debug) ");
         io::stdout().flush().unwrap();
         let mut command_str = String::new();
@@ -50,5 +54,60 @@ impl Debugger {
                 _            => println!("Unknown command \"{}\"", command_str.trim())
             }
         }
+    }
+}
+
+fn disassemble(addr: u32, cpu: &Cpu, abus: &mut ABus) {
+    let opcode = abus.read8(addr);
+    match opcode {
+        op::CLC => println!("{:#01$X} CLC", addr, 8),
+        op::JSR => {
+            let sub_addr = cpu::fetch_operand_16(addr, abus);
+            println!("{0:#01$X} JSR {2:#03$X}", addr, 8, sub_addr, 6);
+        }
+        op::SEI => println!("{:#01$X} SEI", addr, 8),
+        op::STA => {
+            let read_addr = cpu::fetch_operand_16(addr, abus);
+            println!("{0:#01$X} STA {2:#03$X}", addr, 8, read_addr, 6);
+        }
+        op::TXS => println!("{0:#01$X} TXS", addr, 8),
+        op::STZ => {
+            let read_addr = cpu::fetch_operand_16(addr, abus);
+            println!("{0:#01$X} STZ {2:#03$X}", addr, 8, read_addr, 6);
+        }
+        op::LDX => {
+            if cpu.get_p_x() {
+                let result = cpu::fetch_operand_8(addr, abus);
+                println!("{0:#01$X} LSX {2:#03$X}", addr, 8, result, 4);
+            } else {
+                let result = cpu::fetch_operand_16(addr, abus);
+                println!("{0:#01$X} LSX {2:#03$X}", addr, 8, result, 6);
+            }
+        }
+        op::LDA => {
+            if cpu.get_p_m() {
+                let result = cpu::fetch_operand_8(addr, abus);
+                println!("{0:#01$X} LDA {2:#03$X}", addr, 8, result, 4);
+            } else {
+                let result = cpu::fetch_operand_16(addr, abus);
+                println!("{0:#01$X} LDA {2:#03$X}", addr, 8, result, 6);
+            }
+        }
+        op::TAX => println!("{0:#01$X} TAX", addr, 8),
+        op::REP => {
+            let bits = cpu::fetch_operand_8(addr, abus);
+            println!("{0:#01$X} REP {2:#03$X} [{2:b}]", addr, 8, bits, 4);
+        }
+        op::BNE => {
+            let offset = cpu::fetch_operand_8(addr, abus);
+            println!("{0:#01$X} BNE {2:#03$X}", addr, 8, offset, 4);
+        }
+        op::SEP => {
+            let bits = cpu::fetch_operand_8(addr, abus);
+            println!("{0:#01$X} SEP {2:#03$X} [{2:b}]", addr, 8, bits, 4);
+        }
+        op::INX => println!("{:#01$x} INX", addr, 8),
+        op::XCE => println!("{:#01$x} XCE", addr, 8),
+        _ => panic!("Unknown opcode {:X}!", opcode),
     }
 }
