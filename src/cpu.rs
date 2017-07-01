@@ -1,4 +1,5 @@
 use abus::ABus;
+use op;
 
 #[derive(Debug)]
 pub struct Cpu {
@@ -40,26 +41,22 @@ impl Cpu {
     // TODO: Wrap flag checks and sets?
     fn execute(&mut self, opcode: u8, addr: u32, abus: &mut ABus) {
         match opcode {
-            CLC => {
-                println!("0x{:x} CLC", addr);
+            op::CLC => {
                 self.reset_p_c();
                 self.pc = self.pc.wrapping_add(1);
             }
-            JSR => {
+            op::JSR => {
                 let sub_addr = fetch_operand_16(addr, abus);
-                println!("0x{:x} JSR {:x}", addr, sub_addr);
                 abus.push_stack(self.pc.wrapping_add(2), self.s);
                 self.s = self.s.wrapping_sub(2);
                 self.pc = sub_addr;
             }
-            SEI => {
-                println!("0x{:x} SEI", addr);
+            op::SEI => {
                 self.set_p_i();
                 self.pc = self.pc.wrapping_add(1);
             }
-            STA => {
+            op::STA => {
                 let read_addr = fetch_operand_16(addr, abus);
-                println!("0x{:x} STA {:x}", addr, read_addr);
                 if !self.get_p_m() {
                     abus.write16_le(self.a, self.get_pb_addr(read_addr));
                 } else {
@@ -67,8 +64,7 @@ impl Cpu {
                 }
                 self.pc = self.pc.wrapping_add(3);
             }
-            TXS => {
-                println!("0x{:x} TXS", addr);
+            op::TXS => {
                 if self.e {
                     let result = self.x;
                     self.s = result + 0x0100;
@@ -102,9 +98,8 @@ impl Cpu {
                 }
                 self.pc = self.pc.wrapping_add(1);
             }
-            STZ => {
+            op::STZ => {
                 let read_addr = fetch_operand_16(addr, abus);
-                println!("0x{:x} STZ {:x}", addr, read_addr);
                 if !self.get_p_m() {
                     abus.write16_le(0, self.get_pb_addr(read_addr));
                 } else {
@@ -112,10 +107,9 @@ impl Cpu {
                 }
                 self.pc = self.pc.wrapping_add(3);
             }
-            LDX => {
+            op::LDX => {
                 if self.get_p_x() {
-                    let result = abus.read8(addr + 1) as u16;
-                    println!("0x{:x} LDX {:x}", addr, result);
+                    let result = fetch_operand_8(addr, abus) as u16;
                     self.x = result;
                     // Set/reset zero-flag
                     if result == 0 {
@@ -131,8 +125,7 @@ impl Cpu {
                     }
                     self.pc += 2;
                 } else {
-                    let result = abus.read16_le(addr + 1);
-                    println!("0x{:x} LDX {:x}", addr, result);
+                    let result = fetch_operand_16(addr, abus);
                     self.x = result;
                     // Set/reset zero-flag
                     if result == 0 {
@@ -149,10 +142,9 @@ impl Cpu {
                     self.pc += 3;
                 }
             }
-            LDA => {
+            op::LDA => {
                 if self.get_p_m() {
                     let result = fetch_operand_8(addr, abus) as u16;
-                    println!("0x{:x} LDA {:x}", addr, result);
                     self.a = (self.a & 0xFF00) + result;
                     // Set/reset zero-flag
                     if result == 0 {
@@ -170,7 +162,6 @@ impl Cpu {
                     self.pc = self.pc.wrapping_add(2);
                 } else {
                     let result = fetch_operand_16(addr, abus);
-                    println!("0x{:x} LDA {:x}", addr, result);
                     self.a = result;
                     // Set/reset zero-flag
                     if result == 0 {
@@ -187,8 +178,7 @@ impl Cpu {
                     self.pc = self.pc.wrapping_add(3);
                 }
             }
-            TAX => {
-                println!("0x{:x} TAX", addr);
+            op::TAX => {
                 let result = self.a;
                 if self.get_p_x() {
                     self.x = result & 0x00FF;
@@ -215,9 +205,8 @@ impl Cpu {
                 }
                 self.pc = self.pc.wrapping_add(1);
             }
-            REP => {
+            op::REP => {
                 let bits = fetch_operand_8(addr, abus);
-                println!("0x{:x} REP {:x}", addr, bits);
                 self.p &= !bits;
                 // Emulation forces M and X to 1
                 if self.e {
@@ -231,9 +220,8 @@ impl Cpu {
                 }
                 self.pc = self.pc.wrapping_add(2);
             }
-            BNE => {
+            op::BNE => {
                 let offset = fetch_operand_8(addr, abus) as i8;
-                println!("0x{:x} BNE {:x}", addr, offset);
                 if !self.get_p_z() {
                     self.pc = self.pc.wrapping_add(2);// TODO: Offset from opcode or end of operand?
                     if offset < 0 {// TODO: Check negative offset, wrapping for u8 or u16?
@@ -245,14 +233,12 @@ impl Cpu {
                     self.pc = self.pc.wrapping_add(2);
                 }
             }
-            SEP => {
+            op::SEP => {
                 let bits = fetch_operand_8(addr, abus);
-                println!("0x{:x} SEP {:x}", addr, bits);
                 self.p |= bits;
                 self.pc = self.pc.wrapping_add(2);
             }
-            INX => {
-                println!("0x{:x} INX", addr);
+            op::INX => {
                 if self.get_p_x() {
                     self.x = ((self.x as u8).wrapping_add(1)) as u16;
                     // Set/reset negative-flag
@@ -278,8 +264,7 @@ impl Cpu {
                 }
                 self.pc = self.pc.wrapping_add(1);
             }
-            XCE => {
-                println!("0x{:x} XCE", addr);
+            op::XCE => {
                 self.e = self.get_p_c();
                 // Emulation forces M and X -flags to 1
                 if self.e {
@@ -313,14 +298,14 @@ impl Cpu {
     }
 
     // Flag operations
-    fn get_p_c(&self) -> bool { self.p & P_C > 0 }
-    fn get_p_z(&self) -> bool { self.p & P_Z > 0 }
-    fn get_p_i(&self) -> bool { self.p & P_I > 0 }
-    fn get_p_d(&self) -> bool { self.p & P_D > 0 }
-    fn get_p_x(&self) -> bool { self.p & P_X > 0 }
-    fn get_p_m(&self) -> bool { self.p & P_M > 0 }
-    fn get_p_v(&self) -> bool { self.p & P_V > 0 }
-    fn get_p_n(&self) -> bool { self.p & P_N > 0 }
+    pub fn get_p_c(&self) -> bool { self.p & P_C > 0 }
+    pub fn get_p_z(&self) -> bool { self.p & P_Z > 0 }
+    pub fn get_p_i(&self) -> bool { self.p & P_I > 0 }
+    pub fn get_p_d(&self) -> bool { self.p & P_D > 0 }
+    pub fn get_p_x(&self) -> bool { self.p & P_X > 0 }
+    pub fn get_p_m(&self) -> bool { self.p & P_M > 0 }
+    pub fn get_p_v(&self) -> bool { self.p & P_V > 0 }
+    pub fn get_p_n(&self) -> bool { self.p & P_N > 0 }
 
     fn set_p_c(&mut self) { self.p |= P_C }
     fn set_p_z(&mut self) { self.p |= P_Z }
@@ -381,19 +366,3 @@ const P_X: u8 = 0b0001_0000;
 const P_M: u8 = 0b0010_0000;
 const P_V: u8 = 0b0100_0000;
 const P_N: u8 = 0b1000_0000;
-
-// OPCODES
-const CLC: u8 = 0x18;
-const JSR: u8 = 0x20;
-const SEI: u8 = 0x78;
-const STA: u8 = 0x8D;
-const TXS: u8 = 0x9A;
-const STZ: u8 = 0x9C;
-const LDX: u8 = 0xA2;
-const LDA: u8 = 0xA9;
-const TAX: u8 = 0xAA;
-const REP: u8 = 0xC2;
-const BNE: u8 = 0xD0;
-const SEP: u8 = 0xE2;
-const INX: u8 = 0xE8;
-const XCE: u8 = 0xFB;

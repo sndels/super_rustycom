@@ -1,10 +1,11 @@
 use std::env;
 
 mod abus;
-use abus::ABus;
-mod cpu;
-use cpu::Cpu;
 mod debugger;
+mod cpu;
+mod op;
+use abus::ABus;
+use cpu::Cpu;
 use debugger::Debugger;
 
 fn main() {
