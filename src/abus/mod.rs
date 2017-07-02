@@ -149,6 +149,21 @@ impl ABus {
         self.read8(addr) as u16 + ((self.read8(addr + 1) as u16) << 8)
     }
 
+    pub fn fetch_operand_8(&mut self, addr: u32) -> u8 {
+        self.read8(bank_wrapping_add(addr, 1))
+    }
+
+    pub fn fetch_operand_16(&mut self, addr: u32) -> u16 {
+        (self.read8(bank_wrapping_add(addr, 1)) as u16) |
+        ((self.read8(bank_wrapping_add(addr, 2)) as u16) << 8)
+    }
+
+    pub fn fetch_operand_24(&mut self, addr: u32) -> u32 {
+        (self.read8(bank_wrapping_add(addr, 1)) as u32) |
+        ((self.read8(bank_wrapping_add(addr, 2)) as u32) << 8) |
+        ((self.read8(bank_wrapping_add(addr, 2)) as u32) << 16)
+    }
+
     pub fn write8(&mut self, value: u8, addr: u32) {
         let bank = (addr >> 16) as usize;
         let bank_addr = (addr & 0x00FFFF) as usize;
@@ -228,6 +243,10 @@ impl ABus {
         self.write8((value >> 8) as u8, addr as u32);
         self.write8((value & 0xFF) as u8, (addr - 1) as u32);
     }
+}
+
+fn bank_wrapping_add(addr: u32, offset: u16) -> u32 {
+    (addr & 0xFF0000 ) | ((addr as u16).wrapping_add(offset) as u32)
 }
 
 struct MpyDiv {
@@ -320,4 +339,3 @@ impl DoubleReg {
         self.high_active = !self.high_active;
     }
 }
-

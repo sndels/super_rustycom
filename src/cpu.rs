@@ -46,7 +46,7 @@ impl Cpu {
                 self.pc = self.pc.wrapping_add(1);
             }
             op::JSR => {
-                let sub_addr = fetch_operand_16(addr, abus);
+                let sub_addr = abus.fetch_operand_16(addr);
                 abus.push_stack(self.pc.wrapping_add(2), self.s);
                 self.s = self.s.wrapping_sub(2);
                 self.pc = sub_addr;
@@ -56,7 +56,7 @@ impl Cpu {
                 self.pc = self.pc.wrapping_add(1);
             }
             op::STA => {
-                let read_addr = fetch_operand_16(addr, abus);
+                let read_addr = abus.fetch_operand_16(addr);
                 if !self.get_p_m() {
                     abus.write16_le(self.a, self.get_pb_addr(read_addr));
                 } else {
@@ -79,7 +79,7 @@ impl Cpu {
                 self.pc = self.pc.wrapping_add(1);
             }
             op::STZ => {
-                let read_addr = fetch_operand_16(addr, abus);
+                let read_addr = abus.fetch_operand_16(addr);
                 if !self.get_p_m() {
                     abus.write16_le(0, self.get_pb_addr(read_addr));
                 } else {
@@ -89,13 +89,13 @@ impl Cpu {
             }
             op::LDX => {
                 if self.get_p_x() {
-                    let result = fetch_operand_8(addr, abus) as u16;
+                    let result = abus.fetch_operand_8(addr) as u16;
                     self.x = result;
                     self.update_p_z(result);
                     self.update_p_n_8(result as u8);
                     self.pc = self.pc.wrapping_add(2);
                 } else {
-                    let result = fetch_operand_16(addr, abus);
+                    let result = abus.fetch_operand_16(addr);
                     self.x = result;
                     self.update_p_z(result);
                     self.update_p_n_16(result);
@@ -104,13 +104,13 @@ impl Cpu {
             }
             op::LDA => {
                 if self.get_p_m() {
-                    let result = fetch_operand_8(addr, abus) as u16;
+                    let result = abus.fetch_operand_8(addr) as u16;
                     self.a = (self.a & 0xFF00) + result;
                     self.update_p_z(result);
                     self.update_p_n_8(result as u8);
                     self.pc = self.pc.wrapping_add(2);
                 } else {
-                    let result = fetch_operand_16(addr, abus);
+                    let result = abus.fetch_operand_16(addr);
                     self.a = result;
                     self.update_p_z(result);
                     self.update_p_n_16(result);
@@ -130,7 +130,7 @@ impl Cpu {
                 self.pc = self.pc.wrapping_add(1);
             }
             op::REP => {
-                let bits = fetch_operand_8(addr, abus);
+                let bits = abus.fetch_operand_8(addr);
                 self.p &= !bits;
                 // Emulation forces M and X to 1
                 if self.e {
@@ -145,7 +145,7 @@ impl Cpu {
                 self.pc = self.pc.wrapping_add(2);
             }
             op::BNE => {
-                let offset = fetch_operand_8(addr, abus) as i8;
+                let offset = abus.fetch_operand_8(addr) as i8;
                 if !self.get_p_z() {
                     self.pc = self.pc.wrapping_add(2);// TODO: Offset from opcode or end of operand?
                     if offset < 0 {// TODO: Check negative offset, wrapping for u8 or u16?
@@ -158,7 +158,7 @@ impl Cpu {
                 }
             }
             op::SEP => {
-                let bits = fetch_operand_8(addr, abus);
+                let bits = abus.fetch_operand_8(addr);
                 self.p |= bits;
                 self.pc = self.pc.wrapping_add(2);
             }
@@ -259,25 +259,6 @@ impl Cpu {
             self.reset_p_n();
         }
     }
-}
-
-pub fn bank_wrapping_add(addr: u32, offset: u16) -> u32 {
-    (addr & 0xFF0000 ) | ((addr as u16).wrapping_add(offset) as u32)
-}
-
-pub fn fetch_operand_8(addr: u32, abus: &mut ABus) -> u8 {
-    abus.read8(bank_wrapping_add(addr, 1))
-}
-
-pub fn fetch_operand_16(addr: u32, abus: &mut ABus) -> u16 {
-    (abus.read8(bank_wrapping_add(addr, 1)) as u16) |
-    ((abus.read8(bank_wrapping_add(addr, 2)) as u16) << 8)
-}
-
-pub fn fetch_operand_24(addr: u32, abus: &mut ABus) -> u32 {
-    (abus.read8(bank_wrapping_add(addr, 1)) as u32) |
-    ((abus.read8(bank_wrapping_add(addr, 2)) as u32) << 8) |
-    ((abus.read8(bank_wrapping_add(addr, 2)) as u32) << 16)
 }
 
 // Interrupts
