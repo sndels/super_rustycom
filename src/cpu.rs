@@ -68,33 +68,13 @@ impl Cpu {
                 if self.e {
                     let result = self.x;
                     self.s = result + 0x0100;
-                    // Set/reset zero-flag
-                    if result == 0 {
-                        self.set_p_z();
-                    } else {
-                        self.reset_p_z();
-                    }
-                    // Set/reset negative-flag
-                    if result & 0x80 > 0 {
-                        self.set_p_n();
-                    } else {
-                        self.reset_p_n();
-                    }
+                    self.update_p_z(result);
+                    self.update_p_n_8(result as u8);
                 } else {
                     let result = self.x;
                     self.s = result;
-                    // Set/reset zero-flag
-                    if result == 0 {
-                        self.set_p_z();
-                    } else {
-                        self.reset_p_z();
-                    }
-                    // Set/reset negative-flag
-                    if result & 0x8000 > 0 {
-                        self.set_p_n();
-                    } else {
-                        self.reset_p_n();
-                    }
+                    self.update_p_z(result);
+                    self.update_p_n_16(result);
                 }
                 self.pc = self.pc.wrapping_add(1);
             }
@@ -111,70 +91,29 @@ impl Cpu {
                 if self.get_p_x() {
                     let result = fetch_operand_8(addr, abus) as u16;
                     self.x = result;
-                    // Set/reset zero-flag
-                    if result == 0 {
-                        self.set_p_z();
-                    } else {
-                        self.reset_p_z();
-                    }
-                    // Set/reset negative-flag
-                    if result & 0x80 > 0 {
-                        self.set_p_n();
-                    } else {
-                        self.reset_p_n();
-                    }
-                    self.pc += 2;
+                    self.update_p_z(result);
+                    self.update_p_n_8(result as u8);
+                    self.pc = self.pc.wrapping_add(2);
                 } else {
                     let result = fetch_operand_16(addr, abus);
                     self.x = result;
-                    // Set/reset zero-flag
-                    if result == 0 {
-                        self.set_p_z();
-                    } else {
-                        self.reset_p_z();
-                    }
-                    // Set/reset negative-flag
-                    if result & 0x8000 > 0 {
-                        self.set_p_n();
-                    } else {
-                        self.reset_p_n();
-                    }
-                    self.pc += 3;
+                    self.update_p_z(result);
+                    self.update_p_n_16(result);
+                    self.pc = self.pc.wrapping_add(3);
                 }
             }
             op::LDA => {
                 if self.get_p_m() {
                     let result = fetch_operand_8(addr, abus) as u16;
                     self.a = (self.a & 0xFF00) + result;
-                    // Set/reset zero-flag
-                    if result == 0 {
-                        self.set_p_z();
-                    } else {
-                        self.reset_p_z();
-                    }
-                    // Set/reset negative-flag
-                    // TODO: Should this be result & 0x80 or self.a & 0x8000?
-                    if result & 0x80 > 0 {
-                        self.set_p_n();
-                    } else {
-                        self.reset_p_n();
-                    }
+                    self.update_p_z(result);
+                    self.update_p_n_8(result as u8);
                     self.pc = self.pc.wrapping_add(2);
                 } else {
                     let result = fetch_operand_16(addr, abus);
                     self.a = result;
-                    // Set/reset zero-flag
-                    if result == 0 {
-                        self.set_p_z();
-                    } else {
-                        self.reset_p_z();
-                    }
-                    // Set/reset negative-flag
-                    if result & 0x8000 > 0 {
-                        self.set_p_n();
-                    } else {
-                        self.reset_p_n();
-                    }
+                    self.update_p_z(result);
+                    self.update_p_n_16(result);
                     self.pc = self.pc.wrapping_add(3);
                 }
             }
@@ -182,27 +121,12 @@ impl Cpu {
                 let result = self.a;
                 if self.get_p_x() {
                     self.x = result & 0x00FF;
-                    // Set/reset negative-flag
-                    if result & 0x80 > 0 {
-                        self.set_p_n();
-                    } else {
-                        self.reset_p_n();
-                    }
+                    self.update_p_n_8(result as u8);
                 } else {
                     self.x = result;
-                    // Set/reset negative-flag
-                    if result & 0x8000 > 0 {
-                        self.set_p_n();
-                    } else {
-                        self.reset_p_n();
-                    }
+                    self.update_p_n_16(result);
                 }
-                // Set/reset zero-flag
-                if result == 0 {
-                    self.set_p_z();
-                } else {
-                    self.reset_p_z();
-                }
+                self.update_p_z(result);
                 self.pc = self.pc.wrapping_add(1);
             }
             op::REP => {
@@ -241,27 +165,15 @@ impl Cpu {
             op::INX => {
                 if self.get_p_x() {
                     self.x = ((self.x as u8).wrapping_add(1)) as u16;
-                    // Set/reset negative-flag
-                    if self.x & 0x80 > 0 {
-                        self.set_p_n();
-                    } else {
-                        self.reset_p_n();
-                    }
+                    let result = self.x as u8;
+                    self.update_p_n_8(result);
                 } else {
                     self.x = self.x.wrapping_add(1);
-                    // Set/reset negative-flag
-                    if self.x & 0x8000 > 0 {
-                        self.set_p_n();
-                    } else {
-                        self.reset_p_n();
-                    }
+                    let result = self.x;
+                    self.update_p_n_16(result);
                 }
-                // Set/reset zero-flag
-                if self.x == 0 {
-                    self.set_p_z();
-                } else {
-                    self.reset_p_z();
-                }
+                let result = self.x;
+                self.update_p_z(result);
                 self.pc = self.pc.wrapping_add(1);
             }
             op::XCE => {
@@ -324,6 +236,29 @@ impl Cpu {
     fn reset_p_m(&mut self) { self.p &= !(P_M) }
     fn reset_p_v(&mut self) { self.p &= !(P_V) }
     fn reset_p_n(&mut self) { self.p &= !(P_N) }
+
+    fn update_p_z(&mut self, result: u16) {
+        if result == 0 {
+            self.set_p_z();
+        } else {
+            self.reset_p_z();
+        }
+    }
+    fn update_p_n_8(&mut self, result: u8) {
+        if result & 0x80 > 0 {
+            self.set_p_n();
+        } else {
+            self.reset_p_n();
+        }
+    }
+
+    fn update_p_n_16(&mut self, result: u16) {
+        if result & 0x8000 > 0 {
+            self.set_p_n();
+        } else {
+            self.reset_p_n();
+        }
+    }
 }
 
 pub fn bank_wrapping_add(addr: u32, offset: u16) -> u32 {
