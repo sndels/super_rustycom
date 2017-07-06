@@ -1,3 +1,4 @@
+use abus;
 use abus::ABus;
 use op;
 
@@ -47,8 +48,15 @@ impl Cpu {
             }
             op::JSR => {
                 let sub_addr = abus.fetch_operand_16(addr);
-                abus.push_stack(self.pc.wrapping_add(2), self.s);
-                self.s = self.s.wrapping_sub(2);
+                if self.e {
+                    abus.page_wrapping_write_16(self.pc.wrapping_add(2),
+                                                abus::page_wrapping_sub(self.s as u32, 1));
+                    self.s = abus::page_wrapping_sub(self.s as u32, 2) as u16;
+                } else {
+                    abus.bank_wrapping_write_16(self.pc.wrapping_add(2),
+                                                abus::bank_wrapping_sub(self.s as u32, 1));
+                    self.s = self.s.wrapping_sub(2);
+                }
                 self.pc = sub_addr;
             }
             op::SEI => {
@@ -102,7 +110,7 @@ impl Cpu {
                     self.pc = self.pc.wrapping_add(3);
                 }
             }
-            op::LDA => {
+            op::LDA => {// TODO: Should this load value from PC+result?
                 if self.get_p_m() {
                     let result = abus.fetch_operand_8(addr) as u16;
                     self.a = (self.a & 0xFF00) + result;
