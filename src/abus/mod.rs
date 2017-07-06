@@ -248,11 +248,6 @@ impl ABus {
         self.write8((value & 0xFF) as u8, addr);
         self.write8((value >> 8) as u8, page_wrapping_add(addr, 1));
     }
-
-    pub fn push_stack(&mut self, value: u16, addr: u16) {
-        self.write8((value >> 8) as u8, addr as u32);
-        self.write8((value & 0xFF) as u8, (addr - 1) as u32);
-    }
 }
 
 pub fn bank_wrapping_add(addr: u32, offset: u16) -> u32 {
