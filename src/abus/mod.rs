@@ -239,14 +239,36 @@ impl ABus {
         self.write8((value >> 8) as u8, addr + 1);
     }
 
+    pub fn bank_wrapping_write_16(&mut self, value: u16, addr: u32) {
+        self.write8((value & 0xFF) as u8, addr);
+        self.write8((value >> 8) as u8, bank_wrapping_add(addr, 1));
+    }
+
+    pub fn page_wrapping_write_16(&mut self, value: u16, addr: u32) {
+        self.write8((value & 0xFF) as u8, addr);
+        self.write8((value >> 8) as u8, page_wrapping_add(addr, 1));
+    }
+
     pub fn push_stack(&mut self, value: u16, addr: u16) {
         self.write8((value >> 8) as u8, addr as u32);
         self.write8((value & 0xFF) as u8, (addr - 1) as u32);
     }
 }
 
-fn bank_wrapping_add(addr: u32, offset: u16) -> u32 {
+pub fn bank_wrapping_add(addr: u32, offset: u16) -> u32 {
     (addr & 0xFF0000 ) | ((addr as u16).wrapping_add(offset) as u32)
+}
+
+pub fn page_wrapping_add(addr: u32, offset: u8) -> u32 {
+    (addr & 0xFFFF00 ) | ((addr as u8).wrapping_add(offset) as u32)
+}
+
+pub fn bank_wrapping_sub(addr: u32, offset: u16) -> u32 {
+    (addr & 0xFF0000 ) | ((addr as u16).wrapping_sub(offset) as u32)
+}
+
+pub fn page_wrapping_sub(addr: u32, offset: u8) -> u32 {
+    (addr & 0xFFFF00 ) | ((addr as u8).wrapping_sub(offset) as u32)
 }
 
 struct MpyDiv {
