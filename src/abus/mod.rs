@@ -145,7 +145,7 @@ impl ABus {
         }
     }
 
-    pub fn read16_le(&mut self, addr: u32) -> u16 {
+    pub fn read_16(&mut self, addr: u32) -> u16 {
         self.read8(addr) as u16 + ((self.read8(addr + 1) as u16) << 8)
     }
 
@@ -234,7 +234,7 @@ impl ABus {
         }
     }
 
-    pub fn write16_le(&mut self, value: u16, addr: u32) {
+    pub fn write_16(&mut self, value: u16, addr: u32) {
         self.write8((value & 0xFF) as u8, addr);
         self.write8((value >> 8) as u8, addr + 1);
     }

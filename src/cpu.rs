@@ -22,7 +22,7 @@ impl Cpu {
             a:  0x00,
             x:  0x00,
             y:  0x00,
-            pc: abus.read16_le(0x00FF00 + RESET8 as u32), // TODO: This only applies to LoROM
+            pc: abus.read_16(0x00FF00 + RESET8 as u32), // TODO: This only applies to LoROM
             s:  0x01FF,
             p:  P_M | P_X | P_I,
             d : 0x00,
@@ -66,7 +66,7 @@ impl Cpu {
             op::STA => {
                 let read_addr = abus.fetch_operand_16(addr);
                 if !self.get_p_m() {
-                    abus.write16_le(self.a, self.get_pb_addr(read_addr));
+                    abus.write_16(self.a, self.get_pb_addr(read_addr));
                 } else {
                     abus.write8(self.a as u8, self.get_pb_addr(read_addr));
                 }
@@ -89,7 +89,7 @@ impl Cpu {
             op::STZ => {
                 let read_addr = abus.fetch_operand_16(addr);
                 if !self.get_p_m() {
-                    abus.write16_le(0, self.get_pb_addr(read_addr));
+                    abus.write_16(0, self.get_pb_addr(read_addr));
                 } else {
                     abus.write8(0, self.get_pb_addr(read_addr));
                 }
