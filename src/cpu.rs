@@ -39,7 +39,6 @@ impl Cpu {
     }
 
     // TODO: Page wrapping in emulation mode?
-    // TODO: Wrap flag checks and sets?
     fn execute(&mut self, opcode: u8, addr: u32, abus: &mut ABus) {
         match opcode {
             op::CLC => {
