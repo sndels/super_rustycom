@@ -146,7 +146,18 @@ impl ABus {
     }
 
     pub fn read_16(&mut self, addr: u32) -> u16 {
-        self.read8(addr) as u16 + ((self.read8(addr + 1) as u16) << 8)
+        self.read8(addr) as u16 | ((self.read8(addr + 1) as u16) << 8)
+    }
+
+    pub fn bank_wrapping_read_16(&mut self, addr: u32) -> u16 {
+        self.read8(addr) as u16 |
+        ((self.read8(bank_wrapping_add(addr, 1)) as u16) << 8)
+    }
+
+    pub fn bank_wrapping_read_24(&mut self, addr: u32) -> u32 {
+        self.read8(addr) as u32 |
+        ((self.read8(bank_wrapping_add(addr, 1)) as u32) << 8) |
+        ((self.read8(bank_wrapping_add(addr, 2)) as u32) << 16)
     }
 
     pub fn fetch_operand_8(&mut self, addr: u32) -> u8 {
@@ -154,14 +165,11 @@ impl ABus {
     }
 
     pub fn fetch_operand_16(&mut self, addr: u32) -> u16 {
-        (self.read8(bank_wrapping_add(addr, 1)) as u16) |
-        ((self.read8(bank_wrapping_add(addr, 2)) as u16) << 8)
+        self.bank_wrapping_read_16(bank_wrapping_add(addr, 1))
     }
 
     pub fn fetch_operand_24(&mut self, addr: u32) -> u32 {
-        (self.read8(bank_wrapping_add(addr, 1)) as u32) |
-        ((self.read8(bank_wrapping_add(addr, 2)) as u32) << 8) |
-        ((self.read8(bank_wrapping_add(addr, 2)) as u32) << 16)
+        self.bank_wrapping_read_24(bank_wrapping_add(addr, 1))
     }
 
     pub fn write8(&mut self, value: u8, addr: u32) {
