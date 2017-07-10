@@ -203,6 +203,36 @@ impl Cpu {
     pub fn get_pb_pc(&self) -> u32 { ((self.pb as u32) << 16) + self.pc as u32 }
     fn get_pb_addr(&self, addr: u16) -> u32 { ((self.pb as u32) << 16) + addr as u32 }
 
+    // Addressing modes
+    fn abs(&self, addr: u32, abus: &mut ABus) -> u32 {// JMP, JSR use PB instead of DB
+        addr_8_16(self.db, abus.fetch_operand_16(addr))
+    }
+
+    fn abs_x(&self, addr: u32, abus: &mut ABus) -> u32 {
+        let operand = abus.fetch_operand_16(addr);
+        (addr_8_16(self.db, operand) + self.x as u32) & 0x00FFFFFF
+    }
+
+    fn abs_y(&self, addr: u32, abus: &mut ABus) -> u32 {
+        let operand = abus.fetch_operand_16(addr);
+        (addr_8_16(self.db, operand) + self.y as u32) & 0x00FFFFFF
+    }
+
+    fn abs_ptr_16(&self, addr: u32, abus: &mut ABus) -> u32 {
+        let pointer = abus.fetch_operand_16(addr) as u32;
+        addr_8_16(self.pb, abus.bank_wrapping_read_16(pointer))
+    }
+
+    fn abs_ptr_24(&self, addr: u32, abus: &mut ABus) -> u32 {
+        let pointer = abus.fetch_operand_24(addr) as u32;
+        abus.bank_wrapping_read_24(pointer)
+    }
+
+    fn abs_ptr_x(&self, addr: u32, abus: &mut ABus) -> u32 {
+        let pointer = addr_8_16(self.pb, abus.fetch_operand_16(addr).wrapping_add(self.x));
+        addr_8_16(self.pb, abus.bank_wrapping_read_16(pointer))
+    }
+
     pub fn print(&self) {
         println!("A:  {:#01$X}", self.a, 6);
         println!("X:  {:#01$X}", self.x, 6);
@@ -266,6 +296,16 @@ impl Cpu {
             self.reset_p_n();
         }
     }
+}
+
+#[inline(always)]
+fn addr_8_16(bank: u8, byte: u16) -> u32 {
+    ((bank as u32) << 16) | byte as u32
+}
+
+#[inline(always)]
+fn addr_8_8_8(bank: u8, page: u8, byte: u8) -> u32 {
+    ((bank as u32) << 16) | ((page as u32) << 8) | byte as u32
 }
 
 // Interrupts
