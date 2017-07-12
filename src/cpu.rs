@@ -305,6 +305,14 @@ impl Cpu {
         abus.fetch_operand_16(addr)
     }
 
+    fn long(&self, addr: u32, abus: &mut ABus) -> u32 {
+        abus.fetch_operand_24(addr)
+    }
+
+    fn long_x(&self, addr: u32, abus: &mut ABus) -> u32 {
+        (abus.fetch_operand_24(addr) + self.x as u32) & 0x00FFFFFF
+    }
+
     pub fn print(&self) {
         println!("A:  {:#01$X}", self.a, 6);
         println!("X:  {:#01$X}", self.x, 6);
