@@ -313,6 +313,20 @@ impl Cpu {
         (abus.fetch_operand_24(addr) + self.x as u32) & 0x00FFFFFF
     }
 
+    fn rel_8(&self, addr: u32, abus: &mut ABus) -> u16 {
+        let offset = abus.fetch_operand_8(addr);
+        if offset < 0x80 {
+            self.pc.wrapping_add(2 + (offset as u16))
+        } else {
+            self.pc.wrapping_sub(254).wrapping_add(offset as u16)
+        }
+    }
+
+    fn rel_16(&self, addr: u32, abus: &mut ABus) -> u16 {
+        let offset = abus.fetch_operand_16(addr);
+        self.pc.wrapping_add(3 + offset)
+    }
+
     pub fn print(&self) {
         println!("A:  {:#01$X}", self.a, 6);
         println!("X:  {:#01$X}", self.x, 6);
