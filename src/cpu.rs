@@ -297,6 +297,14 @@ impl Cpu {
         (abus.bank_wrapping_read_24(pointer) + self.y as u32) & 0x00FFFFFF
     }
 
+    fn imm_8(&self, addr: u32, abus: &mut ABus) -> u8 {
+        abus.fetch_operand_8(addr)
+    }
+
+    fn imm_16(&self, addr: u32, abus: &mut ABus) -> u16 {
+        abus.fetch_operand_16(addr)
+    }
+
     pub fn print(&self) {
         println!("A:  {:#01$X}", self.a, 6);
         println!("X:  {:#01$X}", self.x, 6);
