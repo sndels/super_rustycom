@@ -327,6 +327,15 @@ impl Cpu {
         self.pc.wrapping_add(3 + offset)
     }
 
+    fn stack(&self, addr: u32, abus: &mut ABus) -> u32 {
+        self.s.wrapping_add(abus.fetch_operand_8(addr) as u16) as u32
+    }
+
+    fn stack_ptr_y(&self, addr: u32, abus: &mut ABus) -> u32 {
+        let pointer = self.s.wrapping_add(abus.fetch_operand_8(addr) as u16) as u32;
+        (addr_8_16(self.db, abus.bank_wrapping_read_16(pointer)) + self.y as u32) & 0x00FFFFFF
+    }
+
     pub fn print(&self) {
         println!("A:  {:#01$X}", self.a, 6);
         println!("X:  {:#01$X}", self.x, 6);
