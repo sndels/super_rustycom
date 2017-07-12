@@ -61,21 +61,21 @@ fn disassemble(addr: u32, cpu: &Cpu, abus: &mut ABus) {
     let opcode = abus.read8(addr);
     match opcode {
         op::CLC => println!("{:#01$X} CLC", addr, 8),
-        op::JSR => {
+        op::JSR_20 => {
             let sub_addr = abus.fetch_operand_16(addr);
             println!("{0:#01$X} JSR {2:#03$X}", addr, 8, sub_addr, 6);
         }
         op::SEI => println!("{:#01$X} SEI", addr, 8),
-        op::STA => {
+        op::STA_8D => {
             let read_addr = abus.fetch_operand_16(addr);
             println!("{0:#01$X} STA {2:#03$X}", addr, 8, read_addr, 6);
         }
         op::TXS => println!("{0:#01$X} TXS", addr, 8),
-        op::STZ => {
+        op::STZ_9C => {
             let read_addr = abus.fetch_operand_16(addr);
             println!("{0:#01$X} STZ {2:#03$X}", addr, 8, read_addr, 6);
         }
-        op::LDX => {
+        op::LDX_A2 => {
             if cpu.get_p_x() {
                 let result = abus.fetch_operand_8(addr);
                 println!("{0:#01$X} LSX {2:#03$X}", addr, 8, result, 4);
@@ -84,7 +84,7 @@ fn disassemble(addr: u32, cpu: &Cpu, abus: &mut ABus) {
                 println!("{0:#01$X} LSX {2:#03$X}", addr, 8, result, 6);
             }
         }
-        op::LDA => {
+        op::LDA_A9 => {
             if cpu.get_p_m() {
                 let result = abus.fetch_operand_8(addr);
                 println!("{0:#01$X} LDA {2:#03$X}", addr, 8, result, 4);

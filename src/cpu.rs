@@ -45,7 +45,7 @@ impl Cpu {
                 self.reset_p_c();
                 self.pc = self.pc.wrapping_add(1);
             }
-            op::JSR => {
+            op::JSR_20 => {
                 let sub_addr = abus.fetch_operand_16(addr);
                 if self.e {
                     abus.page_wrapping_write_16(self.pc.wrapping_add(2),
@@ -62,7 +62,7 @@ impl Cpu {
                 self.set_p_i();
                 self.pc = self.pc.wrapping_add(1);
             }
-            op::STA => {
+            op::STA_8D => {
                 let read_addr = abus.fetch_operand_16(addr);
                 if !self.get_p_m() {
                     abus.write_16(self.a, self.get_pb_addr(read_addr));
@@ -85,7 +85,7 @@ impl Cpu {
                 }
                 self.pc = self.pc.wrapping_add(1);
             }
-            op::STZ => {
+            op::STZ_9C => {
                 let read_addr = abus.fetch_operand_16(addr);
                 if !self.get_p_m() {
                     abus.write_16(0, self.get_pb_addr(read_addr));
@@ -94,7 +94,7 @@ impl Cpu {
                 }
                 self.pc = self.pc.wrapping_add(3);
             }
-            op::LDX => {
+            op::LDX_A2 => {
                 if self.get_p_x() {
                     let result = abus.fetch_operand_8(addr) as u16;
                     self.x = result;
@@ -109,7 +109,7 @@ impl Cpu {
                     self.pc = self.pc.wrapping_add(3);
                 }
             }
-            op::LDA => {// TODO: Should this load value from PC+result?
+            op::LDA_A9 => {// TODO: Should this load value from PC+result?
                 if self.get_p_m() {
                     let result = abus.fetch_operand_8(addr) as u16;
                     self.a = (self.a & 0xFF00) + result;
