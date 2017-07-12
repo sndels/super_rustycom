@@ -204,6 +204,7 @@ impl Cpu {
     fn get_pb_addr(&self, addr: u16) -> u32 { ((self.pb as u32) << 16) + addr as u32 }
 
     // Addressing modes
+    // TODO: DRY, mismatch funcs and macros?
     fn abs(&self, addr: u32, abus: &mut ABus) -> u32 {// JMP, JSR use PB instead of DB
         addr_8_16(self.db, abus.fetch_operand_16(addr))
     }
@@ -231,6 +232,69 @@ impl Cpu {
     fn abs_ptr_x(&self, addr: u32, abus: &mut ABus) -> u32 {
         let pointer = addr_8_16(self.pb, abus.fetch_operand_16(addr).wrapping_add(self.x));
         addr_8_16(self.pb, abus.bank_wrapping_read_16(pointer))
+    }
+
+    fn dir(&self, addr: u32, abus: &mut ABus) -> u32 {
+        self.d.wrapping_add(abus.fetch_operand_8(addr) as u16) as u32
+    }
+
+    fn dir_x(&self, addr: u32, abus: &mut ABus) -> u32 {
+        if self.e && (self.d & 0xFF) == 0 {
+            (self.d | (abus.fetch_operand_8(addr).wrapping_add(self.x as u8) as u16)) as u32
+        } else {
+            self.d.wrapping_add(abus.fetch_operand_8(addr) as u16).wrapping_add(self.x) as u32
+        }
+    }
+
+    fn dir_y(&self, addr: u32, abus: &mut ABus) -> u32 {
+        if self.e && (self.d & 0xFF) == 0 {
+            (self.d | (abus.fetch_operand_8(addr).wrapping_add(self.y as u8) as u16)) as u32
+        } else {
+            self.d.wrapping_add(abus.fetch_operand_8(addr) as u16).wrapping_add(self.y) as u32
+        }
+    }
+
+    fn dir_ptr_16(&self, addr: u32, abus: &mut ABus) -> u32 {
+        let pointer = self.dir(addr, abus);
+        if self.e && (self.d & 0xFF) == 0 {
+            let ll = abus.read8(addr);
+            let hh = abus.read8((pointer & 0xFF00) | (pointer as u8).wrapping_add(1) as u32);
+            addr_8_8_8(self.db, hh, ll)
+        } else {
+            addr_8_16(self.db, abus.bank_wrapping_read_16(pointer))
+        }
+    }
+
+    fn dir_ptr_24(&self, addr: u32, abus: &mut ABus) -> u32 {
+        let pointer = self.dir(addr, abus);
+        abus.bank_wrapping_read_24(pointer)
+    }
+
+    fn dir_ptr_16_x(&self, addr: u32, abus: &mut ABus) -> u32 {
+        let pointer = self.dir_x(addr, abus);
+        if self.e && (self.d & 0xFF) == 0 {
+            let ll = abus.read8(addr);
+            let hh = abus.read8((pointer & 0xFF00) | (pointer as u8).wrapping_add(1) as u32);
+            addr_8_8_8(self.db, hh, ll)
+        } else {
+            addr_8_16(self.db, abus.bank_wrapping_read_16(pointer))
+        }
+    }
+
+    fn dir_ptr_16_y(&self, addr: u32, abus: &mut ABus) -> u32 {
+        let pointer = self.dir_ptr_16(addr, abus);
+        if self.e && (self.d & 0xFF) == 0 {
+            let ll = abus.read8(addr);
+            let hh = abus.read8((pointer & 0xFF00) | (pointer as u8).wrapping_add(1) as u32);
+            (addr_8_8_8(self.db, hh, ll) + self.y as u32) & 0x00FFFFFF
+        } else {
+            (addr_8_16(self.db, abus.bank_wrapping_read_16(pointer)) + self.y as u32) & 0x00FFFFFF
+        }
+    }
+
+    fn dir_ptr_24_y(&self, addr: u32, abus: &mut ABus) -> u32 {
+        let pointer = self.dir_ptr_24(addr, abus);
+        (abus.bank_wrapping_read_24(pointer) + self.y as u32) & 0x00FFFFFF
     }
 
     pub fn print(&self) {
