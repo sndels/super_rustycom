@@ -243,17 +243,17 @@ impl ABus {
     }
 
     pub fn write_16(&mut self, value: u16, addr: u32) {
-        self.write_8((value & 0xFF) as u8, addr);
+        self.write_8(value as u8, addr);
         self.write_8((value >> 8) as u8, addr + 1);
     }
 
     pub fn bank_wrapping_write_16(&mut self, value: u16, addr: u32) {
-        self.write_8((value & 0xFF) as u8, addr);
+        self.write_8(value as u8, addr);
         self.write_8((value >> 8) as u8, bank_wrapping_add(addr, 1));
     }
 
     pub fn page_wrapping_write_16(&mut self, value: u16, addr: u32) {
-        self.write_8((value & 0xFF) as u8, addr);
+        self.write_8(value as u8, addr);
         self.write_8((value >> 8) as u8, page_wrapping_add(addr, 1));
     }
 }
