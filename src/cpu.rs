@@ -330,6 +330,77 @@ impl Cpu {
         (addr_8_16(self.db, abus.bank_wrapping_read_16(pointer)) + self.y as u32) & 0x00FFFFFF
     }
 
+    // Stack operations
+    fn push_8(&mut self, value: u8, abus: &mut ABus) {
+        abus.write_8(value, self.s as u32);
+        self.decrement_s(1);
+    }
+
+    fn push_16(&mut self, value: u16, abus: &mut ABus) {
+        self.decrement_s(1);
+        if self.e {
+            abus.page_wrapping_write_16(value, self.s as u32);
+        } else {
+            abus.bank_wrapping_write_16(value, self.s as u32);
+        }
+        self.decrement_s(1);
+    }
+
+    fn push_24(&mut self, value: u32, abus: &mut ABus) {
+        self.decrement_s(2);
+        if self.e {
+            abus.page_wrapping_write_24(value, self.s as u32);
+        } else {
+            abus.bank_wrapping_write_24(value, self.s as u32);
+        }
+        self.decrement_s(1);
+    }
+
+    fn pull_8(&mut self, abus: &mut ABus) -> u8{
+        self.increment_s(1);
+        abus.read_8(self.s as u32)
+    }
+
+    fn pull_16(&mut self, abus: &mut ABus) -> u16{
+        self.increment_s(1);
+        let value: u16;
+        if self.e {
+            value = abus.page_wrapping_read_16(self.s as u32);
+        } else {
+            value = abus.bank_wrapping_read_16(self.s as u32);
+        }
+        self.increment_s(1);
+        value
+    }
+
+    fn pull_24(&mut self, abus: &mut ABus) -> u32 {
+        self.increment_s(1);
+        let value: u32;
+        if self.e {
+            value = abus.page_wrapping_read_24(self.s as u32);
+        } else {
+            value = abus.bank_wrapping_read_24(self.s as u32);
+        }
+        self.increment_s(2);
+        value
+    }
+
+    fn decrement_s(&mut self, offset: u8) {
+        if self.e {
+            self.s = 0x0100 | (self.s as u8).wrapping_sub(offset) as u16;
+        } else {
+            self.s = self.s.wrapping_sub(offset as u16);
+        }
+    }
+
+    fn increment_s(&mut self, offset: u8) {
+        if self.e {
+            self.s = 0x0100 | (self.s as u8).wrapping_add(offset) as u16;
+        } else {
+            self.s = self.s.wrapping_add(offset as u16);
+        }
+    }
+
     pub fn print(&self) {
         println!("A:  {:#01$X}", self.a, 6);
         println!("X:  {:#01$X}", self.x, 6);
