@@ -46,7 +46,7 @@ impl Cpu {
                 self.pc = self.pc.wrapping_add(1);
             }
             op::JSR_20 => {
-                let sub_addr = abus.fetch_operand_16(addr);
+                let jump_addr = addr_8_16(self.pb, abus.fetch_operand_16(addr));
                 if self.e {
                     abus.page_wrapping_write_16(self.pc.wrapping_add(2),
                                                 abus::page_wrapping_sub(self.s as u32, 1));
@@ -56,18 +56,18 @@ impl Cpu {
                                                 abus::bank_wrapping_sub(self.s as u32, 1));
                     self.s = self.s.wrapping_sub(2);
                 }
-                self.pc = sub_addr;
+                self.pc = jump_addr as u16;
             }
             op::SEI => {
                 self.set_p_i();
                 self.pc = self.pc.wrapping_add(1);
             }
             op::STA_8D => {
-                let read_addr = abus.fetch_operand_16(addr);
+                let data_addr = self.abs(addr, abus);
                 if !self.get_p_m() {
-                    abus.write_16(self.a, self.get_pb_addr(read_addr));
+                    abus.write_16(self.a, data_addr);
                 } else {
-                    abus.write8(self.a as u8, self.get_pb_addr(read_addr));
+                    abus.write8(self.a as u8, data_addr);
                 }
                 self.pc = self.pc.wrapping_add(3);
             }
@@ -86,41 +86,41 @@ impl Cpu {
                 self.pc = self.pc.wrapping_add(1);
             }
             op::STZ_9C => {
-                let read_addr = abus.fetch_operand_16(addr);
+                let data_addr = self.abs(addr, abus);
                 if !self.get_p_m() {
-                    abus.write_16(0, self.get_pb_addr(read_addr));
+                    abus.write_16(0, data_addr);
                 } else {
-                    abus.write8(0, self.get_pb_addr(read_addr));
+                    abus.write8(0, data_addr);
                 }
                 self.pc = self.pc.wrapping_add(3);
             }
             op::LDX_A2 => {
                 if self.get_p_x() {
-                    let result = abus.fetch_operand_8(addr) as u16;
-                    self.x = result;
-                    self.update_p_z(result);
-                    self.update_p_n_8(result as u8);
+                    let data = self.imm_8(addr, abus) as u16;
+                    self.x = data;
+                    self.update_p_z(data);
+                    self.update_p_n_8(data as u8);
                     self.pc = self.pc.wrapping_add(2);
                 } else {
-                    let result = abus.fetch_operand_16(addr);
-                    self.x = result;
-                    self.update_p_z(result);
-                    self.update_p_n_16(result);
+                    let data = self.imm_16(addr,abus);
+                    self.x = data;
+                    self.update_p_z(data);
+                    self.update_p_n_16(data);
                     self.pc = self.pc.wrapping_add(3);
                 }
             }
-            op::LDA_A9 => {// TODO: Should this load value from PC+result?
+            op::LDA_A9 => {
                 if self.get_p_m() {
-                    let result = abus.fetch_operand_8(addr) as u16;
-                    self.a = (self.a & 0xFF00) + result;
-                    self.update_p_z(result);
-                    self.update_p_n_8(result as u8);
+                    let data = self.imm_8(addr, abus) as u16;
+                    self.a = (self.a & 0xFF00) + data;
+                    self.update_p_z(data);
+                    self.update_p_n_8(data as u8);
                     self.pc = self.pc.wrapping_add(2);
                 } else {
-                    let result = abus.fetch_operand_16(addr);
-                    self.a = result;
-                    self.update_p_z(result);
-                    self.update_p_n_16(result);
+                    let data = self.imm_16(addr, abus);
+                    self.a = data;
+                    self.update_p_z(data);
+                    self.update_p_n_16(data);
                     self.pc = self.pc.wrapping_add(3);
                 }
             }
@@ -137,7 +137,7 @@ impl Cpu {
                 self.pc = self.pc.wrapping_add(1);
             }
             op::REP => {
-                let bits = abus.fetch_operand_8(addr);
+                let bits = self.imm_8(addr, abus);
                 self.p &= !bits;
                 // Emulation forces M and X to 1
                 if self.e {
@@ -152,20 +152,14 @@ impl Cpu {
                 self.pc = self.pc.wrapping_add(2);
             }
             op::BNE => {
-                let offset = abus.fetch_operand_8(addr) as i8;
                 if !self.get_p_z() {
-                    self.pc = self.pc.wrapping_add(2);// TODO: Offset from opcode or end of operand?
-                    if offset < 0 {// TODO: Check negative offset, wrapping for u8 or u16?
-                        self.pc = self.pc.wrapping_sub(offset.abs() as u16);
-                    } else {
-                        self.pc += self.pc.wrapping_add(offset as u16);
-                    }
+                    self.pc = self.rel_8(addr, abus);
                 } else {
                     self.pc = self.pc.wrapping_add(2);
                 }
             }
             op::SEP => {
-                let bits = abus.fetch_operand_8(addr);
+                let bits = self.imm_8(addr, abus);
                 self.p |= bits;
                 self.pc = self.pc.wrapping_add(2);
             }
