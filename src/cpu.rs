@@ -47,15 +47,8 @@ impl Cpu {
             }
             op::JSR_20 => {
                 let jump_addr = addr_8_16(self.pb, abus.fetch_operand_16(addr));
-                if self.e {
-                    abus.page_wrapping_write_16(self.pc.wrapping_add(2),
-                                                abus::page_wrapping_sub(self.s as u32, 1));
-                    self.s = abus::page_wrapping_sub(self.s as u32, 2) as u16;
-                } else {
-                    abus.bank_wrapping_write_16(self.pc.wrapping_add(2),
-                                                abus::bank_wrapping_sub(self.s as u32, 1));
-                    self.s = self.s.wrapping_sub(2);
-                }
+                let ret_addr = self.pc.wrapping_add(2);
+                self.push_16(ret_addr, abus);
                 self.pc = jump_addr as u16;
             }
             op::SEI => {
