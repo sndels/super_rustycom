@@ -26,9 +26,10 @@ pub struct ABus {
     mdmaen:   u8,
     hdmaen:   u8,
     memsel:   u8,
+    // APU comms
+    apu_ports: [u8; 4],
     // TODO: PPU1,2
     // TODO: PPU control regs
-    // TODO: APU com regs
     // TODO: Joypad
     // TODO: Math regs
     // TODO: H-/V-blank regs and timers
@@ -60,6 +61,7 @@ impl ABus {
             mdmaen:   0x00,
             hdmaen:   0x00,
             memsel:   0x00,
+            apu_ports: [0; 4],
         };
         abus.ppu_io[mmap::INIDISP] = 0x08;
         abus.ppu_io[mmap::BGMODE]  = 0x0F;
@@ -107,7 +109,11 @@ impl ABus {
                         }
                     }
                     mmap::APU_IO_FIRST...mmap::APU_IO_LAST => { // APU IO
-                        panic!("Read {:#01$x}: APU IO not implemented", addr, 8)
+                        if bank_addr < 0x2144 {
+                            self.apu_ports[bank_addr - 0x2140]
+                        } else {
+                            self.apu_ports[bank_addr - 0x2144]
+                        }
                     }
                     mmap::WMDATA => panic!("Read {:#01$x}: WMDATA not implemented", addr, 8),
                     mmap::JOYA   => panic!("Read {:#01$x}: JOYA not implemented", addr, 8),
@@ -219,7 +225,11 @@ impl ABus {
                         }
                     }
                     mmap::APU_IO_FIRST...mmap::APU_IO_LAST => { // APU IO
-                        panic!("Write {:#01$x}: APU IO not implemented", addr, 8)
+                        if bank_addr < 0x2144 {
+                            self.apu_ports[bank_addr - 0x2140] = value;
+                        } else {
+                            self.apu_ports[bank_addr - 0x2144] = value;
+                        }
                     }
                     mmap::WMDATA   => panic!("Write {:#01$x}: WMDATA not implemented", addr, 8),
                     mmap::WMADDL   => panic!("Write {:#01$x}: WMADDL not implemented", addr, 8),
