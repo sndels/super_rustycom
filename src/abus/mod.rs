@@ -160,6 +160,17 @@ impl ABus {
         ((self.read_8(bank_wrapping_add(addr, 2)) as u32) << 16)
     }
 
+    pub fn page_wrapping_read_16(&mut self, addr: u32) -> u16 {
+        self.read_8(addr) as u16 |
+        ((self.read_8(page_wrapping_add(addr, 1)) as u16) << 8)
+    }
+
+    pub fn page_wrapping_read_24(&mut self, addr: u32) -> u32 {
+        self.read_8(addr) as u32 |
+        ((self.read_8(page_wrapping_add(addr, 1)) as u32) << 8) |
+        ((self.read_8(page_wrapping_add(addr, 2)) as u32) << 16)
+    }
+
     pub fn fetch_operand_8(&mut self, addr: u32) -> u8 {
         self.read_8(bank_wrapping_add(addr, 1))
     }
@@ -252,9 +263,21 @@ impl ABus {
         self.write_8((value >> 8) as u8, bank_wrapping_add(addr, 1));
     }
 
+    pub fn bank_wrapping_write_24(&mut self, value: u32, addr: u32) {
+        self.write_8(value as u8, addr);
+        self.write_8((value >> 8) as u8, bank_wrapping_add(addr, 1));
+        self.write_8((value >> 16) as u8, bank_wrapping_add(addr, 2));
+    }
+
     pub fn page_wrapping_write_16(&mut self, value: u16, addr: u32) {
         self.write_8(value as u8, addr);
         self.write_8((value >> 8) as u8, page_wrapping_add(addr, 1));
+    }
+
+    pub fn page_wrapping_write_24(&mut self, value: u32, addr: u32) {
+        self.write_8(value as u8, addr);
+        self.write_8((value >> 8) as u8, page_wrapping_add(addr, 1));
+        self.write_8((value >> 16) as u8, page_wrapping_add(addr, 2));
     }
 }
 
