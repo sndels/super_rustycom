@@ -51,6 +51,9 @@ impl Cpu {
                 self.push_16(ret_addr, abus);
                 self.pc = jump_addr as u16;
             }
+            op::RTS => {
+                self.pc = self.pull_16(abus).wrapping_add(1);
+            }
             op::SEI => {
                 self.set_p_i();
                 self.pc = self.pc.wrapping_add(1);
@@ -61,6 +64,15 @@ impl Cpu {
                     abus.write_16(self.a, data_addr);
                 } else {
                     abus.write_8(self.a as u8, data_addr);
+                }
+                self.pc = self.pc.wrapping_add(3);
+            }
+            op::STX_8E => {
+                let data_addr = self.abs(addr, abus);
+                if !self.get_p_x() {
+                    abus.write_16(self.x, data_addr);
+                } else {
+                    abus.write_8(self.x as u8, data_addr);
                 }
                 self.pc = self.pc.wrapping_add(3);
             }
@@ -128,6 +140,22 @@ impl Cpu {
                 }
                 self.update_p_z(result);
                 self.pc = self.pc.wrapping_add(1);
+            }
+            op::LDX_AE => {
+                let data_addr = self.abs(addr, abus);
+                if self.get_p_x() {
+                    let data = abus.read_8(data_addr);
+                    self.x = data as u16;
+                    self.update_p_z(data as u16);
+                    self.update_p_n_8(data);
+                    self.pc = self.pc.wrapping_add(2);
+                } else {
+                    let data = abus.bank_wrapping_read_16(data_addr);
+                    self.x = data;
+                    self.update_p_z(data);
+                    self.update_p_n_16(data);
+                    self.pc = self.pc.wrapping_add(3);
+                }
             }
             op::REP => {
                 let bits = self.imm_8(addr, abus);
