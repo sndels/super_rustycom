@@ -80,7 +80,7 @@ impl ABus {
         abus
     }
 
-    pub fn read8(&mut self, addr: u32) -> u8 {
+    pub fn read_8(&mut self, addr: u32) -> u8 {
         // TODO: Only LoROM, WRAM implemented, under 0x040000
         // TODO: LUT for speed?
         let bank = (addr >> 16) as usize;
@@ -136,7 +136,7 @@ impl ABus {
                     }
                     mmap::LOROM_FIRST...mmap::LOROM_LAST => {
                         let offset = bank_addr - mmap::LOROM_FIRST;
-                        self.rom.read8(bank * mmap::LOROM_FIRST + offset)
+                        self.rom.read_8(bank * mmap::LOROM_FIRST + offset)
                     }
                     _ => panic!("Read {:#01$x}: Address unused or write-only", addr, 8)
                 }
@@ -146,22 +146,22 @@ impl ABus {
     }
 
     pub fn read_16(&mut self, addr: u32) -> u16 {
-        self.read8(addr) as u16 | ((self.read8(addr + 1) as u16) << 8)
+        self.read_8(addr) as u16 | ((self.read_8(addr + 1) as u16) << 8)
     }
 
     pub fn bank_wrapping_read_16(&mut self, addr: u32) -> u16 {
-        self.read8(addr) as u16 |
-        ((self.read8(bank_wrapping_add(addr, 1)) as u16) << 8)
+        self.read_8(addr) as u16 |
+        ((self.read_8(bank_wrapping_add(addr, 1)) as u16) << 8)
     }
 
     pub fn bank_wrapping_read_24(&mut self, addr: u32) -> u32 {
-        self.read8(addr) as u32 |
-        ((self.read8(bank_wrapping_add(addr, 1)) as u32) << 8) |
-        ((self.read8(bank_wrapping_add(addr, 2)) as u32) << 16)
+        self.read_8(addr) as u32 |
+        ((self.read_8(bank_wrapping_add(addr, 1)) as u32) << 8) |
+        ((self.read_8(bank_wrapping_add(addr, 2)) as u32) << 16)
     }
 
     pub fn fetch_operand_8(&mut self, addr: u32) -> u8 {
-        self.read8(bank_wrapping_add(addr, 1))
+        self.read_8(bank_wrapping_add(addr, 1))
     }
 
     pub fn fetch_operand_16(&mut self, addr: u32) -> u16 {
@@ -172,7 +172,7 @@ impl ABus {
         self.bank_wrapping_read_24(bank_wrapping_add(addr, 1))
     }
 
-    pub fn write8(&mut self, value: u8, addr: u32) {
+    pub fn write_8(&mut self, value: u8, addr: u32) {
         let bank = (addr >> 16) as usize;
         let bank_addr = (addr & 0x00FFFF) as usize;
         match bank {
@@ -243,18 +243,18 @@ impl ABus {
     }
 
     pub fn write_16(&mut self, value: u16, addr: u32) {
-        self.write8((value & 0xFF) as u8, addr);
-        self.write8((value >> 8) as u8, addr + 1);
+        self.write_8((value & 0xFF) as u8, addr);
+        self.write_8((value >> 8) as u8, addr + 1);
     }
 
     pub fn bank_wrapping_write_16(&mut self, value: u16, addr: u32) {
-        self.write8((value & 0xFF) as u8, addr);
-        self.write8((value >> 8) as u8, bank_wrapping_add(addr, 1));
+        self.write_8((value & 0xFF) as u8, addr);
+        self.write_8((value >> 8) as u8, bank_wrapping_add(addr, 1));
     }
 
     pub fn page_wrapping_write_16(&mut self, value: u16, addr: u32) {
-        self.write8((value & 0xFF) as u8, addr);
-        self.write8((value >> 8) as u8, page_wrapping_add(addr, 1));
+        self.write_8((value & 0xFF) as u8, addr);
+        self.write_8((value >> 8) as u8, page_wrapping_add(addr, 1));
     }
 }
 

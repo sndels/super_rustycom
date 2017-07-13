@@ -34,7 +34,7 @@ impl Cpu {
 
     pub fn step(&mut self, abus: &mut ABus) {
         let addr = self.get_pb_pc();
-        let opcode = abus.read8(addr);
+        let opcode = abus.read_8(addr);
         self.execute(opcode, addr, abus);
     }
 
@@ -67,7 +67,7 @@ impl Cpu {
                 if !self.get_p_m() {
                     abus.write_16(self.a, data_addr);
                 } else {
-                    abus.write8(self.a as u8, data_addr);
+                    abus.write_8(self.a as u8, data_addr);
                 }
                 self.pc = self.pc.wrapping_add(3);
             }
@@ -90,7 +90,7 @@ impl Cpu {
                 if !self.get_p_m() {
                     abus.write_16(0, data_addr);
                 } else {
-                    abus.write8(0, data_addr);
+                    abus.write_8(0, data_addr);
                 }
                 self.pc = self.pc.wrapping_add(3);
             }
@@ -251,8 +251,8 @@ impl Cpu {
     fn dir_ptr_16(&self, addr: u32, abus: &mut ABus) -> u32 {
         let pointer = self.dir(addr, abus);
         if self.e && (self.d & 0xFF) == 0 {
-            let ll = abus.read8(addr);
-            let hh = abus.read8((pointer & 0xFF00) | (pointer as u8).wrapping_add(1) as u32);
+            let ll = abus.read_8(addr);
+            let hh = abus.read_8((pointer & 0xFF00) | (pointer as u8).wrapping_add(1) as u32);
             addr_8_8_8(self.db, hh, ll)
         } else {
             addr_8_16(self.db, abus.bank_wrapping_read_16(pointer))
@@ -267,8 +267,8 @@ impl Cpu {
     fn dir_ptr_16_x(&self, addr: u32, abus: &mut ABus) -> u32 {
         let pointer = self.dir_x(addr, abus);
         if self.e && (self.d & 0xFF) == 0 {
-            let ll = abus.read8(addr);
-            let hh = abus.read8((pointer & 0xFF00) | (pointer as u8).wrapping_add(1) as u32);
+            let ll = abus.read_8(addr);
+            let hh = abus.read_8((pointer & 0xFF00) | (pointer as u8).wrapping_add(1) as u32);
             addr_8_8_8(self.db, hh, ll)
         } else {
             addr_8_16(self.db, abus.bank_wrapping_read_16(pointer))
@@ -278,8 +278,8 @@ impl Cpu {
     fn dir_ptr_16_y(&self, addr: u32, abus: &mut ABus) -> u32 {
         let pointer = self.dir_ptr_16(addr, abus);
         if self.e && (self.d & 0xFF) == 0 {
-            let ll = abus.read8(addr);
-            let hh = abus.read8((pointer & 0xFF00) | (pointer as u8).wrapping_add(1) as u32);
+            let ll = abus.read_8(addr);
+            let hh = abus.read_8((pointer & 0xFF00) | (pointer as u8).wrapping_add(1) as u32);
             (addr_8_8_8(self.db, hh, ll) + self.y as u32) & 0x00FFFFFF
         } else {
             (addr_8_16(self.db, abus.bank_wrapping_read_16(pointer)) + self.y as u32) & 0x00FFFFFF

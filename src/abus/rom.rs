@@ -40,7 +40,7 @@ impl Rom {
         }
     }
 
-    pub fn read8(&self, addr: usize) -> u8{
+    pub fn read_8(&self, addr: usize) -> u8{
         // TODO: HiROM
         return self.lo_rom[addr];
     }
