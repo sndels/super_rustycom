@@ -89,7 +89,7 @@ impl ABus {
             mmap::WS1_SYSLR_FIRST_BANK...mmap::WS1_SYSLR_LAST_BANK => {
                 match bank_addr {
                     mmap::WRAM_MIRR_FIRST...mmap::WRAM_MIRR_LAST => {
-                        panic!("Read {:#01$x}: WRAM not implemented", addr, 8)
+                        self.wram[bank_addr]
                     }
                     mmap::PPU_IO_FIRST...mmap::PPU_IO_LAST => { // PPU IO
                         let offset = bank_addr - mmap::PPU_IO_FIRST;
