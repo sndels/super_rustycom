@@ -60,54 +60,54 @@ impl Debugger {
 fn disassemble(addr: u32, cpu: &Cpu, abus: &mut ABus) {
     let opcode = abus.read_8(addr);
     match opcode {
-        op::CLC => println!("{:#01$X} CLC", addr, 8),
+        op::CLC => println!("{0:#08X} CLC", addr),
         op::JSR_20 => {
             let sub_addr = abus.fetch_operand_16(addr);
-            println!("{0:#01$X} JSR {2:#03$X}", addr, 8, sub_addr, 6);
+            println!("{0:#08X} JSR {1:#06X}", addr, sub_addr);
         }
-        op::SEI => println!("{:#01$X} SEI", addr, 8),
+        op::SEI => println!("{0:#08X} SEI", addr),
         op::STA_8D => {
             let read_addr = abus.fetch_operand_16(addr);
-            println!("{0:#01$X} STA {2:#03$X}", addr, 8, read_addr, 6);
+            println!("{0:#08X} STA {1:#06X}", addr, read_addr);
         }
-        op::TXS => println!("{0:#01$X} TXS", addr, 8),
+        op::TXS => println!("{0:#08X} TXS", addr),
         op::STZ_9C => {
             let read_addr = abus.fetch_operand_16(addr);
-            println!("{0:#01$X} STZ {2:#03$X}", addr, 8, read_addr, 6);
+            println!("{0:#08X} STZ {1:#06X}", addr, read_addr);
         }
         op::LDX_A2 => {
             if cpu.get_p_x() {
                 let result = abus.fetch_operand_8(addr);
-                println!("{0:#01$X} LSX {2:#03$X}", addr, 8, result, 4);
+                println!("{0:#08X} LSX {1:#04X}", addr, result);
             } else {
                 let result = abus.fetch_operand_16(addr);
-                println!("{0:#01$X} LSX {2:#03$X}", addr, 8, result, 6);
+                println!("{0:#08X} LSX {1:#06X}", addr, result);
             }
         }
         op::LDA_A9 => {
             if cpu.get_p_m() {
                 let result = abus.fetch_operand_8(addr);
-                println!("{0:#01$X} LDA {2:#03$X}", addr, 8, result, 4);
+                println!("{0:#08X} LDA {1:#04X}", addr, result);
             } else {
                 let result = abus.fetch_operand_16(addr);
-                println!("{0:#01$X} LDA {2:#03$X}", addr, 8, result, 6);
+                println!("{0:#08X} LDA {1:#06X}", addr, result);
             }
         }
-        op::TAX => println!("{0:#01$X} TAX", addr, 8),
+        op::TAX => println!("{0:#08X} TAX", addr),
         op::REP => {
             let bits = abus.fetch_operand_8(addr);
-            println!("{0:#01$X} REP {2:#03$X} [{2:b}]", addr, 8, bits, 4);
+            println!("{0:#08X} REP {1:#04X} [{1:08b}]", addr, bits);
         }
         op::BNE => {
             let offset = abus.fetch_operand_8(addr);
-            println!("{0:#01$X} BNE {2:#03$X}", addr, 8, offset, 4);
+            println!("{0:#08X} BNE {1:#04X}", addr, offset);
         }
         op::SEP => {
             let bits = abus.fetch_operand_8(addr);
-            println!("{0:#01$X} SEP {2:#03$X} [{2:b}]", addr, 8, bits, 4);
+            println!("{0:#08X} SEP {1:#04X} [{1:08b}]", addr, bits);
         }
-        op::INX => println!("{:#01$x} INX", addr, 8),
-        op::XCE => println!("{:#01$x} XCE", addr, 8),
-        _ => panic!("Unknown opcode {:X}!", opcode),
+        op::INX => println!("{0:#08X} INX", addr),
+        op::XCE => println!("{0:#08X} XCE", addr),
+        _ => panic!("Unknown opcode {0:02X} at {1:#08X}", opcode, addr)
     }
 }
