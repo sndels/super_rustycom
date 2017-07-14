@@ -107,6 +107,15 @@ fn disassemble(addr: u32, cpu: &Cpu, abus: &mut ABus) {
             let offset = abus.fetch_operand_8(addr);
             println!("{0:#08X} BNE {1:#04X}", addr, offset);
         }
+        op::CPX_E0 => {
+            if cpu.get_p_x() {
+                let data = abus.fetch_operand_8(addr);
+                println!("{0:#08X} CPX {1:#04X}", addr, data);
+            } else {
+                let data = abus.fetch_operand_16(addr);
+                println!("{0:#08X} CPX {1:#06X}", addr, data);
+            }
+        }
         op::SEP => {
             let bits = abus.fetch_operand_8(addr);
             println!("{0:#08X} SEP {1:#04X} [{1:08b}]", addr, bits);

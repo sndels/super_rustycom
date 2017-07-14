@@ -179,6 +179,31 @@ impl Cpu {
                     self.pc = self.pc.wrapping_add(2);
                 }
             }
+            op::CPX_E0 => {
+                if self.get_p_x() {
+                    let data = self.imm_8(addr, abus);
+                    let result = (self.x as u8).wrapping_sub(data);// TODO: Matches binary subtraction?
+                    self.update_p_n_8(result);
+                    self.update_p_z(result as u16);
+                    if (self.x as u8) < data {
+                        self.reset_p_c();
+                    } else {
+                        self.set_p_c();
+                    }
+                    self.pc = self.pc.wrapping_add(2);
+                } else {
+                    let data = self.imm_16(addr, abus);
+                    let result = self.x.wrapping_sub(data);// TODO: Matches binary subtraction?
+                    self.update_p_n_16(result);
+                    self.update_p_z(result);
+                    if self.x < data {
+                        self.reset_p_c();
+                    } else {
+                        self.set_p_c();
+                    }
+                    self.pc = self.pc.wrapping_add(3);
+                }
+            }
             op::SEP => {
                 let bits = self.imm_8(addr, abus);
                 self.p |= bits;
