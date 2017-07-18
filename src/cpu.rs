@@ -448,15 +448,15 @@ impl Cpu {
     }
 
     pub fn print(&self) {
-        println!("A:  {:#01$X}", self.a, 6);
-        println!("X:  {:#01$X}", self.x, 6);
-        println!("Y:  {:#01$X}", self.y, 6);
-        println!("P:  {:01$b}", self.p, 8);
-        println!("PB: {:#01$X}", self.pb, 4);
-        println!("PC: {:#01$X}", self.pc, 6);
-        println!("DB: {:#01$X}", self.db, 4);
-        println!("S:  {:#01$X}", self.s, 6);
-        println!("D:  {:#01$X}", self.d, 6);
+        println!("A:  ${:04X}", self.a);
+        println!("X:  ${:04X}", self.x);
+        println!("Y:  ${:04X}", self.y);
+        println!("P:  {:08b}", self.p);
+        println!("PB: ${:02X}", self.pb);
+        println!("DB: ${:02X}", self.db);
+        println!("PC: ${:04X}", self.pc);
+        println!("S:  ${:04X}", self.s);
+        println!("D:  ${:04X}", self.d);
         println!("E:  {}", self.e);
     }
 
