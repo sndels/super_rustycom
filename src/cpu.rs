@@ -224,7 +224,13 @@ impl Cpu {
                 self.pc = self.pc.wrapping_add(1);
             }
             op::XCE => {
+                let tmp = self.e;
                 self.e = self.get_p_c();
+                if tmp {
+                    self.set_p_c();
+                } else {
+                    self.reset_p_c();
+                }
                 // Emulation forces M and X -flags to 1
                 if self.e {
                     self.set_p_m();
