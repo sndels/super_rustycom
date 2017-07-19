@@ -48,7 +48,8 @@ impl Debugger {
                         }
                     }
                 }
-                "cpu" => cpu.print(),
+                "cpu" => cpu.print_registers(),
+                "flags" => cpu.print_flags(),
                 "run" | "r" => self.active = false,
                 // TODO: quit-comand
                 _            => println!("Unknown command \"{}\"", command_str.trim())

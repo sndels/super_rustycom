@@ -447,7 +447,7 @@ impl Cpu {
         }
     }
 
-    pub fn print(&self) {
+    pub fn print_registers(&self) {
         println!("A:  ${:04X}", self.a);
         println!("X:  ${:04X}", self.x);
         println!("Y:  ${:04X}", self.y);
@@ -458,6 +458,17 @@ impl Cpu {
         println!("S:  ${:04X}", self.s);
         println!("D:  ${:04X}", self.d);
         println!("E:  {}", self.e);
+    }
+
+    pub fn print_flags(&self) {
+        if self.get_p_c() { println!("Carry"); }
+        if self.get_p_z() { println!("Zero"); }
+        if self.get_p_i() { println!("Interrupt"); }
+        if self.get_p_d() { println!("Decimal"); }
+        if self.get_p_x() { println!("Index"); }
+        if self.get_p_m() { println!("Memory"); }
+        if self.get_p_v() { println!("Overflow"); }
+        if self.get_p_n() { println!("Negative"); }
     }
 
     // Flag operations
