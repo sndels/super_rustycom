@@ -235,7 +235,7 @@ impl Cpu {
                 }
                 self.pc = self.pc.wrapping_add(1);
             }
-            _ => panic!("Unknown opcode {:X}!", opcode),
+            _ => panic!("Unknown opcode ${0:02X} at ${1:02X}:{2:04X}", opcode, addr >> 16, addr & 0xFFF)
         }
     }
 
