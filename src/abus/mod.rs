@@ -3,8 +3,8 @@ use self::rom::Rom;
 mod mmap;
 
 pub struct ABus {
-    wram:     [u8; 128000],
-    vram:     [u8; 64000],
+    wram:     [u8; 131072],
+    vram:     [u8; 65536],
     oam:      [u8; 544],
     cgram:    [u8; 512],
     rom:      Rom,
@@ -40,8 +40,8 @@ impl ABus {
     // TODO: Randomize values?
     pub fn new(rom_path: &String) -> ABus {
         let mut abus: ABus = ABus {
-            wram:     [0; 128000],
-            vram:     [0; 64000],
+            wram:     [0; 131072],
+            vram:     [0; 65536],
             oam:      [0; 544],
             cgram:    [0; 512],
             rom:      Rom::new(rom_path),
@@ -85,8 +85,8 @@ impl ABus {
     #[cfg(test)]
     pub fn new_empty_rom() -> ABus {
         let mut abus: ABus = ABus {
-            wram:     [0; 128000],
-            vram:     [0; 64000],
+            wram:     [0; 131072],
+            vram:     [0; 65536],
             oam:      [0; 544],
             cgram:    [0; 512],
             rom:      Rom::new_empty(),
