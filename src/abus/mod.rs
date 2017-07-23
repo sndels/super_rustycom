@@ -189,7 +189,7 @@ impl ABus {
         self.bank_wrapping_cpu_read_24(bank_wrapping_add(addr, 1))
     }
 
-    pub fn write_8(&mut self, value: u8, addr: u32) {
+    pub fn cpu_write_8(&mut self, value: u8, addr: u32) {
         let bank = (addr >> 16) as usize;
         let bank_addr = (addr & 0x00FFFF) as usize;
         match bank {
@@ -263,31 +263,31 @@ impl ABus {
         }
     }
 
-    pub fn write_16(&mut self, value: u16, addr: u32) {
-        self.write_8(value as u8, addr);
-        self.write_8((value >> 8) as u8, addr + 1);
+    pub fn cpu_write_16(&mut self, value: u16, addr: u32) {
+        self.cpu_write_8(value as u8, addr);
+        self.cpu_write_8((value >> 8) as u8, addr + 1);
     }
 
-    pub fn bank_wrapping_write_16(&mut self, value: u16, addr: u32) {
-        self.write_8(value as u8, addr);
-        self.write_8((value >> 8) as u8, bank_wrapping_add(addr, 1));
+    pub fn bank_wrapping_cpu_write_16(&mut self, value: u16, addr: u32) {
+        self.cpu_write_8(value as u8, addr);
+        self.cpu_write_8((value >> 8) as u8, bank_wrapping_add(addr, 1));
     }
 
-    pub fn bank_wrapping_write_24(&mut self, value: u32, addr: u32) {
-        self.write_8(value as u8, addr);
-        self.write_8((value >> 8) as u8, bank_wrapping_add(addr, 1));
-        self.write_8((value >> 16) as u8, bank_wrapping_add(addr, 2));
+    pub fn bank_wrapping_cpu_write_24(&mut self, value: u32, addr: u32) {
+        self.cpu_write_8(value as u8, addr);
+        self.cpu_write_8((value >> 8) as u8, bank_wrapping_add(addr, 1));
+        self.cpu_write_8((value >> 16) as u8, bank_wrapping_add(addr, 2));
     }
 
-    pub fn page_wrapping_write_16(&mut self, value: u16, addr: u32) {
-        self.write_8(value as u8, addr);
-        self.write_8((value >> 8) as u8, page_wrapping_add(addr, 1));
+    pub fn page_wrapping_cpu_write_16(&mut self, value: u16, addr: u32) {
+        self.cpu_write_8(value as u8, addr);
+        self.cpu_write_8((value >> 8) as u8, page_wrapping_add(addr, 1));
     }
 
-    pub fn page_wrapping_write_24(&mut self, value: u32, addr: u32) {
-        self.write_8(value as u8, addr);
-        self.write_8((value >> 8) as u8, page_wrapping_add(addr, 1));
-        self.write_8((value >> 16) as u8, page_wrapping_add(addr, 2));
+    pub fn page_wrapping_cpu_write_24(&mut self, value: u32, addr: u32) {
+        self.cpu_write_8(value as u8, addr);
+        self.cpu_write_8((value >> 8) as u8, page_wrapping_add(addr, 1));
+        self.cpu_write_8((value >> 16) as u8, page_wrapping_add(addr, 2));
     }
 }
 

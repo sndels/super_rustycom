@@ -61,18 +61,18 @@ impl Cpu {
             op::STA_8D => {
                 let data_addr = self.abs(addr, abus);
                 if !self.get_p_m() {
-                    abus.write_16(self.a, data_addr);
+                    abus.cpu_write_16(self.a, data_addr);
                 } else {
-                    abus.write_8(self.a as u8, data_addr);
+                    abus.cpu_write_8(self.a as u8, data_addr);
                 }
                 self.pc = self.pc.wrapping_add(3);
             }
             op::STX_8E => {
                 let data_addr = self.abs(addr, abus);
                 if !self.get_p_x() {
-                    abus.write_16(self.x, data_addr);
+                    abus.cpu_write_16(self.x, data_addr);
                 } else {
-                    abus.write_8(self.x as u8, data_addr);
+                    abus.cpu_write_8(self.x as u8, data_addr);
                 }
                 self.pc = self.pc.wrapping_add(3);
             }
@@ -93,9 +93,9 @@ impl Cpu {
             op::STZ_9C => {
                 let data_addr = self.abs(addr, abus);
                 if !self.get_p_m() {
-                    abus.write_16(0, data_addr);
+                    abus.cpu_write_16(0, data_addr);
                 } else {
-                    abus.write_8(0, data_addr);
+                    abus.cpu_write_8(0, data_addr);
                 }
                 self.pc = self.pc.wrapping_add(3);
             }
@@ -384,16 +384,16 @@ impl Cpu {
 
     // Stack operations
     fn push_8(&mut self, value: u8, abus: &mut ABus) {
-        abus.write_8(value, self.s as u32);
+        abus.cpu_write_8(value, self.s as u32);
         self.decrement_s(1);
     }
 
     fn push_16(&mut self, value: u16, abus: &mut ABus) {
         self.decrement_s(1);
         if self.e {
-            abus.page_wrapping_write_16(value, self.s as u32);
+            abus.page_wrapping_cpu_write_16(value, self.s as u32);
         } else {
-            abus.bank_wrapping_write_16(value, self.s as u32);
+            abus.bank_wrapping_cpu_write_16(value, self.s as u32);
         }
         self.decrement_s(1);
     }
@@ -401,9 +401,9 @@ impl Cpu {
     fn push_24(&mut self, value: u32, abus: &mut ABus) {
         self.decrement_s(2);
         if self.e {
-            abus.page_wrapping_write_24(value, self.s as u32);
+            abus.page_wrapping_cpu_write_24(value, self.s as u32);
         } else {
-            abus.bank_wrapping_write_24(value, self.s as u32);
+            abus.bank_wrapping_cpu_write_24(value, self.s as u32);
         }
         self.decrement_s(1);
     }
