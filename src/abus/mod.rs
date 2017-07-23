@@ -379,8 +379,8 @@ impl MpyDiv {
 
     pub fn set_mpy_b(&mut self, value: u8) {
         self.mpy_b = value;
-        self.mpy_res = (self.mpy_a as u16) * (self.mpy_b as u16); // TODO: Actual implementation?, timing
-        self.div_res = self.mpy_b as u16; // TODO: Double-check this side-effect
+        self.mpy_res = (self.mpy_a as u16) * (self.mpy_b as u16); // TODO: Timing
+        self.div_res = self.mpy_b as u16;
     }
 
     pub fn set_dividend_low(&mut self, value: u8) {
@@ -467,5 +467,26 @@ mod tests {
         reg.value = 0xABCD;
         assert_eq!(0xCD, reg.read());
         assert_eq!(0xAB, reg.read());
+    }
+
+    #[test]
+    fn mpy() {
+        let mut mpy_div = MpyDiv::new();
+        // Straight multiplication
+        mpy_div.set_mpy_a(0xFA);
+        mpy_div.set_mpy_b(0xFB);
+        assert_eq!(0xF51E, mpy_div.mpy_res);
+        assert_eq!(0x1E, mpy_div.get_mpy_res_low());
+        assert_eq!(0xF5, mpy_div.get_mpy_res_high());
+        // Side-effect
+        assert_eq!(0x00FB, mpy_div.div_res); // According to fullsnes
+
+        // Only b triggers mpy
+        mpy_div.set_mpy_a(0xFB);
+        assert_eq!(0xF51E, mpy_div.mpy_res);
+
+        // By zero
+        mpy_div.set_mpy_b(0x00);
+        assert_eq!(0x0000, mpy_div.mpy_res);
     }
 }
