@@ -388,11 +388,18 @@ impl MpyDiv {
     }
 
     pub fn set_dividend_high(&mut self, value: u8) {
-        self.dividend = value as u16 | (self.dividend & 0x00FF);
+        self.dividend = ((value as u16) << 8) | (self.dividend & 0x00FF);
     }
 
     pub fn set_divisor(&mut self, value: u8) {
-        self.divisor = value; // TODO: Division, timing 
+        self.divisor = value; // TODO: Timing
+        if self.divisor == 0 {
+            self.div_res = 0xFFFF;
+            self.mpy_res = self.dividend;
+        } else {
+            self.div_res = self.dividend / self.divisor as u16;
+            self.mpy_res = self.dividend % self.divisor as u16;
+        }
     }
 
     pub fn get_mpy_res_low(&self) -> u8 {
