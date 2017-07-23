@@ -442,3 +442,30 @@ impl DoubleReg {
         self.high_active = !self.high_active;
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn double_reg_write() {
+        let mut reg = DoubleReg::new();
+        reg.write(0x34);
+        reg.write(0x12);
+        assert_eq!(0x1234, reg.value);
+        reg.write(0xCD);
+        reg.write(0xAB);
+        assert_eq!(0xABCD, reg.value);
+    }
+
+    #[test]
+    fn double_reg_read() {
+        let mut reg = DoubleReg::new();
+        reg.value = 0x1234;
+        assert_eq!(0x34, reg.read());
+        assert_eq!(0x12, reg.read());
+        reg.value = 0xABCD;
+        assert_eq!(0xCD, reg.read());
+        assert_eq!(0xAB, reg.read());
+    }
+}
