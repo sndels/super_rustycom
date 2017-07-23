@@ -60,7 +60,7 @@ impl Debugger {
 
 fn disassemble(addr: u32, cpu: &Cpu, abus: &mut ABus) {
     print_addr(addr);
-    let opcode = abus.read_8(addr);
+    let opcode = abus.cpu_read_8(addr);
     match opcode {
         op::CLC => print!("CLC"),
         op::JSR_20 => {

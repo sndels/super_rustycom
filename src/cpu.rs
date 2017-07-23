@@ -22,7 +22,7 @@ impl Cpu {
             a:  0x00,
             x:  0x00,
             y:  0x00,
-            pc: abus.read_16(0x00FF00 + RESET8 as u32), // TODO: This only applies to LoROM
+            pc: abus.cpu_read_16(0x00FF00 + RESET8 as u32), // TODO: This only applies to LoROM
             s:  0x01FF,
             p:  P_M | P_X | P_I,
             d : 0x00,
@@ -34,7 +34,7 @@ impl Cpu {
 
     pub fn step(&mut self, abus: &mut ABus) {
         let addr = self.get_pb_pc();
-        let opcode = abus.read_8(addr);
+        let opcode = abus.cpu_read_8(addr);
         self.execute(opcode, addr, abus);
     }
 
@@ -144,13 +144,13 @@ impl Cpu {
             op::LDX_AE => {
                 let data_addr = self.abs(addr, abus);
                 if self.get_p_x() {
-                    let data = abus.read_8(data_addr);
+                    let data = abus.cpu_read_8(data_addr);
                     self.x = data as u16;
                     self.update_p_z(data as u16);
                     self.update_p_n_8(data);
                     self.pc = self.pc.wrapping_add(2);
                 } else {
-                    let data = abus.bank_wrapping_read_16(data_addr);
+                    let data = abus.bank_wrapping_cpu_read_16(data_addr);
                     self.x = data;
                     self.update_p_z(data);
                     self.update_p_n_16(data);
@@ -267,17 +267,17 @@ impl Cpu {
 
     fn abs_ptr_16(&self, addr: u32, abus: &mut ABus) -> u32 {
         let pointer = abus.fetch_operand_16(addr) as u32;
-        addr_8_16(self.pb, abus.bank_wrapping_read_16(pointer))
+        addr_8_16(self.pb, abus.bank_wrapping_cpu_read_16(pointer))
     }
 
     fn abs_ptr_24(&self, addr: u32, abus: &mut ABus) -> u32 {
         let pointer = abus.fetch_operand_24(addr) as u32;
-        abus.bank_wrapping_read_24(pointer)
+        abus.bank_wrapping_cpu_read_24(pointer)
     }
 
     fn abs_ptr_x(&self, addr: u32, abus: &mut ABus) -> u32 {
         let pointer = addr_8_16(self.pb, abus.fetch_operand_16(addr).wrapping_add(self.x));
-        addr_8_16(self.pb, abus.bank_wrapping_read_16(pointer))
+        addr_8_16(self.pb, abus.bank_wrapping_cpu_read_16(pointer))
     }
 
     fn dir(&self, addr: u32, abus: &mut ABus) -> u32 {
@@ -303,44 +303,44 @@ impl Cpu {
     fn dir_ptr_16(&self, addr: u32, abus: &mut ABus) -> u32 {
         let pointer = self.dir(addr, abus);
         if self.e && (self.d & 0xFF) == 0 {
-            let ll = abus.read_8(addr);
-            let hh = abus.read_8((pointer & 0xFF00) | (pointer as u8).wrapping_add(1) as u32);
+            let ll = abus.cpu_read_8(pointer);
+            let hh = abus.cpu_read_8((pointer & 0xFF00) | (pointer as u8).wrapping_add(1) as u32);
             addr_8_8_8(self.db, hh, ll)
         } else {
-            addr_8_16(self.db, abus.bank_wrapping_read_16(pointer))
+            addr_8_16(self.db, abus.bank_wrapping_cpu_read_16(pointer))
         }
     }
 
     fn dir_ptr_24(&self, addr: u32, abus: &mut ABus) -> u32 {
         let pointer = self.dir(addr, abus);
-        abus.bank_wrapping_read_24(pointer)
+        abus.bank_wrapping_cpu_read_24(pointer)
     }
 
     fn dir_ptr_16_x(&self, addr: u32, abus: &mut ABus) -> u32 {
         let pointer = self.dir_x(addr, abus);
         if self.e && (self.d & 0xFF) == 0 {
-            let ll = abus.read_8(addr);
-            let hh = abus.read_8((pointer & 0xFF00) | (pointer as u8).wrapping_add(1) as u32);
+            let ll = abus.cpu_read_8(pointer);
+            let hh = abus.cpu_read_8((pointer & 0xFF00) | (pointer as u8).wrapping_add(1) as u32);
             addr_8_8_8(self.db, hh, ll)
         } else {
-            addr_8_16(self.db, abus.bank_wrapping_read_16(pointer))
+            addr_8_16(self.db, abus.bank_wrapping_cpu_read_16(pointer))
         }
     }
 
     fn dir_ptr_16_y(&self, addr: u32, abus: &mut ABus) -> u32 {
         let pointer = self.dir_ptr_16(addr, abus);
         if self.e && (self.d & 0xFF) == 0 {
-            let ll = abus.read_8(addr);
-            let hh = abus.read_8((pointer & 0xFF00) | (pointer as u8).wrapping_add(1) as u32);
+            let ll = abus.cpu_read_8(pointer);
+            let hh = abus.cpu_read_8((pointer & 0xFF00) | (pointer as u8).wrapping_add(1) as u32);
             (addr_8_8_8(self.db, hh, ll) + self.y as u32) & 0x00FFFFFF
         } else {
-            (addr_8_16(self.db, abus.bank_wrapping_read_16(pointer)) + self.y as u32) & 0x00FFFFFF
+            (addr_8_16(self.db, abus.bank_wrapping_cpu_read_16(pointer)) + self.y as u32) & 0x00FFFFFF
         }
     }
 
     fn dir_ptr_24_y(&self, addr: u32, abus: &mut ABus) -> u32 {
         let pointer = self.dir_ptr_24(addr, abus);
-        (abus.bank_wrapping_read_24(pointer) + self.y as u32) & 0x00FFFFFF
+        (abus.bank_wrapping_cpu_read_24(pointer) + self.y as u32) & 0x00FFFFFF
     }
 
     fn imm_8(&self, addr: u32, abus: &mut ABus) -> u8 {
@@ -379,7 +379,7 @@ impl Cpu {
 
     fn stack_ptr_y(&self, addr: u32, abus: &mut ABus) -> u32 {
         let pointer = self.s.wrapping_add(abus.fetch_operand_8(addr) as u16) as u32;
-        (addr_8_16(self.db, abus.bank_wrapping_read_16(pointer)) + self.y as u32) & 0x00FFFFFF
+        (addr_8_16(self.db, abus.bank_wrapping_cpu_read_16(pointer)) + self.y as u32) & 0x00FFFFFF
     }
 
     // Stack operations
@@ -410,16 +410,16 @@ impl Cpu {
 
     fn pull_8(&mut self, abus: &mut ABus) -> u8{
         self.increment_s(1);
-        abus.read_8(self.s as u32)
+        abus.cpu_read_8(self.s as u32)
     }
 
     fn pull_16(&mut self, abus: &mut ABus) -> u16{
         self.increment_s(1);
         let value: u16;
         if self.e {
-            value = abus.page_wrapping_read_16(self.s as u32);
+            value = abus.page_wrapping_cpu_read_16(self.s as u32);
         } else {
-            value = abus.bank_wrapping_read_16(self.s as u32);
+            value = abus.bank_wrapping_cpu_read_16(self.s as u32);
         }
         self.increment_s(1);
         value
@@ -429,9 +429,9 @@ impl Cpu {
         self.increment_s(1);
         let value: u32;
         if self.e {
-            value = abus.page_wrapping_read_24(self.s as u32);
+            value = abus.page_wrapping_cpu_read_24(self.s as u32);
         } else {
-            value = abus.bank_wrapping_read_24(self.s as u32);
+            value = abus.bank_wrapping_cpu_read_24(self.s as u32);
         }
         self.increment_s(2);
         value

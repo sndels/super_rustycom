@@ -82,7 +82,7 @@ impl ABus {
         abus
     }
 
-    pub fn read_8(&mut self, addr: u32) -> u8 {
+    pub fn cpu_read_8(&mut self, addr: u32) -> u8 {
         // TODO: Only LoROM, WRAM implemented, under 0x040000
         // TODO: LUT for speed?
         let bank = (addr >> 16) as usize;
@@ -151,42 +151,42 @@ impl ABus {
         }
     }
 
-    pub fn read_16(&mut self, addr: u32) -> u16 {
-        self.read_8(addr) as u16 | ((self.read_8(addr + 1) as u16) << 8)
+    pub fn cpu_read_16(&mut self, addr: u32) -> u16 {
+        self.cpu_read_8(addr) as u16 | ((self.cpu_read_8(addr + 1) as u16) << 8)
     }
 
-    pub fn bank_wrapping_read_16(&mut self, addr: u32) -> u16 {
-        self.read_8(addr) as u16 |
-        ((self.read_8(bank_wrapping_add(addr, 1)) as u16) << 8)
+    pub fn bank_wrapping_cpu_read_16(&mut self, addr: u32) -> u16 {
+        self.cpu_read_8(addr) as u16 |
+        ((self.cpu_read_8(bank_wrapping_add(addr, 1)) as u16) << 8)
     }
 
-    pub fn bank_wrapping_read_24(&mut self, addr: u32) -> u32 {
-        self.read_8(addr) as u32 |
-        ((self.read_8(bank_wrapping_add(addr, 1)) as u32) << 8) |
-        ((self.read_8(bank_wrapping_add(addr, 2)) as u32) << 16)
+    pub fn bank_wrapping_cpu_read_24(&mut self, addr: u32) -> u32 {
+        self.cpu_read_8(addr) as u32 |
+        ((self.cpu_read_8(bank_wrapping_add(addr, 1)) as u32) << 8) |
+        ((self.cpu_read_8(bank_wrapping_add(addr, 2)) as u32) << 16)
     }
 
-    pub fn page_wrapping_read_16(&mut self, addr: u32) -> u16 {
-        self.read_8(addr) as u16 |
-        ((self.read_8(page_wrapping_add(addr, 1)) as u16) << 8)
+    pub fn page_wrapping_cpu_read_16(&mut self, addr: u32) -> u16 {
+        self.cpu_read_8(addr) as u16 |
+        ((self.cpu_read_8(page_wrapping_add(addr, 1)) as u16) << 8)
     }
 
-    pub fn page_wrapping_read_24(&mut self, addr: u32) -> u32 {
-        self.read_8(addr) as u32 |
-        ((self.read_8(page_wrapping_add(addr, 1)) as u32) << 8) |
-        ((self.read_8(page_wrapping_add(addr, 2)) as u32) << 16)
+    pub fn page_wrapping_cpu_read_24(&mut self, addr: u32) -> u32 {
+        self.cpu_read_8(addr) as u32 |
+        ((self.cpu_read_8(page_wrapping_add(addr, 1)) as u32) << 8) |
+        ((self.cpu_read_8(page_wrapping_add(addr, 2)) as u32) << 16)
     }
 
     pub fn fetch_operand_8(&mut self, addr: u32) -> u8 {
-        self.read_8(bank_wrapping_add(addr, 1))
+        self.cpu_read_8(bank_wrapping_add(addr, 1))
     }
 
     pub fn fetch_operand_16(&mut self, addr: u32) -> u16 {
-        self.bank_wrapping_read_16(bank_wrapping_add(addr, 1))
+        self.bank_wrapping_cpu_read_16(bank_wrapping_add(addr, 1))
     }
 
     pub fn fetch_operand_24(&mut self, addr: u32) -> u32 {
-        self.bank_wrapping_read_24(bank_wrapping_add(addr, 1))
+        self.bank_wrapping_cpu_read_24(bank_wrapping_add(addr, 1))
     }
 
     pub fn write_8(&mut self, value: u8, addr: u32) {
