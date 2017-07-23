@@ -82,6 +82,51 @@ impl ABus {
         abus
     }
 
+    #[cfg(test)]
+    pub fn new_empty_rom() -> ABus {
+        let mut abus: ABus = ABus {
+            wram:     [0; 128000],
+            vram:     [0; 64000],
+            oam:      [0; 544],
+            cgram:    [0; 512],
+            rom:      Rom::new_empty(),
+            mpy_div:  MpyDiv::new(),
+            ppu_io:   [0; 64],
+            bg_ofs:   [DoubleReg::new(); 8],
+            m7:       [DoubleReg::new(); 6],
+            cg_data:  DoubleReg::new(),
+            rd_oam:   DoubleReg::new(),
+            rd_cgram: DoubleReg::new(),
+            op_hct:   DoubleReg::new(),
+            op_vct:   DoubleReg::new(),
+            nmitimen: 0x00,
+            wrio:     0xFF,
+            htime:    0x01FF,
+            vtime:    0x01FF,
+            mdmaen:   0x00,
+            hdmaen:   0x00,
+            memsel:   0x00,
+            apu_ports: [0; 4],
+        };
+        abus.ppu_io[mmap::INIDISP] = 0x08;
+        abus.ppu_io[mmap::BGMODE]  = 0x0F;
+        abus.ppu_io[mmap::VMAIN]  |= 0xF;
+        abus.m7[0].write(0xFF);
+        abus.m7[0].write(0x00);
+        abus.m7[1].write(0xFF);
+        abus.m7[1].write(0x00);
+        abus.ppu_io[mmap::SETINI] = 0x00;
+        abus.ppu_io[mmap::MPYL]   = 0x01;
+        abus.ppu_io[mmap::MPYM]   = 0x00;
+        abus.ppu_io[mmap::MPYH]   = 0x00;
+        abus.op_hct.write(0xFF);
+        abus.op_hct.write(0x01);
+        abus.op_vct.write(0xFF);
+        abus.op_vct.write(0x01);
+        abus.ppu_io[mmap::STAT78] |= 0b0100_000;
+        abus
+    }
+
     pub fn cpu_read_8(&mut self, addr: u32) -> u8 {
         // TODO: Only LoROM, WRAM implemented, under 0x040000
         // TODO: LUT for speed?
