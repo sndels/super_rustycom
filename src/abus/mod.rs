@@ -534,4 +534,12 @@ mod tests {
         assert_eq!(0xFFFF, mpy_div.div_res);
         assert_eq!(0xFAFB, mpy_div.mpy_res);
     }
+
+    #[test]
+    fn wrapping_adds() {
+        assert_eq!(0xAAABA9, bank_wrapping_add(0xAAAAAA, 0xFF));
+        assert_eq!(0xAA2AA9, bank_wrapping_add(0xAAAAAA, 0x7FFF));
+        assert_eq!(0xAAAAB9, page_wrapping_add(0xAAAAAA, 0xF));
+        assert_eq!(0xAAAA29, page_wrapping_add(0xAAAAAA, 0x7F));
+    }
 }
