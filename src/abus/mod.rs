@@ -489,4 +489,42 @@ mod tests {
         mpy_div.set_mpy_b(0x00);
         assert_eq!(0x0000, mpy_div.mpy_res);
     }
+
+    #[test]
+    fn div() {
+        let mut mpy_div = MpyDiv::new();
+        // Straight division
+        mpy_div.set_dividend_low(0xFB);
+        mpy_div.set_dividend_high(0xFA);
+        mpy_div.set_divisor(0x1A);
+        assert_eq!(0x09A7, mpy_div.div_res);
+        assert_eq!(0xA7, mpy_div.get_div_res_low());
+        assert_eq!(0x09, mpy_div.get_div_res_high());
+        assert_eq!(0x0005, mpy_div.mpy_res);
+
+        // Only divisor triggers div
+        mpy_div.set_dividend_low(0xFD);
+        mpy_div.set_dividend_high(0xFC);
+        assert_eq!(0x09A7, mpy_div.div_res);
+        assert_eq!(0x0005, mpy_div.mpy_res);
+
+        // Zero remainder
+        mpy_div.set_divisor(0x01);
+        assert_eq!(0xFCFD, mpy_div.div_res);
+        assert_eq!(0x0000, mpy_div.mpy_res);
+
+        // Only remainder
+        mpy_div.set_dividend_low(0x09);
+        mpy_div.set_dividend_high(0x00);
+        mpy_div.set_divisor(0x1A);
+        assert_eq!(0x0000, mpy_div.div_res);
+        assert_eq!(0x0009, mpy_div.mpy_res);
+
+        // Division by zero
+        mpy_div.set_dividend_low(0xFB);
+        mpy_div.set_dividend_high(0xFA);
+        mpy_div.set_divisor(0x00);
+        assert_eq!(0xFFFF, mpy_div.div_res);
+        assert_eq!(0xFAFB, mpy_div.mpy_res);
+    }
 }
