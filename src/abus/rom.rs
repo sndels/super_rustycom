@@ -40,7 +40,14 @@ impl Rom {
         }
     }
 
-    pub fn read_8(&self, addr: usize) -> u8{
+    #[cfg(test)]
+    pub fn new_empty() -> Rom {
+        Rom {
+            lo_rom: vec![0; 4194304].into_boxed_slice(),
+        }
+    }
+
+    pub fn read_8(&self, addr: usize) -> u8 {
         // TODO: HiROM
         return self.lo_rom[addr];
     }
