@@ -2,17 +2,17 @@
 pub const WS1_SYSLR_FIRST_BANK: usize = 0x00;
 pub const WS1_SYSLR_LAST_BANK: usize  = 0x3F;
 
-pub const WS1_HIROM_FIRST: usize = 0x400000;
-pub const WS1_HIROM_LAST: usize  = 0x7DFFFF;
+pub const WS1_HIROM_FIRST_BANK: usize = 0x40;
+pub const WS1_HIROM_LAST_BANK: usize  = 0x7D;
 
-pub const WRAM_FIRST: usize      = 0x7E0000;
-pub const WRAM_LAST: usize       = 0x7FFFFF;
+pub const WRAM_FIRST_BANK: usize      = 0x7E;
+pub const WRAM_LAST_BANK: usize       = 0x7F;
 
 pub const WS2_SYSLR_FIRST_BANK: usize = 0x80;
 pub const WS2_SYSLR_LAST_BANK: usize  = 0xBF;
 
-pub const WS2_HIROM_FIRST: usize = 0xC00000;
-pub const WS2_HIROM_LAST: usize  = 0xFFFFFF;
+pub const WS2_HIROM_FIRST_BANK: usize = 0xC0;
+pub const WS2_HIROM_LAST_BANK: usize  = 0xFF;
 
 // Map of the shared system and LoROM -banks
 pub const SYS_FIRST: usize   = 0x0000;
