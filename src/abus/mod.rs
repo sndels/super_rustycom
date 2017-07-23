@@ -542,4 +542,12 @@ mod tests {
         assert_eq!(0xAAAAB9, page_wrapping_add(0xAAAAAA, 0xF));
         assert_eq!(0xAAAA29, page_wrapping_add(0xAAAAAA, 0x7F));
     }
+
+    #[test]
+    fn wrapping_subs() {
+        assert_eq!(0xAAA9AB, bank_wrapping_sub(0xAAAAAA, 0xFF));
+        assert_eq!(0xAA2AAB, bank_wrapping_sub(0xAAAAAA, 0x7FFF));
+        assert_eq!(0xAAAA9B, page_wrapping_sub(0xAAAAAA, 0xF));
+        assert_eq!(0xAAAA2B, page_wrapping_sub(0xAAAAAA, 0x7F));
+    }
 }
