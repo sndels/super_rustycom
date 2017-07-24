@@ -192,6 +192,9 @@ impl ABus {
                     _ => panic!("Read {:#01$x}: Address unused or write-only", addr, 8)
                 }
             }
+            mmap::WRAM_FIRST_BANK...mmap::WRAM_LAST_BANK => {
+                self.wram[(bank - mmap::WRAM_FIRST_BANK) * 0x10000 + bank_addr]
+            }
             _ => panic!("Read {:#01$x}: Bank not implemented!", addr, 8)
         }
     }
@@ -303,6 +306,9 @@ impl ABus {
                     }
                     _ => panic!("Write {:#01$x}: Address unused or read-only", addr, 8)
                 }
+            }
+            mmap::WRAM_FIRST_BANK...mmap::WRAM_LAST_BANK => {
+                self.wram[(bank - mmap::WRAM_FIRST_BANK) * 0x10000 + bank_addr] = value;
             }
             _ => panic!("Write {:#01$x}: Bank not implemented", addr, 8)
         }
