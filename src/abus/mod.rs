@@ -556,4 +556,44 @@ mod tests {
         assert_eq!(0xAAAA9B, page_wrapping_sub(0xAAAAAA, 0xF));
         assert_eq!(0xAAAA2B, page_wrapping_sub(0xAAAAAA, 0x7F));
     }
+
+    #[test]
+    fn cpu_wrapping_reads() {
+        let mut abus = ABus::new_empty_rom();
+        abus.wram[0x100FF] = 0xEF;
+        abus.wram[0x10000] = 0xCD;
+        abus.wram[0x10001] = 0xAB;
+        assert_eq!(0xCDEF, abus.page_wrapping_cpu_read_16(0x7F00FF));
+        assert_eq!(0xABCDEF, abus.page_wrapping_cpu_read_24(0x7F00FF));
+        abus.wram[0x100FF] = 0x0;
+        abus.wram[0x1FFFF] = 0xEF;
+        assert_eq!(0xCDEF, abus.bank_wrapping_cpu_read_16(0x7FFFFF));
+        assert_eq!(0xABCDEF, abus.bank_wrapping_cpu_read_24(0x7FFFFF));
+    }
+
+    #[test]
+    fn cpu_wrapping_writes() {
+        let mut abus = ABus::new_empty_rom();
+        abus.bank_wrapping_cpu_write_16(0xABCD, 0x7FFFFF);
+        assert_eq!(0xCD, abus.wram[0x1FFFF]);
+        assert_eq!(0xAB, abus.wram[0x10000]);
+        abus.wram[0x1FFFF] = 0x0;
+        abus.wram[0x10000] = 0x0;
+        abus.bank_wrapping_cpu_write_24(0xABCDEF, 0x7FFFFF);
+        assert_eq!(0xEF, abus.wram[0x1FFFF]);
+        assert_eq!(0xCD, abus.wram[0x10000]);
+        assert_eq!(0xAB, abus.wram[0x10001]);
+        abus.wram[0x1FFFF] = 0x0;
+        abus.wram[0x10000] = 0x0;
+        abus.wram[0x10001] = 0x0;
+        abus.page_wrapping_cpu_write_16(0xABCD, 0x7F00FF);
+        assert_eq!(0xCD, abus.wram[0x100FF]);
+        assert_eq!(0xAB, abus.wram[0x10000]);
+        abus.wram[0x100FF] = 0x0;
+        abus.wram[0x10000] = 0x0;
+        abus.page_wrapping_cpu_write_24(0xABCDEF, 0x7F00FF);
+        assert_eq!(0xEF, abus.wram[0x100FF]);
+        assert_eq!(0xCD, abus.wram[0x10000]);
+        assert_eq!(0xAB, abus.wram[0x10001]);
+    }
 }
