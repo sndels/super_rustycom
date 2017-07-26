@@ -596,4 +596,20 @@ mod tests {
         assert_eq!(0xCD, abus.wram[0x10000]);
         assert_eq!(0xAB, abus.wram[0x10001]);
     }
+
+    #[test]
+    fn fetch_operand() {
+        let mut abus = ABus::new_empty_rom();
+        abus.wram[0x1FFFD] = 0x9A;
+        abus.wram[0x1FFFE] = 0x78;
+        abus.wram[0x1FFFF] = 0x56;
+        abus.wram[0x10000] = 0x34;
+        abus.wram[0x10001] = 0x12;
+        assert_eq!(0x56, abus.fetch_operand_8(0x7FFFFE));
+        assert_eq!(0x34, abus.fetch_operand_8(0x7FFFFF));
+        assert_eq!(0x5678, abus.fetch_operand_16(0x7FFFFD));
+        assert_eq!(0x3456, abus.fetch_operand_16(0x7FFFFE));
+        assert_eq!(0x56789A, abus.fetch_operand_24(0x7FFFFC));
+        assert_eq!(0x123456, abus.fetch_operand_24(0x7FFFFE));
+    }
 }
