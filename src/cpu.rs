@@ -560,3 +560,124 @@ const P_X: u8 = 0b0001_0000;
 const P_M: u8 = 0b0010_0000;
 const P_V: u8 = 0b0100_0000;
 const P_N: u8 = 0b1000_0000;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Stack
+    #[test]
+    fn stack_push() {
+        let mut abus = ABus::new_empty_rom();
+        let mut cpu = Cpu::new(&mut abus);
+        cpu.s = 0x01FF;
+        cpu.e = true;
+        // Regular emumode pushes
+        cpu.push_8(0x12, &mut abus);
+        assert_eq!(0x01FE, cpu.s);
+        assert_eq!(0x12, abus.cpu_read_8(0x0001FF));
+        cpu.push_16(0x2345, &mut abus);
+        assert_eq!(0x01FC, cpu.s);
+        assert_eq!(0x2345, abus.page_wrapping_cpu_read_16(0x0001FD));
+        cpu.push_24(0x345678, &mut abus);
+        assert_eq!(0x01F9, cpu.s);
+        assert_eq!(0x345678, abus.page_wrapping_cpu_read_24(0x0001FA));
+        abus.bank_wrapping_cpu_write_24(0x000000, 0x0001FA);
+        abus.bank_wrapping_cpu_write_24(0x000000, 0x0001FD);
+        // Wrapping emumode pushes
+        cpu.s = 0x0100;
+        cpu.push_8(0x12, &mut abus);
+        cpu.push_8(0x34, &mut abus);
+        assert_eq!(0x1234, abus.page_wrapping_cpu_read_16(0x0001FF));
+        cpu.s = 0x0100;
+        cpu.push_16(0x2345, &mut abus);
+        assert_eq!(0x2345, abus.page_wrapping_cpu_read_16(0x0001FF));
+        cpu.s = 0x0100;
+        cpu.push_24(0x345678, &mut abus);
+        assert_eq!(0x345678, abus.page_wrapping_cpu_read_24(0x0001FE));
+        abus.bank_wrapping_cpu_write_24(0x000000, 0x0001FE);
+        // Regular pushes
+        cpu.s = 0x01FF;
+        cpu.e = false;
+        cpu.push_8(0x12, &mut abus);
+        assert_eq!(0x01FE, cpu.s);
+        assert_eq!(0x12, abus.cpu_read_8(0x0001FF));
+        cpu.push_16(0x2345, &mut abus);
+        assert_eq!(0x01FC, cpu.s);
+        assert_eq!(0x2345, abus.bank_wrapping_cpu_read_16(0x0001FD));
+        cpu.push_24(0x345678, &mut abus);
+        assert_eq!(0x01F9, cpu.s);
+        assert_eq!(0x345678, abus.bank_wrapping_cpu_read_24(0x0001FA));
+        abus.bank_wrapping_cpu_write_24(0x000000, 0x0001FA);
+        abus.bank_wrapping_cpu_write_24(0x000000, 0x0001FD);
+        // Wrapping pushes
+        cpu.s = 0x0000;
+        cpu.push_8(0x12, &mut abus);
+        cpu.push_8(0x34, &mut abus);
+        assert_eq!(0xFFFE, cpu.s);
+        assert_eq!(0x1234, abus.bank_wrapping_cpu_read_16(0x00FFFF));
+        cpu.s = 0x0000;
+        cpu.push_16(0x2345, &mut abus);
+        assert_eq!(0xFFFE, cpu.s);
+        assert_eq!(0x2345, abus.bank_wrapping_cpu_read_16(0x00FFFF));
+        cpu.s = 0x0000;
+        cpu.push_24(0x345678, &mut abus);
+        assert_eq!(0xFFFD, cpu.s);
+        assert_eq!(0x345678, abus.bank_wrapping_cpu_read_24(0x00FFFE));
+        abus.bank_wrapping_cpu_write_24(0x000000, 0x0FFFE);
+    }
+
+    #[test]
+    fn stack_pull() {
+        let mut abus = ABus::new_empty_rom();
+        let mut cpu = Cpu::new(&mut abus);
+        cpu.s = 0x01FC;
+        cpu.e = true;
+        // Regular emumode pulls
+        abus.page_wrapping_cpu_write_24(0x123456, 0x0001FD);
+        assert_eq!(0x56, cpu.pull_8(&mut abus));
+        assert_eq!(0x01FD, cpu.s);
+        assert_eq!(0x1234, cpu.pull_16(&mut abus));
+        assert_eq!(0x01FF, cpu.s);
+        cpu.s = 0x01FC;
+        assert_eq!(0x123456, cpu.pull_24(&mut abus));
+        assert_eq!(0x01FF, cpu.s);
+        abus.page_wrapping_cpu_write_24(0x000000, 0x0001FD);
+        // Wrapping emumode pulls
+        abus.page_wrapping_cpu_write_24(0x123456, 0x0001FF);
+        cpu.s = 0x01FF;
+        assert_eq!(0x34, cpu.pull_8(&mut abus));
+        assert_eq!(0x0100, cpu.s);
+        cpu.s = 0x01FE;
+        assert_eq!(0x3456, cpu.pull_16(&mut abus));
+        assert_eq!(0x0100, cpu.s);
+        cpu.s = 0x01FE;
+        assert_eq!(0x123456, cpu.pull_24(&mut abus));
+        assert_eq!(0x0101, cpu.s);
+        abus.page_wrapping_cpu_write_24(0x000000, 0x0001FF);
+        // Regular pulls
+        cpu.s = 0x01FC;
+        cpu.e = false;
+        abus.bank_wrapping_cpu_write_24(0x123456, 0x0001FD);
+        assert_eq!(0x56, cpu.pull_8(&mut abus));
+        assert_eq!(0x01FD, cpu.s);
+        assert_eq!(0x1234, cpu.pull_16(&mut abus));
+        assert_eq!(0x01FF, cpu.s);
+        cpu.s = 0x01FC;
+        assert_eq!(0x123456, cpu.pull_24(&mut abus));
+        assert_eq!(0x01FF, cpu.s);
+        abus.bank_wrapping_cpu_write_24(0x000000, 0x0001FD);
+        // Wrapping pulls
+        abus.bank_wrapping_cpu_write_24(0x123456, 0x00FFFF);
+        cpu.s = 0xFFFF;
+        assert_eq!(0x34, cpu.pull_8(&mut abus));
+        assert_eq!(0x0000, cpu.s);
+        cpu.s = 0xFFFE;
+        assert_eq!(0x3456, cpu.pull_16(&mut abus));
+        assert_eq!(0x0000, cpu.s);
+        cpu.s = 0xFFFE;
+        assert_eq!(0x123456, cpu.pull_24(&mut abus));
+        assert_eq!(0x0001, cpu.s);
+        abus.bank_wrapping_cpu_write_24(0x000000, 0x00FFFF);
+    }
+}
