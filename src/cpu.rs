@@ -231,10 +231,11 @@ impl Cpu {
                 } else {
                     self.reset_p_c();
                 }
-                // Emulation forces M and X -flags to 1
+                // Emulation forces M and X flags to 1 and SH to 0x01
                 if self.e {
                     self.set_p_m();
                     self.set_p_x();
+                    self.s = 0x0100 | (self.s & 0x00FF);
                 }
                 self.pc = self.pc.wrapping_add(1);
             }
