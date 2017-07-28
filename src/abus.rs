@@ -140,7 +140,7 @@ impl ABus {
                     mmap::PPU_IO_FIRST...mmap::PPU_IO_LAST => { // PPU IO
                         let offset = bank_addr - mmap::PPU_IO_FIRST;
                         if offset < mmap::MPYL {
-                            panic!("Read {:#01$x}: Address write-only", addr, 8);
+                            panic!("Read ${:06X}: Address write-only", addr);
                         }
 
                         // Match on read-twice regs, default to reg array
@@ -159,42 +159,42 @@ impl ABus {
                             self.apu_ports[bank_addr - 0x2144]
                         }
                     }
-                    mmap::WMDATA => panic!("Read {:#01$x}: WMDATA not implemented", addr, 8),
-                    mmap::JOYA   => panic!("Read {:#01$x}: JOYA not implemented", addr, 8),
-                    mmap::JOYB   => panic!("Read {:#01$x}: JOYA not implemented", addr, 8),
-                    mmap::RDNMI  => panic!("Read {:#01$x}: RDNMI not implemented", addr, 8),
-                    mmap::TIMEUP => panic!("Read {:#01$x}: TIMEUP not implemented", addr, 8),
-                    mmap::HVBJOY => panic!("Read {:#01$x}: HVBJOY not implemented", addr, 8),
-                    mmap::RDIO   => panic!("Read {:#01$x}: RDIO not implemented", addr, 8),
-                    mmap::RDDIVL => panic!("Read {:#01$x}: RDDIVL not implemented", addr, 8),
-                    mmap::RDDIVH => panic!("Read {:#01$x}: RDDIVH not implemented", addr, 8),
-                    mmap::RDMPYL => panic!("Read {:#01$x}: RDMPYL not implemented", addr, 8),
-                    mmap::RDMPYH => panic!("Read {:#01$x}: RDMPYH not implemented", addr, 8),
-                    mmap::JOY1L  => panic!("Read {:#01$x}: JOY1L not implemented", addr, 8),
-                    mmap::JOY1H  => panic!("Read {:#01$x}: JOY1H not implemented", addr, 8),
-                    mmap::JOY2L  => panic!("Read {:#01$x}: JOY2L not implemented", addr, 8),
-                    mmap::JOY2H  => panic!("Read {:#01$x}: JOY2H not implemented", addr, 8),
-                    mmap::JOY3L  => panic!("Read {:#01$x}: JOY3L not implemented", addr, 8),
-                    mmap::JOY3H  => panic!("Read {:#01$x}: JOY3H not implemented", addr, 8),
-                    mmap::JOY4L  => panic!("Read {:#01$x}: JOY4L not implemented", addr, 8),
-                    mmap::JOY4H  => panic!("Read {:#01$x}: JOY4H not implemented", addr, 8),
+                    mmap::WMDATA => panic!("Read ${:06X}: WMDATA not implemented", addr),
+                    mmap::JOYA   => panic!("Read ${:06X}: JOYA not implemented", addr),
+                    mmap::JOYB   => panic!("Read ${:06X}: JOYA not implemented", addr),
+                    mmap::RDNMI  => panic!("Read ${:06X}: RDNMI not implemented", addr),
+                    mmap::TIMEUP => panic!("Read ${:06X}: TIMEUP not implemented", addr),
+                    mmap::HVBJOY => panic!("Read ${:06X}: HVBJOY not implemented", addr),
+                    mmap::RDIO   => panic!("Read ${:06X}: RDIO not implemented", addr),
+                    mmap::RDDIVL => panic!("Read ${:06X}: RDDIVL not implemented", addr),
+                    mmap::RDDIVH => panic!("Read ${:06X}: RDDIVH not implemented", addr),
+                    mmap::RDMPYL => panic!("Read ${:06X}: RDMPYL not implemented", addr),
+                    mmap::RDMPYH => panic!("Read ${:06X}: RDMPYH not implemented", addr),
+                    mmap::JOY1L  => panic!("Read ${:06X}: JOY1L not implemented", addr),
+                    mmap::JOY1H  => panic!("Read ${:06X}: JOY1H not implemented", addr),
+                    mmap::JOY2L  => panic!("Read ${:06X}: JOY2L not implemented", addr),
+                    mmap::JOY2H  => panic!("Read ${:06X}: JOY2H not implemented", addr),
+                    mmap::JOY3L  => panic!("Read ${:06X}: JOY3L not implemented", addr),
+                    mmap::JOY3H  => panic!("Read ${:06X}: JOY3H not implemented", addr),
+                    mmap::JOY4L  => panic!("Read ${:06X}: JOY4L not implemented", addr),
+                    mmap::JOY4H  => panic!("Read ${:06X}: JOY4H not implemented", addr),
                     mmap::DMA_FIRST...mmap::DMA_LAST => { // DMA
-                        panic!("Read {:#01$x}: DMA not implemented", addr, 8)
+                        panic!("Read ${:06X}: DMA not implemented", addr)
                     }
                     mmap::EXP_FIRST...mmap::EXP_LAST => { // Expansion
-                        panic!("Read {:#01$x}: Expansion not implemented", addr, 8)
+                        panic!("Read ${:06X}: Expansion not implemented", addr)
                     }
                     mmap::LOROM_FIRST...mmap::LOROM_LAST => {
                         let offset = bank_addr - mmap::LOROM_FIRST;
                         self.rom.read_8(bank * mmap::LOROM_FIRST + offset)
                     }
-                    _ => panic!("Read {:#01$x}: Address unused or write-only", addr, 8)
+                    _ => panic!("Read ${:06X}: Address unused or write-only", addr)
                 }
             }
             mmap::WRAM_FIRST_BANK...mmap::WRAM_LAST_BANK => {
                 self.wram[(bank - mmap::WRAM_FIRST_BANK) * 0x10000 + bank_addr]
             }
-            _ => panic!("Read {:#01$x}: Bank not implemented!", addr, 8)
+            _ => panic!("Read ${:06X}: Bank not implemented!", addr)
         }
     }
 
@@ -248,7 +248,7 @@ impl ABus {
                     mmap::PPU_IO_FIRST...mmap::PPU_IO_LAST => { // PPU IO
                         let offset = bank_addr - mmap::PPU_IO_FIRST;
                         if offset > mmap::SETINI {
-                            panic!("Write {:#01$x}: Address read-only", addr, 8);
+                            panic!("Write ${:06X}: Address read-only", addr);
                         }
 
                         // Match on write-twice regs, default to reg array
@@ -278,11 +278,11 @@ impl ABus {
                             self.apu_ports[bank_addr - 0x2144] = value;
                         }
                     }
-                    mmap::WMDATA   => panic!("Write {:#01$x}: WMDATA not implemented", addr, 8),
-                    mmap::WMADDL   => panic!("Write {:#01$x}: WMADDL not implemented", addr, 8),
-                    mmap::WMADDM   => panic!("Write {:#01$x}: WMADDM not implemented", addr, 8),
-                    mmap::WMADDH   => panic!("Write {:#01$x}: WMADDH not implemented", addr, 8),
-                    mmap::JOYWR    => panic!("Write {:#01$x}: JOYWR not implemented", addr, 8),
+                    mmap::WMDATA   => panic!("Write ${:06X}: WMDATA not implemented", addr),
+                    mmap::WMADDL   => panic!("Write ${:06X}: WMADDL not implemented", addr),
+                    mmap::WMADDM   => panic!("Write ${:06X}: WMADDM not implemented", addr),
+                    mmap::WMADDH   => panic!("Write ${:06X}: WMADDH not implemented", addr),
+                    mmap::JOYWR    => panic!("Write ${:06X}: JOYWR not implemented", addr),
                     mmap::NMITIMEN => self.nmitimen = value,
                     mmap::WRIO     => self.wrio = value,
                     mmap::WRMPYA   => self.mpy_div.set_mpy_a(value),
@@ -298,22 +298,22 @@ impl ABus {
                     mmap::HDMAEN   => self.hdmaen = value,
                     mmap::MEMSEL   => self.memsel = value,
                     mmap::DMA_FIRST...mmap::DMA_LAST => { // DMA
-                        panic!("Write {:#01$x}: DMA not implemented", addr, 8)
+                        panic!("Write ${:06X}: DMA not implemented", addr)
                     }
                     mmap::EXP_FIRST...mmap::EXP_LAST => { // Expansion
-                        panic!("Write {:#01$x}: Expansion not implemented", addr, 8)
+                        panic!("Write ${:06X}: Expansion not implemented", addr)
                     }
                     mmap::LOROM_FIRST...mmap::LOROM_LAST => {
                         let offset = bank_addr - mmap::LOROM_FIRST;
                         self.rom.write_8(value, bank * mmap::LOROM_FIRST + offset)
                     }
-                    _ => panic!("Write {:#01$x}: Address unused or read-only", addr, 8)
+                    _ => panic!("Write ${:06X}: Address unused or read-only", addr)
                 }
             }
             mmap::WRAM_FIRST_BANK...mmap::WRAM_LAST_BANK => {
                 self.wram[(bank - mmap::WRAM_FIRST_BANK) * 0x10000 + bank_addr] = value;
             }
-            _ => panic!("Write {:#01$x}: Bank not implemented", addr, 8)
+            _ => panic!("Write ${:06X}: Bank not implemented", addr)
         }
     }
 
