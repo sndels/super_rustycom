@@ -1,6 +1,5 @@
 use std::io::{self, Write};
 use std::u32;
-use cpu;
 use cpu::Cpu;
 use abus::ABus;
 use op;

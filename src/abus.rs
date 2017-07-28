@@ -1,6 +1,5 @@
-mod rom;
-use self::rom::Rom;
-mod mmap;
+use rom::Rom;
+use mmap;
 
 pub struct ABus {
     wram:     [u8; 131072],

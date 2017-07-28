@@ -1,9 +1,12 @@
 use std::env;
 
 mod abus;
-mod debugger;
 mod cpu;
+mod debugger;
+mod mmap;
+mod rom;
 mod op;
+
 use abus::ABus;
 use cpu::Cpu;
 use debugger::Debugger;
