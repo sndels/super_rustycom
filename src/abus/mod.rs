@@ -304,6 +304,10 @@ impl ABus {
                     mmap::EXP_FIRST...mmap::EXP_LAST => { // Expansion
                         panic!("Write {:#01$x}: Expansion not implemented", addr, 8)
                     }
+                    mmap::LOROM_FIRST...mmap::LOROM_LAST => {
+                        let offset = bank_addr - mmap::LOROM_FIRST;
+                        self.rom.write_8(value, bank * mmap::LOROM_FIRST + offset)
+                    }
                     _ => panic!("Write {:#01$x}: Address unused or read-only", addr, 8)
                 }
             }
