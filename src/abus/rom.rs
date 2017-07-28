@@ -51,4 +51,14 @@ impl Rom {
         // TODO: HiROM
         return self.lo_rom[addr];
     }
+
+    #[cfg(not(test))]
+    pub fn write_8(&mut self, value: u8, addr: usize) {
+        panic!("Write to rom at addr ${:06X}!", addr);
+    }
+
+    #[cfg(test)]
+    pub fn write_8(&mut self, value: u8, addr: usize) {
+        self.lo_rom[addr] = value;
+    }
 }
