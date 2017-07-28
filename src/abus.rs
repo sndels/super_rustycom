@@ -1,5 +1,6 @@
 use rom::Rom;
 use mmap;
+use ppu_io::PpuIo;
 
 pub struct ABus {
     wram:     [u8; 131072],
@@ -8,15 +9,7 @@ pub struct ABus {
     cgram:    [u8; 512],
     rom:      Rom,
     mpy_div:  MpyDiv,
-    // PPU IO
-    ppu_io:   [u8; 64],
-    bg_ofs:   [DoubleReg; 8],
-    m7:       [DoubleReg; 6],
-    cg_data:  DoubleReg,
-    rd_oam:   DoubleReg,
-    rd_cgram: DoubleReg,
-    op_hct:   DoubleReg,
-    op_vct:   DoubleReg,
+    ppu_io:   PpuIo,
     // "On-chip" CPU W
     nmitimen: u8,
     wrio:     u8,
@@ -38,21 +31,14 @@ pub struct ABus {
 impl ABus {
     // TODO: Randomize values?
     pub fn new(rom_path: &String) -> ABus {
-        let mut abus: ABus = ABus {
+        ABus {
             wram:     [0; 131072],
             vram:     [0; 65536],
             oam:      [0; 544],
             cgram:    [0; 512],
             rom:      Rom::new(rom_path),
             mpy_div:  MpyDiv::new(),
-            ppu_io:   [0; 64],
-            bg_ofs:   [DoubleReg::new(); 8],
-            m7:       [DoubleReg::new(); 6],
-            cg_data:  DoubleReg::new(),
-            rd_oam:   DoubleReg::new(),
-            rd_cgram: DoubleReg::new(),
-            op_hct:   DoubleReg::new(),
-            op_vct:   DoubleReg::new(),
+            ppu_io:   PpuIo::new(),
             nmitimen: 0x00,
             wrio:     0xFF,
             htime:    0x01FF,
@@ -61,43 +47,19 @@ impl ABus {
             hdmaen:   0x00,
             memsel:   0x00,
             apu_ports: [0; 4],
-        };
-        abus.ppu_io[mmap::INIDISP] = 0x08;
-        abus.ppu_io[mmap::BGMODE]  = 0x0F;
-        abus.ppu_io[mmap::VMAIN]  |= 0xF;
-        abus.m7[0].write(0xFF);
-        abus.m7[0].write(0x00);
-        abus.m7[1].write(0xFF);
-        abus.m7[1].write(0x00);
-        abus.ppu_io[mmap::SETINI] = 0x00;
-        abus.ppu_io[mmap::MPYL]   = 0x01;
-        abus.ppu_io[mmap::MPYM]   = 0x00;
-        abus.ppu_io[mmap::MPYH]   = 0x00;
-        abus.op_hct.write(0xFF);
-        abus.op_hct.write(0x01);
-        abus.op_vct.write(0xFF);
-        abus.op_vct.write(0x01);
-        abus.ppu_io[mmap::STAT78] |= 0b0100_000;
-        abus
+        }
     }
 
     #[cfg(test)]
     pub fn new_empty_rom() -> ABus {
-        let mut abus: ABus = ABus {
+        ABus {
             wram:     [0; 131072],
             vram:     [0; 65536],
             oam:      [0; 544],
             cgram:    [0; 512],
             rom:      Rom::new_empty(),
             mpy_div:  MpyDiv::new(),
-            ppu_io:   [0; 64],
-            bg_ofs:   [DoubleReg::new(); 8],
-            m7:       [DoubleReg::new(); 6],
-            cg_data:  DoubleReg::new(),
-            rd_oam:   DoubleReg::new(),
-            rd_cgram: DoubleReg::new(),
-            op_hct:   DoubleReg::new(),
-            op_vct:   DoubleReg::new(),
+            ppu_io:   PpuIo::new(),
             nmitimen: 0x00,
             wrio:     0xFF,
             htime:    0x01FF,
@@ -106,24 +68,7 @@ impl ABus {
             hdmaen:   0x00,
             memsel:   0x00,
             apu_ports: [0; 4],
-        };
-        abus.ppu_io[mmap::INIDISP] = 0x08;
-        abus.ppu_io[mmap::BGMODE]  = 0x0F;
-        abus.ppu_io[mmap::VMAIN]  |= 0xF;
-        abus.m7[0].write(0xFF);
-        abus.m7[0].write(0x00);
-        abus.m7[1].write(0xFF);
-        abus.m7[1].write(0x00);
-        abus.ppu_io[mmap::SETINI] = 0x00;
-        abus.ppu_io[mmap::MPYL]   = 0x01;
-        abus.ppu_io[mmap::MPYM]   = 0x00;
-        abus.ppu_io[mmap::MPYH]   = 0x00;
-        abus.op_hct.write(0xFF);
-        abus.op_hct.write(0x01);
-        abus.op_vct.write(0xFF);
-        abus.op_vct.write(0x01);
-        abus.ppu_io[mmap::STAT78] |= 0b0100_000;
-        abus
+        }
     }
 
     pub fn cpu_read_8(&mut self, addr: u32) -> u8 {
@@ -138,19 +83,10 @@ impl ABus {
                         self.wram[bank_addr]
                     }
                     mmap::PPU_IO_FIRST...mmap::PPU_IO_LAST => { // PPU IO
-                        let offset = bank_addr - mmap::PPU_IO_FIRST;
-                        if offset < mmap::MPYL {
-                            panic!("Read ${:06X}: Address write-only", addr);
+                        if bank_addr < mmap::MPYL {
+                            panic!("Read ${:06X}: PPU IO write-only for cpu", addr);
                         }
-
-                        // Match on read-twice regs, default to reg array
-                        match offset {
-                            mmap::RDOAM   => self.rd_oam.read(),
-                            mmap::RDCGRAM => self.rd_cgram.read(),
-                            mmap::OPHCT   => self.op_hct.read(),
-                            mmap::OPVCT   => self.op_vct.read(),
-                            _       => self.ppu_io[offset]
-                        }
+                        self.ppu_io.read(bank_addr)
                     }
                     mmap::APU_IO_FIRST...mmap::APU_IO_LAST => { // APU IO
                         if bank_addr < 0x2144 {
@@ -246,30 +182,10 @@ impl ABus {
                         self.wram[bank_addr] = value
                     }
                     mmap::PPU_IO_FIRST...mmap::PPU_IO_LAST => { // PPU IO
-                        let offset = bank_addr - mmap::PPU_IO_FIRST;
-                        if offset > mmap::SETINI {
-                            panic!("Write ${:06X}: Address read-only", addr);
+                        if bank_addr > mmap::SETINI {
+                            panic!("Write ${:06X}: PPU IO read-only for cpu", addr);
                         }
-
-                        // Match on write-twice regs, default to reg array
-                        match offset {
-                            mmap::BG1HOFS => self.bg_ofs[0].write(value),
-                            mmap::BG1VOFS => self.bg_ofs[1].write(value),
-                            mmap::BG2HOFS => self.bg_ofs[2].write(value),
-                            mmap::BG2VOFS => self.bg_ofs[3].write(value),
-                            mmap::BG3HOFS => self.bg_ofs[4].write(value),
-                            mmap::BG3VOFS => self.bg_ofs[5].write(value),
-                            mmap::BG4HOFS => self.bg_ofs[6].write(value),
-                            mmap::BG4VOFS => self.bg_ofs[7].write(value),
-                            mmap::M7A     => self.m7[0].write(value),
-                            mmap::M7B     => self.m7[1].write(value),
-                            mmap::M7C     => self.m7[2].write(value),
-                            mmap::M7D     => self.m7[3].write(value),
-                            mmap::M7X     => self.m7[4].write(value),
-                            mmap::M7Y     => self.m7[5].write(value),
-                            mmap::CGDATA  => self.cg_data.write(value),
-                            _       => self.ppu_io[offset] = value
-                        }
+                        self.ppu_io.write(value, bank_addr);
                     }
                     mmap::APU_IO_FIRST...mmap::APU_IO_LAST => { // APU IO
                         if bank_addr < 0x2144 {
@@ -428,62 +344,9 @@ impl MpyDiv {
     }
 }
 
-#[derive(Copy, Clone)]
-struct DoubleReg {
-    value: u16,
-    high_active: bool, // TODO: Should there be separate flags for read and write?
-}
-
-impl DoubleReg {
-    pub fn new() -> DoubleReg {
-        DoubleReg {
-            value:           0,
-            high_active: false,
-        }
-    }
-
-    pub fn read(&mut self) -> u8 {
-        let value = if self.high_active { (self.value >> 8) as u8 }
-                    else { (self.value & 0xFF) as u8 };
-        self.high_active = !self.high_active;
-        value
-    }
-
-    pub fn write(&mut self, value: u8) {
-        if self.high_active {
-            self.value = (self.value & 0x00FF) | ((value as u16) << 8);
-        } else {
-            self.value = (self.value & 0xFF00) | value as u16;
-        }
-        self.high_active = !self.high_active;
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn double_reg_write() {
-        let mut reg = DoubleReg::new();
-        reg.write(0x34);
-        reg.write(0x12);
-        assert_eq!(0x1234, reg.value);
-        reg.write(0xCD);
-        reg.write(0xAB);
-        assert_eq!(0xABCD, reg.value);
-    }
-
-    #[test]
-    fn double_reg_read() {
-        let mut reg = DoubleReg::new();
-        reg.value = 0x1234;
-        assert_eq!(0x34, reg.read());
-        assert_eq!(0x12, reg.read());
-        reg.value = 0xABCD;
-        assert_eq!(0xCD, reg.read());
-        assert_eq!(0xAB, reg.read());
-    }
 
     #[test]
     fn mpy() {
@@ -614,5 +477,19 @@ mod tests {
         assert_eq!(0x3456, abus.fetch_operand_16(0x7FFFFE));
         assert_eq!(0x56789A, abus.fetch_operand_24(0x7FFFFC));
         assert_eq!(0x123456, abus.fetch_operand_24(0x7FFFFE));
+    }
+
+    #[test]
+    fn cpu_read_system_area() {
+        let mut abus = ABus::new_empty_rom();
+        // WRAM
+        for i in 0..0x2000 {
+            abus.wram[i] = 0xAA;
+        }
+        for i in 0..0x2000 {
+            assert_eq!(0xAA, abus.cpu_read_8(i));
+        }
+        // PPU-read
+
     }
 }
