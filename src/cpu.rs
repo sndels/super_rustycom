@@ -235,9 +235,6 @@ impl Cpu {
                 if self.e {
                     self.set_p_m();
                     self.set_p_x();
-                    // X = 1 forces XH and YH to 0x00
-                    self.x &= 0x00FF;
-                    self.y &= 0x00FF;
                 }
                 self.pc = self.pc.wrapping_add(1);
             }
@@ -491,7 +488,12 @@ impl Cpu {
     fn set_p_z(&mut self) { self.p |= P_Z }
     fn set_p_i(&mut self) { self.p |= P_I }
     fn set_p_d(&mut self) { self.p |= P_D }
-    fn set_p_x(&mut self) { self.p |= P_X }
+    fn set_p_x(&mut self) {
+        self.p |= P_X;
+        // X = 1 forces XH and YH to 0x00
+        self.x &= 0x00FF;
+        self.y &= 0x00FF;
+    }
     fn set_p_m(&mut self) { self.p |= P_M }
     fn set_p_v(&mut self) { self.p |= P_V }
     fn set_p_n(&mut self) { self.p |= P_N }
