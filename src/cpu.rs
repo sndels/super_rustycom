@@ -781,4 +781,131 @@ mod tests {
         abus.bank_wrapping_cpu_write_16(0x0000, 0x7E0011);
         abus.bank_wrapping_cpu_write_16(0x0000, 0x7E0001);
     }
+
+    #[test]
+    fn addr_dir() {
+        let mut abus = ABus::new_empty_rom();
+        let mut cpu = Cpu::new(&mut abus);
+        cpu.pb = 0x7E;
+        cpu.db = 0x7F;
+        cpu.pc = 0x0010;
+        cpu.d = 0x1234;
+        cpu.e = true;
+        // Direct
+        abus.cpu_write_8(0x12, 0x7E0011);
+        assert_eq!(0x001246, cpu.dir(addr_8_16(cpu.pb, cpu.pc), &mut abus));
+        // Wrapping
+        cpu.d = 0xFFE0;
+        abus.cpu_write_8(0xFF, 0x7E0011);
+        assert_eq!(0x0000DF, cpu.dir(addr_8_16(cpu.pb, cpu.pc), &mut abus));
+        // Direct,X and Direct,Y
+        // Standard behavior
+        cpu.d = 0x1234;
+        cpu.x = 0x5678;
+        cpu.y = 0xABCD;
+        abus.cpu_write_8(0x12, 0x7E0011);
+        assert_eq!(0x0068BE, cpu.dir_x(addr_8_16(cpu.pb, cpu.pc), &mut abus));
+        assert_eq!(0x00BE13, cpu.dir_y(addr_8_16(cpu.pb, cpu.pc), &mut abus));
+        // Wrapping
+        cpu.d = 0xCDEF;
+        assert_eq!(0x002479, cpu.dir_x(addr_8_16(cpu.pb, cpu.pc), &mut abus));
+        assert_eq!(0x0079CE, cpu.dir_y(addr_8_16(cpu.pb, cpu.pc), &mut abus));
+        // Emumode and DL is $00
+        cpu.d = 0x1200;
+        cpu.x = 0x0034;
+        cpu.y = 0x00AB;
+        abus.cpu_write_8(0x12, 0x7E0011);
+        assert_eq!(0x001246, cpu.dir_x(addr_8_16(cpu.pb, cpu.pc), &mut abus));
+        assert_eq!(0x0012BD, cpu.dir_y(addr_8_16(cpu.pb, cpu.pc), &mut abus));
+        // Wrapping
+        abus.cpu_write_8(0xDE, 0x7E0011);
+        assert_eq!(0x001212, cpu.dir_x(addr_8_16(cpu.pb, cpu.pc), &mut abus));
+        assert_eq!(0x001289, cpu.dir_y(addr_8_16(cpu.pb, cpu.pc), &mut abus));
+        // (Direct)
+        cpu.d = 0x1234;
+        abus.cpu_write_8(0x56, 0x7E0011);
+        abus.bank_wrapping_cpu_write_16(0xABCD, 0x00128A);
+        assert_eq!(0x7FABCD, cpu.dir_ptr_16(addr_8_16(cpu.pb, cpu.pc), &mut abus));
+        abus.bank_wrapping_cpu_write_16(0x0000, 0x00128A);
+        // Wrapping
+        cpu.d = 0xFFA9;
+        abus.bank_wrapping_cpu_write_16(0xABCD, 0x00FFFF);
+        assert_eq!(0x7FABCD, cpu.dir_ptr_16(addr_8_16(cpu.pb, cpu.pc), &mut abus));
+        abus.bank_wrapping_cpu_write_16(0x0000, 0x00FFFF);
+        // [Direct]
+        cpu.d = 0x1234;
+        abus.cpu_write_8(0x56, 0x7E0011);
+        abus.bank_wrapping_cpu_write_24(0xABCDEF, 0x00128A);
+        assert_eq!(0xABCDEF, cpu.dir_ptr_24(addr_8_16(cpu.pb, cpu.pc), &mut abus));
+        abus.bank_wrapping_cpu_write_24(0x000000, 0x00128A);
+        // Wrapping
+        cpu.d = 0xFFA9;
+        abus.bank_wrapping_cpu_write_24(0xABCDEF, 0x00FFFF);
+        assert_eq!(0xABCDEF, cpu.dir_ptr_24(addr_8_16(cpu.pb, cpu.pc), &mut abus));
+        abus.bank_wrapping_cpu_write_24(0x000000, 0x00FFFF);
+        // (Direct,X)
+        // Standard behavior
+        cpu.d = 0x0123;
+        cpu.x = 0x1234;
+        abus.cpu_write_8(0x12, 0x7E0011);
+        abus.bank_wrapping_cpu_write_16(0xABCD, 0x001369);
+        assert_eq!(0x7FABCD, cpu.dir_ptr_16_x(addr_8_16(cpu.pb, cpu.pc), &mut abus));
+        abus.bank_wrapping_cpu_write_16(0x0000, 0x001369);
+        // Wrapping
+        cpu.d = 0xABCD;
+        cpu.x = 0x5420;
+        abus.bank_wrapping_cpu_write_16(0xABCD, 0x00FFFF);
+        assert_eq!(0x7FABCD, cpu.dir_ptr_16_x(addr_8_16(cpu.pb, cpu.pc), &mut abus));
+        abus.bank_wrapping_cpu_write_16(0x0000, 0x00FFFF);
+        // Emumode and DL is $00
+        cpu.d = 0x1200;
+        cpu.x = 0x0034;
+        abus.cpu_write_8(0x12, 0x7E0011);
+        abus.bank_wrapping_cpu_write_16(0xABCD, 0x001246);
+        assert_eq!(0x7FABCD, cpu.dir_ptr_16_x(addr_8_16(cpu.pb, cpu.pc), &mut abus));
+        abus.bank_wrapping_cpu_write_16(0x0000, 0x001246);
+        // Wrapping
+        abus.cpu_write_8(0xCB, 0x7E0011);
+        abus.page_wrapping_cpu_write_16(0xABCD, 0x0012FF);
+        assert_eq!(0x7FABCD, cpu.dir_ptr_16_x(addr_8_16(cpu.pb, cpu.pc), &mut abus));
+        abus.page_wrapping_cpu_write_16(0x0000, 0x0012FF);
+        // (Direct),Y
+        cpu.d = 0x1234;
+        cpu.y = 0x2345;
+        abus.cpu_write_8(0x56, 0x7E0011);
+        abus.bank_wrapping_cpu_write_16(0xABCD, 0x00128A);
+        assert_eq!(0x7FCF12, cpu.dir_ptr_16_y(addr_8_16(cpu.pb, cpu.pc), &mut abus));
+        abus.bank_wrapping_cpu_write_16(0x0000, 0x00128A);
+        // Wrapping on pointer and +Y
+        cpu.db = 0xFF;
+        cpu.d = 0xFF34;
+        cpu.y = 0x5678;
+        abus.cpu_write_8(0xCB, 0x7E0011);
+        abus.bank_wrapping_cpu_write_16(0xABCD, 0x00FFFF);
+        assert_eq!(0x000245, cpu.dir_ptr_16_y(addr_8_16(cpu.pb, cpu.pc), &mut abus));
+        abus.bank_wrapping_cpu_write_16(0x0000, 0x00FFFF);
+        // Emumode and DL is $00
+        cpu.db = 0xFF;
+        cpu.d = 0x1200;
+        cpu.y = 0x5678;
+        abus.cpu_write_8(0xFF, 0x7E0011);
+        abus.page_wrapping_cpu_write_16(0xABCD, 0x0012FF);
+        assert_eq!(0x000245, cpu.dir_ptr_16_y(addr_8_16(cpu.pb, cpu.pc), &mut abus));
+        abus.page_wrapping_cpu_write_16(0x0000, 0x0012FF);
+        // [Direct],Y
+        cpu.d = 0x1234;
+        cpu.y = 0x2345;
+        abus.cpu_write_8(0x56, 0x7E0011);
+        abus.bank_wrapping_cpu_write_24(0xABCDEF, 0x00128A);
+        assert_eq!(0xABF134, cpu.dir_ptr_24_y(addr_8_16(cpu.pb, cpu.pc), &mut abus));
+        abus.bank_wrapping_cpu_write_24(0x000000, 0x00128A);
+        // Wrapping on pointer and +Y
+        cpu.db = 0xFF;
+        cpu.d = 0xFF34;
+        cpu.y = 0x5678;
+        abus.cpu_write_8(0xCB, 0x7E0011);
+        abus.bank_wrapping_cpu_write_24(0xFFABCD, 0x00FFFF);
+        assert_eq!(0x000245, cpu.dir_ptr_24_y(addr_8_16(cpu.pb, cpu.pc), &mut abus));
+        abus.bank_wrapping_cpu_write_24(0x000000, 0x00FFFF);
+    }
 }
