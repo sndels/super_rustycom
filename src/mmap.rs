@@ -140,3 +140,9 @@ pub const OPHCT: usize   = 0x213C;
 pub const OPVCT: usize   = 0x213D;
 pub const STAT77: usize  = 0x213E;
 pub const STAT78: usize  = 0x213F;
+
+// APU IO
+pub const APUI00: usize  = 0x2140;
+pub const APUI01: usize  = 0x2141;
+pub const APUI02: usize  = 0x2142;
+pub const APUI03: usize  = 0x2143;

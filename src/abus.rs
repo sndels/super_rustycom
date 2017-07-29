@@ -18,8 +18,11 @@ pub struct ABus {
     mdmaen:   u8,
     hdmaen:   u8,
     memsel:   u8,
-    // APU comms
-    apu_ports: [u8; 4],
+    // APU IO
+    apu_io0:  u8,
+    apu_io1:  u8,
+    apu_io2:  u8,
+    apu_io3:  u8,
     // TODO: PPU1,2
     // TODO: PPU control regs
     // TODO: Joypad
@@ -46,7 +49,10 @@ impl ABus {
             mdmaen:   0x00,
             hdmaen:   0x00,
             memsel:   0x00,
-            apu_ports: [0; 4],
+            apu_io0:  0x00,
+            apu_io1:  0x00,
+            apu_io2:  0x00,
+            apu_io3:  0x00,
         }
     }
 
@@ -67,7 +73,10 @@ impl ABus {
             mdmaen:   0x00,
             hdmaen:   0x00,
             memsel:   0x00,
-            apu_ports: [0; 4],
+            apu_io0:  0x00,
+            apu_io1:  0x00,
+            apu_io2:  0x00,
+            apu_io3:  0x00,
         }
     }
 
@@ -89,10 +98,13 @@ impl ABus {
                         self.ppu_io.read(bank_addr)
                     }
                     mmap::APU_IO_FIRST...mmap::APU_IO_LAST => { // APU IO
-                        if bank_addr < 0x2144 {
-                            self.apu_ports[bank_addr - 0x2140]
-                        } else {
-                            self.apu_ports[bank_addr - 0x2144]
+                        let apu_port = if bank_addr < 0x2144 { bank_addr } else { bank_addr - 4 };
+                        match apu_port {
+                            mmap::APUI00 => self.apu_io0,
+                            mmap::APUI01 => self.apu_io1,
+                            mmap::APUI02 => self.apu_io2,
+                            mmap::APUI03 => self.apu_io3,
+                            _            => unreachable!()
                         }
                     }
                     mmap::WMDATA => panic!("Read ${:06X}: WMDATA not implemented", addr),
@@ -188,10 +200,13 @@ impl ABus {
                         self.ppu_io.write(value, bank_addr);
                     }
                     mmap::APU_IO_FIRST...mmap::APU_IO_LAST => { // APU IO
-                        if bank_addr < 0x2144 {
-                            self.apu_ports[bank_addr - 0x2140] = value;
-                        } else {
-                            self.apu_ports[bank_addr - 0x2144] = value;
+                        let apu_port = if bank_addr < 0x2144 { bank_addr } else { bank_addr - 4 };
+                        match apu_port {
+                            mmap::APUI00 => self.apu_io0 = value,
+                            mmap::APUI01 => self.apu_io1 = value,
+                            mmap::APUI02 => self.apu_io2 = value,
+                            mmap::APUI03 => self.apu_io3 = value,
+                            _            => unreachable!()
                         }
                     }
                     mmap::WMDATA   => panic!("Write ${:06X}: WMDATA not implemented", addr),
