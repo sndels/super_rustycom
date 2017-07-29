@@ -724,4 +724,61 @@ mod tests {
         assert_eq!(0x0001, cpu.s);
         abus.bank_wrapping_cpu_write_24(0x000000, 0x00FFFF);
     }
+
+    // Addressing modes
+    #[test]
+    fn addr_abs() {
+        let mut abus = ABus::new_empty_rom();
+        let mut cpu = Cpu::new(&mut abus);
+        cpu.pb = 0x1A;
+        cpu.db = 0x1B;
+        cpu.pc = 0x0010;
+        cpu.x = 0x5678;
+        cpu.y = 0xABCD;
+        // Absolute
+        abus.bank_wrapping_cpu_write_16(0x1234, 0x000011);
+        assert_eq!(0x1B1234, cpu.abs(cpu.pc as u32, &mut abus));
+        // Absolute,X and Absolute,Y
+        assert_eq!(0x1B68AC, cpu.abs_x(cpu.pc as u32, &mut abus));
+        assert_eq!(0x1BBE01, cpu.abs_y(cpu.pc as u32, &mut abus));
+        abus.bank_wrapping_cpu_write_16(0x0000, 0x000011);
+        // Wrapping
+        cpu.db = 0xFF;
+        abus.bank_wrapping_cpu_write_16(0xABCD, 0x000011);
+        assert_eq!(0x000245, cpu.abs_x(cpu.pc as u32, &mut abus));
+        assert_eq!(0x00579A, cpu.abs_y(cpu.pc as u32, &mut abus));
+        abus.bank_wrapping_cpu_write_16(0x0000, 0x000011);
+        // (Absolute) and [Absolute]
+        abus.bank_wrapping_cpu_write_16(0x01FF, 0x000011);
+        abus.bank_wrapping_cpu_write_24(0xABCDEF, 0x0001FF);
+        assert_eq!(0x1ACDEF, cpu.abs_ptr_16(cpu.pc as u32, &mut abus));
+        assert_eq!(0xABCDEF, cpu.abs_ptr_24(cpu.pc as u32, &mut abus));
+        abus.bank_wrapping_cpu_write_16(0x0000, 0x000011);
+        abus.bank_wrapping_cpu_write_24(0x000000, 0x0001FF);
+        // Wrapping
+        abus.bank_wrapping_cpu_write_16(0xFFFF, 0x000011);
+        abus.bank_wrapping_cpu_write_24(0xFEDCBA, 0x00FFFF);
+        assert_eq!(0x1ADCBA, cpu.abs_ptr_16(cpu.pc as u32, &mut abus));
+        assert_eq!(0xFEDCBA, cpu.abs_ptr_24(cpu.pc as u32, &mut abus));
+        abus.bank_wrapping_cpu_write_16(0x0000, 0x000011);
+        abus.bank_wrapping_cpu_write_24(0x000000, 0x00FFFF);
+        // (Absolute,X)
+        cpu.pb = 0x7E;
+        abus.bank_wrapping_cpu_write_16(0x01FF, 0x7E0011);
+        abus.bank_wrapping_cpu_write_16(0xABCD, 0x7E5877);
+        assert_eq!(0x7EABCD, cpu.abs_ptr_x(addr_8_16(cpu.pb, cpu.pc), &mut abus));
+        abus.bank_wrapping_cpu_write_16(0x0000, 0x7E0011);
+        abus.bank_wrapping_cpu_write_16(0x0000, 0x7E5877);
+        // Wrapping
+        abus.bank_wrapping_cpu_write_16(0xA987, 0x7E0011);
+        abus.bank_wrapping_cpu_write_16(0x1234, 0x7EFFFF);
+        assert_eq!(0x7E1234, cpu.abs_ptr_x(addr_8_16(cpu.pb, cpu.pc), &mut abus));
+        abus.bank_wrapping_cpu_write_16(0x0000, 0x7E0011);
+        abus.bank_wrapping_cpu_write_16(0x0000, 0x7EFFFF);
+        abus.bank_wrapping_cpu_write_16(0xA989, 0x7E0011);
+        abus.bank_wrapping_cpu_write_16(0x5678, 0x7E0001);
+        assert_eq!(0x7E5678, cpu.abs_ptr_x(addr_8_16(cpu.pb, cpu.pc), &mut abus));
+        abus.bank_wrapping_cpu_write_16(0x0000, 0x7E0011);
+        abus.bank_wrapping_cpu_write_16(0x0000, 0x7E0001);
+    }
 }
