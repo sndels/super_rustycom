@@ -325,19 +325,11 @@ impl Cpu {
     }
 
     fn dir_ptr_16_y(&self, addr: u32, abus: &mut ABus) -> u32 {
-        let pointer = self.dir_ptr_16(addr, abus);
-        if self.e && (self.d & 0xFF) == 0 {
-            let ll = abus.cpu_read_8(pointer);
-            let hh = abus.cpu_read_8((pointer & 0xFF00) | (pointer as u8).wrapping_add(1) as u32);
-            (addr_8_8_8(self.db, hh, ll) + self.y as u32) & 0x00FFFFFF
-        } else {
-            (addr_8_16(self.db, abus.bank_wrapping_cpu_read_16(pointer)) + self.y as u32) & 0x00FFFFFF
-        }
+        (self.dir_ptr_16(addr, abus) + self.y as u32) & 0x00FFFFFF
     }
 
     fn dir_ptr_24_y(&self, addr: u32, abus: &mut ABus) -> u32 {
-        let pointer = self.dir_ptr_24(addr, abus);
-        (abus.bank_wrapping_cpu_read_24(pointer) + self.y as u32) & 0x00FFFFFF
+        (self.dir_ptr_24(addr, abus) + self.y as u32) & 0x00FFFFFF
     }
 
     fn imm_8(&self, addr: u32, abus: &mut ABus) -> u8 {
