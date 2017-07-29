@@ -23,6 +23,10 @@ pub struct ABus {
     apu_io1:  u8,
     apu_io2:  u8,
     apu_io3:  u8,
+    // WRAM access
+    wm_add_l: u8,
+    wm_add_m: u8,
+    wm_add_h: u8,
     // TODO: PPU1,2
     // TODO: PPU control regs
     // TODO: Joypad
@@ -53,6 +57,9 @@ impl ABus {
             apu_io1:  0x00,
             apu_io2:  0x00,
             apu_io3:  0x00,
+            wm_add_l: 0x00,
+            wm_add_m: 0x00,
+            wm_add_h: 0x00,
         }
     }
 
@@ -77,6 +84,9 @@ impl ABus {
             apu_io1:  0x00,
             apu_io2:  0x00,
             apu_io3:  0x00,
+            wm_add_l: 0x00,
+            wm_add_m: 0x00,
+            wm_add_h: 0x00,
         }
     }
 
@@ -107,7 +117,12 @@ impl ABus {
                             _            => unreachable!()
                         }
                     }
-                    mmap::WMDATA => panic!("Read ${:06X}: WMDATA not implemented", addr),
+                    mmap::WMDATA => {
+                        let wram_addr = ((self.wm_add_h as usize) << 16) |
+                                        ((self.wm_add_m as usize) << 8) |
+                                        (self.wm_add_l as usize);
+                        self.wram[wram_addr]
+                    }
                     mmap::JOYA   => panic!("Read ${:06X}: JOYA not implemented", addr),
                     mmap::JOYB   => panic!("Read ${:06X}: JOYA not implemented", addr),
                     mmap::RDNMI  => panic!("Read ${:06X}: RDNMI not implemented", addr),
@@ -209,10 +224,15 @@ impl ABus {
                             _            => unreachable!()
                         }
                     }
-                    mmap::WMDATA   => panic!("Write ${:06X}: WMDATA not implemented", addr),
-                    mmap::WMADDL   => panic!("Write ${:06X}: WMADDL not implemented", addr),
-                    mmap::WMADDM   => panic!("Write ${:06X}: WMADDM not implemented", addr),
-                    mmap::WMADDH   => panic!("Write ${:06X}: WMADDH not implemented", addr),
+                    mmap::WMDATA   => {
+                        let wram_addr = ((self.wm_add_h as usize) << 16) |
+                                        ((self.wm_add_m as usize) << 8) |
+                                        (self.wm_add_l as usize);
+                        self.wram[wram_addr] = value;
+                    }
+                    mmap::WMADDL   => self.wm_add_l = value,
+                    mmap::WMADDM   => self.wm_add_m = value,
+                    mmap::WMADDH   => self.wm_add_h = value,
                     mmap::JOYWR    => panic!("Write ${:06X}: JOYWR not implemented", addr),
                     mmap::NMITIMEN => self.nmitimen = value,
                     mmap::WRIO     => self.wrio = value,
