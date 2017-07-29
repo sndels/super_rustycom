@@ -21,7 +21,7 @@ impl Cpu {
             a:  0x00,
             x:  0x00,
             y:  0x00,
-            pc: abus.cpu_read_16(0x00FF00 + RESET8 as u32), // TODO: This only applies to LoROM
+            pc: abus.page_wrapping_cpu_read_16(0x00FF00 + RESET8 as u32), // TODO: This only applies to LoROM
             s:  0x01FF,
             p:  P_M | P_X | P_I,
             d : 0x00,
@@ -60,7 +60,7 @@ impl Cpu {
             op::STA_8D => {
                 let data_addr = self.abs(addr, abus);
                 if !self.get_p_m() {
-                    abus.cpu_write_16(self.a, data_addr);
+                    abus.addr_wrapping_cpu_write_16(self.a, data_addr);
                 } else {
                     abus.cpu_write_8(self.a as u8, data_addr);
                 }
@@ -69,7 +69,7 @@ impl Cpu {
             op::STX_8E => {
                 let data_addr = self.abs(addr, abus);
                 if !self.get_p_x() {
-                    abus.cpu_write_16(self.x, data_addr);
+                    abus.addr_wrapping_cpu_write_16(self.x, data_addr);
                 } else {
                     abus.cpu_write_8(self.x as u8, data_addr);
                 }
@@ -92,7 +92,7 @@ impl Cpu {
             op::STZ_9C => {
                 let data_addr = self.abs(addr, abus);
                 if !self.get_p_m() {
-                    abus.cpu_write_16(0, data_addr);
+                    abus.addr_wrapping_cpu_write_16(0, data_addr);
                 } else {
                     abus.cpu_write_8(0, data_addr);
                 }

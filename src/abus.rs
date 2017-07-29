@@ -200,9 +200,17 @@ impl ABus {
         }
     }
 
-    pub fn cpu_read_16(&mut self, addr: u32) -> u16 {
-        self.cpu_read_8(addr) as u16 | ((self.cpu_read_8(addr + 1) as u16) << 8)
+    pub fn addr_wrapping_cpu_read_16(&mut self, addr: u32) -> u16 {
+        self.cpu_read_8(addr) as u16 |
+        ((self.cpu_read_8(addr_wrapping_add(addr, 1)) as u16) << 8)
     }
+
+    pub fn addr_wrapping_cpu_read_24(&mut self, addr: u32) -> u32 {
+        self.cpu_read_8(addr) as u32 |
+        ((self.cpu_read_8(addr_wrapping_add(addr, 1)) as u32) << 8) |
+        ((self.cpu_read_8(addr_wrapping_add(addr, 2)) as u32) << 16)
+    }
+
 
     pub fn bank_wrapping_cpu_read_16(&mut self, addr: u32) -> u16 {
         self.cpu_read_8(addr) as u16 |
@@ -332,9 +340,15 @@ impl ABus {
         }
     }
 
-    pub fn cpu_write_16(&mut self, value: u16, addr: u32) {
+    pub fn addr_wrapping_cpu_write_16(&mut self, value: u16, addr: u32) {
         self.cpu_write_8(value as u8, addr);
-        self.cpu_write_8((value >> 8) as u8, addr + 1);
+        self.cpu_write_8((value >> 8) as u8, addr_wrapping_add(addr, 1));
+    }
+
+    pub fn addr_wrapping_cpu_write_24(&mut self, value: u32, addr: u32) {
+        self.cpu_write_8(value as u8, addr);
+        self.cpu_write_8((value >> 8) as u8, addr_wrapping_add(addr, 1));
+        self.cpu_write_8((value >> 16) as u8, addr_wrapping_add(addr, 2));
     }
 
     pub fn bank_wrapping_cpu_write_16(&mut self, value: u16, addr: u32) {
@@ -358,6 +372,10 @@ impl ABus {
         self.cpu_write_8((value >> 8) as u8, page_wrapping_add(addr, 1));
         self.cpu_write_8((value >> 16) as u8, page_wrapping_add(addr, 2));
     }
+}
+
+pub fn addr_wrapping_add(addr: u32, offset: u32) -> u32 {
+    (addr + offset) & 0x00FFFFFF
 }
 
 pub fn bank_wrapping_add(addr: u32, offset: u16) -> u32 {
