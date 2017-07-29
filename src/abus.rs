@@ -1,3 +1,4 @@
+use dma::Dma;
 use rom::Rom;
 use mmap;
 use ppu_io::PpuIo;
@@ -11,12 +12,11 @@ pub struct ABus {
     mpy_div:  MpyDiv,
     ppu_io:   PpuIo,
     joy_io:   JoyIo,
+    dma:      Dma,
     // "On-chip" CPU W
     nmitimen: u8,
     htime:    u16,
     vtime:    u16,
-    mdmaen:   u8,
-    hdmaen:   u8,
     memsel:   u8,
     // APU IO
     apu_io0:  u8,
@@ -51,11 +51,10 @@ impl ABus {
             mpy_div:  MpyDiv::new(),
             ppu_io:   PpuIo::new(),
             joy_io:   JoyIo::new(),
+            dma:      Dma::new(),
             nmitimen: 0x00,
             htime:    0x01FF,
             vtime:    0x01FF,
-            mdmaen:   0x00,
-            hdmaen:   0x00,
             memsel:   0x00,
             apu_io0:  0x00,
             apu_io1:  0x00,
@@ -81,11 +80,10 @@ impl ABus {
             mpy_div:  MpyDiv::new(),
             ppu_io:   PpuIo::new(),
             joy_io:   JoyIo::new(),
+            dma:      Dma::new(),
             nmitimen: 0x00,
             htime:    0x01FF,
             vtime:    0x01FF,
-            mdmaen:   0x00,
-            hdmaen:   0x00,
             memsel:   0x00,
             apu_io0:  0x00,
             apu_io1:  0x00,
@@ -160,7 +158,7 @@ impl ABus {
                     mmap::JOY4L  => self.joy_io.joy_4l,
                     mmap::JOY4H  => self.joy_io.joy_4h,
                     mmap::DMA_FIRST...mmap::DMA_LAST => { // DMA
-                        panic!("Read ${:06X}: DMA not implemented", addr)
+                        self.dma.read(bank_addr)
                     }
                     mmap::EXP_FIRST...mmap::EXP_LAST => { // Expansion
                         panic!("Read ${:06X}: Expansion not implemented", addr)
@@ -263,11 +261,11 @@ impl ABus {
                     mmap::HTIMEH   => self.htime = ((value as u16) << 8) | (self.htime & 0x00FF),
                     mmap::VTIMEL   => self.vtime = (self.vtime & 0xFF00) | value as u16,
                     mmap::VTIMEH   => self.vtime = ((value as u16) << 8) | (self.vtime & 0x00FF),
-                    mmap::MDMAEN   => self.mdmaen = value, // TODO: Start transfer
-                    mmap::HDMAEN   => self.hdmaen = value,
+                    mmap::MDMAEN   => self.dma.write_mdma_en(value),
+                    mmap::HDMAEN   => self.dma.write_hdma_en(value),
                     mmap::MEMSEL   => self.memsel = value,
                     mmap::DMA_FIRST...mmap::DMA_LAST => { // DMA
-                        panic!("Write ${:06X}: DMA not implemented", addr)
+                        self.dma.write(value, bank_addr);
                     }
                     mmap::EXP_FIRST...mmap::EXP_LAST => { // Expansion
                         panic!("Write ${:06X}: Expansion not implemented", addr)

@@ -3,6 +3,7 @@ use std::env;
 mod abus;
 mod cpu;
 mod debugger;
+mod dma;
 mod mmap;
 mod ppu_io;
 mod rom;
