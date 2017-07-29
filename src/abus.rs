@@ -10,9 +10,9 @@ pub struct ABus {
     rom:      Rom,
     mpy_div:  MpyDiv,
     ppu_io:   PpuIo,
+    joy_io:   JoyIo,
     // "On-chip" CPU W
     nmitimen: u8,
-    wrio:     u8,
     htime:    u16,
     vtime:    u16,
     mdmaen:   u8,
@@ -46,8 +46,8 @@ impl ABus {
             rom:      Rom::new(rom_path),
             mpy_div:  MpyDiv::new(),
             ppu_io:   PpuIo::new(),
+            joy_io:   JoyIo::new(),
             nmitimen: 0x00,
-            wrio:     0xFF,
             htime:    0x01FF,
             vtime:    0x01FF,
             mdmaen:   0x00,
@@ -73,8 +73,8 @@ impl ABus {
             rom:      Rom::new_empty(),
             mpy_div:  MpyDiv::new(),
             ppu_io:   PpuIo::new(),
+            joy_io:   JoyIo::new(),
             nmitimen: 0x00,
-            wrio:     0xFF,
             htime:    0x01FF,
             vtime:    0x01FF,
             mdmaen:   0x00,
@@ -123,24 +123,24 @@ impl ABus {
                                         (self.wm_add_l as usize);
                         self.wram[wram_addr]
                     }
-                    mmap::JOYA   => panic!("Read ${:06X}: JOYA not implemented", addr),
-                    mmap::JOYB   => panic!("Read ${:06X}: JOYA not implemented", addr),
+                    mmap::JOYA   => self.joy_io.joy_a,
+                    mmap::JOYB   => self.joy_io.joy_b,
                     mmap::RDNMI  => panic!("Read ${:06X}: RDNMI not implemented", addr),
                     mmap::TIMEUP => panic!("Read ${:06X}: TIMEUP not implemented", addr),
                     mmap::HVBJOY => panic!("Read ${:06X}: HVBJOY not implemented", addr),
-                    mmap::RDIO   => panic!("Read ${:06X}: RDIO not implemented", addr),
+                    mmap::RDIO   => self.joy_io.rd_io,
                     mmap::RDDIVL => panic!("Read ${:06X}: RDDIVL not implemented", addr),
                     mmap::RDDIVH => panic!("Read ${:06X}: RDDIVH not implemented", addr),
                     mmap::RDMPYL => panic!("Read ${:06X}: RDMPYL not implemented", addr),
                     mmap::RDMPYH => panic!("Read ${:06X}: RDMPYH not implemented", addr),
-                    mmap::JOY1L  => panic!("Read ${:06X}: JOY1L not implemented", addr),
-                    mmap::JOY1H  => panic!("Read ${:06X}: JOY1H not implemented", addr),
-                    mmap::JOY2L  => panic!("Read ${:06X}: JOY2L not implemented", addr),
-                    mmap::JOY2H  => panic!("Read ${:06X}: JOY2H not implemented", addr),
-                    mmap::JOY3L  => panic!("Read ${:06X}: JOY3L not implemented", addr),
-                    mmap::JOY3H  => panic!("Read ${:06X}: JOY3H not implemented", addr),
-                    mmap::JOY4L  => panic!("Read ${:06X}: JOY4L not implemented", addr),
-                    mmap::JOY4H  => panic!("Read ${:06X}: JOY4H not implemented", addr),
+                    mmap::JOY1L  => self.joy_io.joy_1l,
+                    mmap::JOY1H  => self.joy_io.joy_1h,
+                    mmap::JOY2L  => self.joy_io.joy_2l,
+                    mmap::JOY2H  => self.joy_io.joy_2h,
+                    mmap::JOY3L  => self.joy_io.joy_3l,
+                    mmap::JOY3H  => self.joy_io.joy_3h,
+                    mmap::JOY4L  => self.joy_io.joy_4l,
+                    mmap::JOY4H  => self.joy_io.joy_4h,
                     mmap::DMA_FIRST...mmap::DMA_LAST => { // DMA
                         panic!("Read ${:06X}: DMA not implemented", addr)
                     }
@@ -233,9 +233,9 @@ impl ABus {
                     mmap::WMADDL   => self.wm_add_l = value,
                     mmap::WMADDM   => self.wm_add_m = value,
                     mmap::WMADDH   => self.wm_add_h = value,
-                    mmap::JOYWR    => panic!("Write ${:06X}: JOYWR not implemented", addr),
+                    mmap::JOYWR    => self.joy_io.joy_wr = value,
                     mmap::NMITIMEN => self.nmitimen = value,
-                    mmap::WRIO     => self.wrio = value,
+                    mmap::WRIO     => self.joy_io.wr_io = value,
                     mmap::WRMPYA   => self.mpy_div.set_mpy_a(value),
                     mmap::WRMPYB   => self.mpy_div.set_mpy_b(value),
                     mmap::WRDIVL   => self.mpy_div.set_dividend_low(value),
@@ -376,6 +376,42 @@ impl MpyDiv {
 
     pub fn get_div_res_high(&self) -> u8 {
         (self.div_res >> 8) as u8
+    }
+}
+
+struct JoyIo {
+    joy_wr: u8,
+    joy_a:  u8,
+    joy_b:  u8,
+    wr_io:  u8,
+    rd_io:  u8,
+    joy_1l: u8,
+    joy_1h: u8,
+    joy_2l: u8,
+    joy_2h: u8,
+    joy_3l: u8,
+    joy_3h: u8,
+    joy_4l: u8,
+    joy_4h: u8,
+}
+
+impl JoyIo {
+    pub fn new() -> JoyIo {
+        JoyIo {
+            joy_wr: 0x00,
+            joy_a:  0x00,
+            joy_b:  0x00,
+            wr_io:  0xFF,
+            rd_io:  0x00,
+            joy_1l: 0x00,
+            joy_1h: 0x00,
+            joy_2l: 0x00,
+            joy_2h: 0x00,
+            joy_3l: 0x00,
+            joy_3h: 0x00,
+            joy_4l: 0x00,
+            joy_4h: 0x00,
+        }
     }
 }
 
