@@ -514,8 +514,9 @@ impl Cpu {
             self.reset_p_z();
         }
     }
+
     fn update_p_n_8(&mut self, result: u8) {
-        if result & 0x80 > 0 {
+        if result > 0x7F {
             self.set_p_n();
         } else {
             self.reset_p_n();
@@ -523,10 +524,51 @@ impl Cpu {
     }
 
     fn update_p_n_16(&mut self, result: u16) {
-        if result & 0x8000 > 0 {
+        if result > 0x7FFF {
             self.set_p_n();
         } else {
             self.reset_p_n();
+        }
+    }
+
+    // Instructions
+    fn op_adc(&mut self, data_addr: u32, abus: &mut ABus) {
+        if self.get_p_m() { // 8-bit accumulator
+            let data = abus.cpu_read_8(data_addr);
+            let result = if self.get_p_c() { self.a + (data as u16) + 1 }
+                         else { self.a + (data as u16) };
+            self.update_p_n_8(result as u8);
+            if self.a < 0x80 && data < 0x80 && result > 0x7F ||
+               self.a > 0x7F && data > 0x7F && result < 0x80 {
+                self.set_p_v();
+            } else {
+                self.reset_p_v();
+            }
+            self.update_p_z(result);
+            if result > 0xFF {
+                self.set_p_c();
+            } else {
+                self.reset_p_c();
+            }
+            self.a = result & 0x00FF;
+        } else { // 16-bit accumulator
+            let data = abus.addr_wrapping_cpu_read_16(data_addr);
+            let result = if self.get_p_c() { (self.a as u32) + (data as u32) + 1 }
+                         else { (self.a as u32) + (data as u32) };
+            self.update_p_n_16(result as u16);
+            if self.a < 0x8000 && data < 0x8000 && result > 0x7FFF ||
+               self.a > 0x7FFF && data > 0x7FFF && result < 0x8000 {
+                self.set_p_v();
+            } else {
+                self.reset_p_v();
+            }
+            self.update_p_z(result as u16);
+            if result > 0xFFFF {
+                self.set_p_c();
+            } else {
+                self.reset_p_c();
+            }
+            self.a = result as u16;
         }
     }
 }
