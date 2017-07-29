@@ -27,6 +27,10 @@ pub struct ABus {
     wm_add_l: u8,
     wm_add_m: u8,
     wm_add_h: u8,
+    // Blank regs
+    rd_nmi:   u8,
+    time_up:  u8,
+    hvb_joy:  u8,
     // TODO: PPU1,2
     // TODO: PPU control regs
     // TODO: Joypad
@@ -60,6 +64,9 @@ impl ABus {
             wm_add_l: 0x00,
             wm_add_m: 0x00,
             wm_add_h: 0x00,
+            rd_nmi:   0x00,
+            time_up:  0x00,
+            hvb_joy:  0x00,
         }
     }
 
@@ -87,6 +94,9 @@ impl ABus {
             wm_add_l: 0x00,
             wm_add_m: 0x00,
             wm_add_h: 0x00,
+            rd_nmi:   0x00,
+            time_up:  0x00,
+            hvb_joy:  0x00,
         }
     }
 
@@ -125,9 +135,17 @@ impl ABus {
                     }
                     mmap::JOYA   => self.joy_io.joy_a,
                     mmap::JOYB   => self.joy_io.joy_b,
-                    mmap::RDNMI  => panic!("Read ${:06X}: RDNMI not implemented", addr),
-                    mmap::TIMEUP => panic!("Read ${:06X}: TIMEUP not implemented", addr),
-                    mmap::HVBJOY => panic!("Read ${:06X}: HVBJOY not implemented", addr),
+                    mmap::RDNMI  => {
+                        let val = self.rd_nmi;
+                        self.rd_nmi &= 0b0111_1111;
+                        val
+                    }
+                    mmap::TIMEUP => {
+                        let val = self.time_up;
+                        self.time_up &= 0b0111_1111;
+                        val
+                    }
+                    mmap::HVBJOY => self.hvb_joy,
                     mmap::RDIO   => self.joy_io.rd_io,
                     mmap::RDDIVL => self.mpy_div.get_div_res_low(),
                     mmap::RDDIVH => self.mpy_div.get_div_res_high(),
