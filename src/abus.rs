@@ -167,18 +167,36 @@ impl ABus {
         match bank {
             mmap::WS1_SYSLR_FIRST_BANK...mmap::WS1_SYSLR_LAST_BANK => {
                 match bank_addr {
-                    mmap::SYS_FIRST...mmap::SYS_LAST => self.cpu_read_sys(bank_addr),
+                    mmap::SYS_FIRST...mmap::SYS_LAST => {
+                        self.cpu_read_sys(bank_addr)
+                    }
                     mmap::LOROM_FIRST...mmap::LOROM_LAST => {
-                        let offset = bank_addr - mmap::LOROM_FIRST;
-                        self.rom.read_8(bank * mmap::LOROM_FIRST + offset)
+                        self.rom.read_ws1_lo_rom_8(bank, bank_addr)
                     }
                     _ => unreachable!()
                 }
             }
+            mmap::WS1_HIROM_FIRST_BANK...mmap::WS1_HIROM_LAST_BANK => {
+                self.rom.read_ws1_hi_rom_8(bank, bank_addr)
+            }
             mmap::WRAM_FIRST_BANK...mmap::WRAM_LAST_BANK => {
                 self.wram[(bank - mmap::WRAM_FIRST_BANK) * 0x10000 + bank_addr]
             }
-            _ => panic!("Read ${:06X}: Bank not implemented!", addr)
+            mmap::WS2_SYSLR_FIRST_BANK...mmap::WS2_SYSLR_LAST_BANK => {
+                match bank_addr {
+                    mmap::SYS_FIRST...mmap::SYS_LAST => {
+                        self.cpu_read_sys(bank_addr)
+                    }
+                    mmap::LOROM_FIRST...mmap::LOROM_LAST => {
+                        self.rom.read_ws2_lo_rom_8(bank, bank_addr)
+                    }
+                    _ => unreachable!()
+                }
+            }
+            mmap::WS2_HIROM_FIRST_BANK...mmap::WS2_HIROM_LAST_BANK => {
+                self.rom.read_ws2_hi_rom_8(bank, bank_addr)
+            }
+            _ => unreachable!()
         }
     }
 
@@ -281,18 +299,36 @@ impl ABus {
         match bank {
             mmap::WS1_SYSLR_FIRST_BANK...mmap::WS1_SYSLR_LAST_BANK => {
                 match bank_addr {
-                    mmap::SYS_FIRST...mmap::SYS_LAST => self.cpu_write_sys(value, bank_addr),
+                    mmap::SYS_FIRST...mmap::SYS_LAST => {
+                        self.cpu_write_sys(value, bank_addr)
+                    }
                     mmap::LOROM_FIRST...mmap::LOROM_LAST => {
-                        let offset = bank_addr - mmap::LOROM_FIRST;
-                        self.rom.write_8(value, bank * mmap::LOROM_FIRST + offset)
+                        self.rom.write_ws1_lo_rom_8(value, bank, bank_addr);
                     }
                     _ => unreachable!()
                 }
             }
+            mmap::WS1_HIROM_FIRST_BANK...mmap::WS1_HIROM_LAST_BANK => {
+                self.rom.write_ws1_hi_rom_8(value, bank, bank_addr);
+            }
             mmap::WRAM_FIRST_BANK...mmap::WRAM_LAST_BANK => {
                 self.wram[(bank - mmap::WRAM_FIRST_BANK) * 0x10000 + bank_addr] = value;
             }
-            _ => panic!("Write ${:06X}: Bank not implemented", addr)
+            mmap::WS2_SYSLR_FIRST_BANK...mmap::WS2_SYSLR_LAST_BANK => {
+                match bank_addr {
+                    mmap::SYS_FIRST...mmap::SYS_LAST => {
+                        self.cpu_write_sys(value, bank_addr)
+                    }
+                    mmap::LOROM_FIRST...mmap::LOROM_LAST => {
+                        self.rom.write_ws2_lo_rom_8(value, bank, bank_addr);
+                    }
+                    _ => unreachable!()
+                }
+            }
+            mmap::WS2_HIROM_FIRST_BANK...mmap::WS2_HIROM_LAST_BANK => {
+                self.rom.write_ws2_hi_rom_8(value, bank, bank_addr);
+            }
+            _ => unreachable!()
         }
     }
 

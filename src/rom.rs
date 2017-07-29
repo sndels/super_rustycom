@@ -1,6 +1,8 @@
 use std::fs::File;
 use std::io::prelude::*;
 
+use mmap;
+
 enum RomMakeup {
     SlowLoRom = 0x20,
     // TODO: Support more types
@@ -17,9 +19,8 @@ enum RomRamsize{
 }
 
 pub struct Rom {
-    lo_rom: Box<[u8]>,
-    // TODO: hi_rom
-    // TODO: Extra chips
+    rom: Box<[u8]>,
+    // TODO: Extra chips, memory mapper
 }
 
 impl Rom {
@@ -36,29 +37,60 @@ impl Rom {
         assert!(rom_bytes[0x7FD8] == RomRamsize::Zero as u8);
 
         Rom {
-            lo_rom: rom_bytes.into_boxed_slice(),
+            rom: rom_bytes.into_boxed_slice(),
         }
     }
 
     #[cfg(test)]
     pub fn new_empty() -> Rom {
         Rom {
-            lo_rom: vec![0; 4194304].into_boxed_slice(),
+            rom: vec![0; 4194304].into_boxed_slice(),
         }
     }
 
-    pub fn read_8(&self, addr: usize) -> u8 {
-        // TODO: HiROM
-        return self.lo_rom[addr];
+    pub fn read_ws1_lo_rom_8(&self, bank: usize, bank_addr: usize) -> u8 {
+        let offset = (bank_addr & 0xFFFF) - mmap::LOROM_FIRST;
+        self.rom[bank * mmap::LOROM_FIRST + offset]
+    }
+
+    pub fn read_ws1_hi_rom_8(&self, bank: usize, bank_addr: usize) -> u8 {
+        unimplemented!()
+    }
+
+    pub fn read_ws2_lo_rom_8(&self, bank: usize, bank_addr: usize) -> u8 {
+        unimplemented!()
+    }
+
+    pub fn read_ws2_hi_rom_8(&self, bank: usize, bank_addr: usize) -> u8 {
+        self.rom[((bank - mmap::WS2_HIROM_FIRST_BANK) << 16) | bank_addr]
     }
 
     #[cfg(not(test))]
-    pub fn write_8(&mut self, value: u8, addr: usize) {
-        panic!("Write to rom at addr ${:06X}!", addr);
+    pub fn write_ws1_lo_rom_8(&mut self, value: u8, bank: usize, bank_addr: usize) {
+        panic!("Write to rom at addr ${0:02X}:{1:04X}!", bank, bank_addr);
     }
 
     #[cfg(test)]
-    pub fn write_8(&mut self, value: u8, addr: usize) {
-        self.lo_rom[addr] = value;
+    pub fn write_ws1_lo_rom_8(&mut self, value: u8, bank: usize, bank_addr: usize) {
+        let offset = (bank_addr & 0xFFFF) - mmap::LOROM_FIRST;
+        self.rom[bank * mmap::LOROM_FIRST + offset] = value;
+    }
+
+    pub fn write_ws1_hi_rom_8(&mut self, value: u8, bank: usize, bank_addr: usize) {
+        panic!("Write to rom at addr ${0:02X}:{1:04X}!", bank, bank_addr);
+    }
+
+    pub fn write_ws2_lo_rom_8(&mut self, value: u8, bank: usize, bank_addr: usize) {
+        panic!("Write to rom at addr ${0:02X}:{1:04X}!", bank, bank_addr);
+    }
+
+    #[cfg(not(test))]
+    pub fn write_ws2_hi_rom_8(&mut self, value: u8, bank: usize, bank_addr: usize) {
+        panic!("Write to rom at addr ${0:02X}:{1:04X}!", bank, bank_addr);
+    }
+
+    #[cfg(test)]
+    pub fn write_ws2_hi_rom_8(&mut self, value: u8, bank: usize, bank_addr: usize) {
+        self.rom[((bank - mmap::WS2_HIROM_FIRST_BANK) << 16) | bank_addr] = value;
     }
 }
