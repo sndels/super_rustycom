@@ -527,40 +527,73 @@ impl Cpu {
     fn op_adc(&mut self, data_addr: u32, abus: &mut ABus) {
         if self.get_p_m() { // 8-bit accumulator
             let data = abus.cpu_read_8(data_addr);
-            let result = if self.get_p_c() { self.a + (data as u16) + 1 }
-                         else { self.a + (data as u16) };
-            self.update_p_n_8(result as u8);
-            if self.a < 0x80 && data < 0x80 && result > 0x7F ||
-               self.a > 0x7F && data > 0x7F && result < 0x80 {
+            let result: u8;
+            if self.get_p_c() { // BCD arithmetic
+                let decimal_acc = bcd_to_dec_8(self.a as u8);
+                let decimal_data = bcd_to_dec_8(data);
+                let decimal_result = if self.get_p_c() { decimal_acc + decimal_data + 1 }
+                                     else              { decimal_acc + decimal_data };
+                let bcd_result = dec_to_bcd_8(decimal_result % 100);
+                if decimal_result > 99 {
+                    self.set_p_c();
+                } else {
+                    self.reset_p_c();
+                }
+                result = bcd_result;
+            } else { // Binary arithmetic
+                let acc_8 = self.a as u8;
+                let result_16 = if self.get_p_c() { acc_8 as u16 + (data as u16) + 1 }
+                                else              { acc_8 as u16 + (data as u16) };
+                if result_16 > 0xFF {
+                    self.set_p_c();
+                } else {
+                    self.reset_p_c();
+                }
+                result = result_16 as u8;
+            }
+            self.update_p_n_8(result);
+            self.update_p_z(result as u16);
+            if (self.a < 0x80 && data < 0x80 && result > 0x7F) ||
+               (self.a > 0x7F && data > 0x7F && result < 0x80) {
                 self.set_p_v();
             } else {
                 self.reset_p_v();
             }
-            self.update_p_z(result);
-            if result > 0xFF {
-                self.set_p_c();
-            } else {
-                self.reset_p_c();
-            }
-            self.a = result & 0x00FF;
+            self.a = (self.a & 0xFF00) | (result as u16);
         } else { // 16-bit accumulator
             let data = abus.addr_wrapping_cpu_read_16(data_addr);
-            let result = if self.get_p_c() { (self.a as u32) + (data as u32) + 1 }
-                         else { (self.a as u32) + (data as u32) };
+            let result: u16;
+            if self.get_p_c() { // BCD arithmetic
+                let decimal_acc = bcd_to_dec_16(self.a);
+                let decimal_data = bcd_to_dec_16(data);
+                let decimal_result = if self.get_p_c() { decimal_acc + decimal_data + 1 }
+                                     else              { decimal_acc + decimal_data };
+                let bcd_result = dec_to_bcd_16(decimal_result % 10000);
+                if decimal_result > 9999 {
+                    self.set_p_c();
+                } else {
+                    self.reset_p_c();
+                }
+                result = bcd_result;
+            } else { // Binary arithmetic
+                let result_32 = if self.get_p_c() { (self.a as u32) + (data as u32) + 1 }
+                                else              { (self.a as u32) + (data as u32) };
+                if result_32 > 0xFFFF {
+                    self.set_p_c();
+                } else {
+                    self.reset_p_c();
+                }
+                result = result_32 as u16;
+            }
             self.update_p_n_16(result as u16);
-            if self.a < 0x8000 && data < 0x8000 && result > 0x7FFF ||
-               self.a > 0x7FFF && data > 0x7FFF && result < 0x8000 {
+            self.update_p_z(result as u16);
+            if (self.a < 0x8000 && data < 0x8000 && result > 0x7FFF) ||
+               (self.a > 0x7FFF && data > 0x7FFF && result < 0x8000) {
                 self.set_p_v();
             } else {
                 self.reset_p_v();
             }
-            self.update_p_z(result as u16);
-            if result > 0xFFFF {
-                self.set_p_c();
-            } else {
-                self.reset_p_c();
-            }
-            self.a = result as u16;
+            self.a = result;
         }
     }
 }
