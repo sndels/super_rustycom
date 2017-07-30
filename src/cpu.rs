@@ -100,13 +100,15 @@ impl Cpu {
             }
             op::LDX_A2 => {
                 if self.get_p_x() {
-                    let data = self.imm_8(addr, abus) as u16;
+                    let data_addr = self.imm();
+                    let data = abus.cpu_read_8(data_addr) as u16;
                     self.x = data;
                     self.update_p_z(data);
                     self.update_p_n_8(data as u8);
                     self.pc = self.pc.wrapping_add(2);
                 } else {
-                    let data = self.imm_16(addr,abus);
+                    let data_addr = self.imm();
+                    let data = abus.bank_wrapping_cpu_read_16(data_addr);
                     self.x = data;
                     self.update_p_z(data);
                     self.update_p_n_16(data);
@@ -115,13 +117,15 @@ impl Cpu {
             }
             op::LDA_A9 => {
                 if self.get_p_m() {
-                    let data = self.imm_8(addr, abus) as u16;
+                    let data_addr = self.imm();
+                    let data = abus.cpu_read_8(data_addr) as u16;
                     self.a = (self.a & 0xFF00) + data;
                     self.update_p_z(data);
                     self.update_p_n_8(data as u8);
                     self.pc = self.pc.wrapping_add(2);
                 } else {
-                    let data = self.imm_16(addr, abus);
+                    let data_addr = self.imm();
+                    let data = abus.bank_wrapping_cpu_read_16(data_addr);
                     self.a = data;
                     self.update_p_z(data);
                     self.update_p_n_16(data);
@@ -157,7 +161,8 @@ impl Cpu {
                 }
             }
             op::REP => {
-                let bits = self.imm_8(addr, abus);
+                let data_addr = self.imm();
+                let bits = abus.cpu_read_8(data_addr);
                 self.p &= !bits;
                 // Emulation forces M and X to 1
                 if self.e {
@@ -173,14 +178,15 @@ impl Cpu {
             }
             op::BNE => {
                 if !self.get_p_z() {
-                    self.pc = self.rel_8(addr, abus);
+                    self.pc = self.rel_8(addr, abus) as u16;
                 } else {
                     self.pc = self.pc.wrapping_add(2);
                 }
             }
             op::CPX_E0 => {
                 if self.get_p_x() {
-                    let data = self.imm_8(addr, abus);
+                    let data_addr = self.imm();
+                    let data = abus.cpu_read_8(data_addr);
                     let result = (self.x as u8).wrapping_sub(data);// TODO: Matches binary subtraction?
                     self.update_p_n_8(result);
                     self.update_p_z(result as u16);
@@ -191,7 +197,8 @@ impl Cpu {
                     }
                     self.pc = self.pc.wrapping_add(2);
                 } else {
-                    let data = self.imm_16(addr, abus);
+                    let data_addr = self.imm();
+                    let data = abus.bank_wrapping_cpu_read_16(data_addr);
                     let result = self.x.wrapping_sub(data);// TODO: Matches binary subtraction?
                     self.update_p_n_16(result);
                     self.update_p_z(result);
@@ -204,7 +211,8 @@ impl Cpu {
                 }
             }
             op::SEP => {
-                let bits = self.imm_8(addr, abus);
+                let data_addr = self.imm();
+                let bits = abus.cpu_read_8(data_addr);
                 self.p |= bits;
                 self.pc = self.pc.wrapping_add(2);
             }
@@ -332,12 +340,8 @@ impl Cpu {
         (self.dir_ptr_24(addr, abus) + self.y as u32) & 0x00FFFFFF
     }
 
-    fn imm_8(&self, addr: u32, abus: &mut ABus) -> u8 {
-        abus.fetch_operand_8(addr)
-    }
-
-    fn imm_16(&self, addr: u32, abus: &mut ABus) -> u16 {
-        abus.fetch_operand_16(addr)
+    fn imm(&self) -> u32 {
+        addr_8_16(self.pb, self.pc.wrapping_add(1))
     }
 
     fn long(&self, addr: u32, abus: &mut ABus) -> u32 {
@@ -348,18 +352,18 @@ impl Cpu {
         (abus.fetch_operand_24(addr) + self.x as u32) & 0x00FFFFFF
     }
 
-    fn rel_8(&self, addr: u32, abus: &mut ABus) -> u16 {
+    fn rel_8(&self, addr: u32, abus: &mut ABus) -> u32 {
         let offset = abus.fetch_operand_8(addr);
         if offset < 0x80 {
-            self.pc.wrapping_add(2 + (offset as u16))
+            addr_8_16(self.pb, self.pc.wrapping_add(2 + (offset as u16)))
         } else {
-            self.pc.wrapping_sub(254).wrapping_add(offset as u16)
+            addr_8_16(self.pb, self.pc.wrapping_sub(254).wrapping_add(offset as u16))
         }
     }
 
-    fn rel_16(&self, addr: u32, abus: &mut ABus) -> u16 {
+    fn rel_16(&self, addr: u32, abus: &mut ABus) -> u32 {
         let offset = abus.fetch_operand_16(addr);
-        self.pc.wrapping_add(3 + offset)
+        addr_8_16(self.pb, self.pc.wrapping_add(3).wrapping_add(offset))
     }
 
     fn stack(&self, addr: u32, abus: &mut ABus) -> u32 {
@@ -967,12 +971,12 @@ mod tests {
     fn addr_imm() {
         let mut abus = ABus::new_empty_rom();
         let mut cpu = Cpu::new(&mut abus);
-        cpu.pb = 0x00;
-        cpu.pc = 0x0000;
-        abus.bank_wrapping_cpu_write_16(0xABCD, 0x000001);
-        assert_eq!(0xCD, cpu.imm_8(addr_8_16(cpu.pb, cpu.pc), &mut abus));
-        assert_eq!(0xABCD, cpu.imm_16(addr_8_16(cpu.pb, cpu.pc), &mut abus));
-        abus.bank_wrapping_cpu_write_16(0x0000, 0x000001);
+        cpu.pb = 0x12;
+        cpu.pc = 0x3456;
+        assert_eq!(0x123457, cpu.imm(addr_8_16(cpu.pb, cpu.pc), &mut abus));
+        // Wrapping
+        cpu.pc = 0xFFFF;
+        assert_eq!(0x120000, cpu.imm(addr_8_16(cpu.pb, cpu.pc), &mut abus));
     }
 
     #[test]
