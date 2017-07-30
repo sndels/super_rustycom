@@ -912,4 +912,24 @@ mod tests {
         assert_eq!(0xABCD, cpu.imm_16(addr_8_16(cpu.pb, cpu.pc), &mut abus));
         abus.bank_wrapping_cpu_write_16(0x0000, 0x000001);
     }
+
+    #[test]
+    fn addr_long() {
+        let mut abus = ABus::new_empty_rom();
+        let mut cpu = Cpu::new(&mut abus);
+        cpu.pb = 0x00;
+        cpu.pc = 0x0000;
+        // Long
+        abus.bank_wrapping_cpu_write_24(0xABCDEF, 0x000001);
+        assert_eq!(0xABCDEF, cpu.long(addr_8_16(cpu.pb, cpu.pc), &mut abus));
+        // Long, X
+        cpu.x = 0x1234;
+        abus.bank_wrapping_cpu_write_24(0xABCDEF, 0x000001);
+        assert_eq!(0xABE023, cpu.long_x(addr_8_16(cpu.pb, cpu.pc), &mut abus));
+        // Wrapping
+        cpu.x = 0x5678;
+        abus.bank_wrapping_cpu_write_24(0xFFCDEF, 0x000001);
+        assert_eq!(0x002467, cpu.long_x(addr_8_16(cpu.pb, cpu.pc), &mut abus));
+        abus.bank_wrapping_cpu_write_24(0x000000, 0x000001);
+    }
 }
