@@ -900,4 +900,16 @@ mod tests {
         assert_eq!(0x000245, cpu.dir_ptr_24_y(addr_8_16(cpu.pb, cpu.pc), &mut abus));
         abus.bank_wrapping_cpu_write_24(0x000000, 0x00FFFF);
     }
+
+    #[test]
+    fn addr_imm() {
+        let mut abus = ABus::new_empty_rom();
+        let mut cpu = Cpu::new(&mut abus);
+        cpu.pb = 0x00;
+        cpu.pc = 0x0000;
+        abus.bank_wrapping_cpu_write_16(0xABCD, 0x000001);
+        assert_eq!(0xCD, cpu.imm_8(addr_8_16(cpu.pb, cpu.pc), &mut abus));
+        assert_eq!(0xABCD, cpu.imm_16(addr_8_16(cpu.pb, cpu.pc), &mut abus));
+        abus.bank_wrapping_cpu_write_16(0x0000, 0x000001);
+    }
 }
