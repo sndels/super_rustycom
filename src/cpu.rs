@@ -535,9 +535,9 @@ impl Cpu {
     }
 
     // Instructions
-    fn op_adc(&mut self, data_addr: u32, abus: &mut ABus) {
+    fn op_adc(&mut self, data_addr: (u32, WrappingMode), abus: &mut ABus) {
         if self.get_p_m() { // 8-bit accumulator
-            let data = abus.cpu_read_8(data_addr);
+            let data = abus.cpu_read_8(data_addr.0);
             let result: u8;
             if self.get_p_c() { // BCD arithmetic
                 let decimal_acc = bcd_to_dec_8(self.a as u8);
@@ -572,7 +572,12 @@ impl Cpu {
             }
             self.a = (self.a & 0xFF00) | (result as u16);
         } else { // 16-bit accumulator
-            let data = abus.addr_wrapping_cpu_read_16(data_addr);
+            let data: u16;
+            match data_addr.1 {
+                WrappingMode::Page      => data = abus.page_wrapping_cpu_read_16(data_addr.0),
+                WrappingMode::Bank      => data = abus.bank_wrapping_cpu_read_16(data_addr.0),
+                WrappingMode::AddrSpace => data = abus.addr_wrapping_cpu_read_16(data_addr.0),
+            }
             let result: u16;
             if self.get_p_c() { // BCD arithmetic
                 let decimal_acc = bcd_to_dec_16(self.a);
