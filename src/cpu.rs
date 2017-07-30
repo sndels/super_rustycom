@@ -575,6 +575,35 @@ fn addr_8_8_8(bank: u8, page: u8, byte: u8) -> u32 {
     ((bank as u32) << 16) | ((page as u32) << 8) | byte as u32
 }
 
+fn dec_to_bcd_8(value: u8) -> u8 {
+    if value > 99 { panic!("{} too large for 8bit BCD", value); }
+    ((value / 10) << 4) | (value % 10)
+}
+
+fn dec_to_bcd_16(value: u16) -> u16 {
+    if value > 9999 { panic!("{} too large for 16bit BCD", value); }
+    ((value / 1000) << 12) | (((value % 1000) / 100) << 8) |
+    (((value % 100) / 10) << 4) | (value % 10)
+}
+
+fn bcd_to_dec_8(value: u8) -> u8 {
+    let ll = value & 0x000F;
+    let hh = (value >> 4) & 0x000F;
+    if hh > 0x9 || ll > 0x9 { panic!("{:02X} is not a valid 8bit BCD", value); }
+    hh * 10 + ll
+}
+
+fn bcd_to_dec_16(value: u16) -> u16 {
+    let ll = value & 0x000F;
+    let ml = (value >> 4) & 0x000F;
+    let mh = (value >> 8) & 0x000F;
+    let hh = (value >> 12) & 0x000F;
+    if hh > 0x9 || mh > 0x9 || ml > 0x9 || ll > 0x9 {
+        panic!("{:04X} is not a valid 16bit BCD", value);
+    }
+    hh * 1000 + mh * 100 + ml * 10 + ll
+}
+
 // Interrupts
 const COP16: u8   = 0xE4;
 const BRK16: u8   = 0xE6;
@@ -1002,5 +1031,13 @@ mod tests {
         assert_eq!(0x000245, cpu.stack_ptr_y(0x000000, &mut abus));
         abus.cpu_write_8(0x00, 0x000001);
         abus.bank_wrapping_cpu_write_16(0x0000, 0x00FFFF);
+    }
+
+    #[test]
+    fn bcd_conversions() {
+        assert_eq!(0x99, dec_to_bcd_8(99));
+        assert_eq!(0x9999, dec_to_bcd_16(9999));
+        assert_eq!(99, bcd_to_dec_8(0x99));
+        assert_eq!(9999, bcd_to_dec_16(0x9999))
     }
 }
