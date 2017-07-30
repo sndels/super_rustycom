@@ -932,4 +932,41 @@ mod tests {
         assert_eq!(0x002467, cpu.long_x(addr_8_16(cpu.pb, cpu.pc), &mut abus));
         abus.bank_wrapping_cpu_write_24(0x000000, 0x000001);
     }
+
+    #[test]
+    fn addr_rel() {
+        let mut abus = ABus::new_empty_rom();
+        let mut cpu = Cpu::new(&mut abus);
+        cpu.pb = 0x00;
+        cpu.pc = 0x0123;
+        // Relative8
+        abus.cpu_write_8(0x01, 0x000124);
+        assert_eq!(0x0126, cpu.rel_8(addr_8_16(cpu.pb, cpu.pc), &mut abus));
+        abus.cpu_write_8(0x7F, 0x000124);
+        assert_eq!(0x01A4, cpu.rel_8(addr_8_16(cpu.pb, cpu.pc), &mut abus));
+        abus.cpu_write_8(0xFF, 0x000124);
+        assert_eq!(0x0124, cpu.rel_8(addr_8_16(cpu.pb, cpu.pc), &mut abus));
+        abus.cpu_write_8(0x80, 0x000124);
+        assert_eq!(0x00A5, cpu.rel_8(addr_8_16(cpu.pb, cpu.pc), &mut abus));
+        abus.cpu_write_8(0x00, 0x000124);
+        // Wrapping
+        cpu.pc = 0xFFEF;
+        abus.cpu_write_8(0x7F, 0x00FFF0);
+        assert_eq!(0x0070, cpu.rel_8(addr_8_16(cpu.pb, cpu.pc), &mut abus));
+        abus.cpu_write_8(0x00, 0x00FFF0);
+        cpu.pc = 0x0010;
+        abus.cpu_write_8(0x80, 0x000011);
+        assert_eq!(0xFF92, cpu.rel_8(addr_8_16(cpu.pb, cpu.pc), &mut abus));
+        abus.cpu_write_8(0x00, 0x000011);
+        // Relative16
+        cpu.pc = 0x0123;
+        abus.bank_wrapping_cpu_write_16(0x4567, 0x000124);
+        assert_eq!(0x468D, cpu.rel_16(addr_8_16(cpu.pb, cpu.pc), &mut abus));
+        abus.bank_wrapping_cpu_write_16(0x0000, 0x000124);
+        // Wrapping
+        cpu.pc = 0xABCD;
+        abus.bank_wrapping_cpu_write_16(0x6789, 0x00ABCE);
+        assert_eq!(0x1359, cpu.rel_16(addr_8_16(cpu.pb, cpu.pc), &mut abus));
+        abus.bank_wrapping_cpu_write_16(0x0000, 0x00ABCE);
+    }
 }
