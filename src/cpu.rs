@@ -969,4 +969,38 @@ mod tests {
         assert_eq!(0x1359, cpu.rel_16(addr_8_16(cpu.pb, cpu.pc), &mut abus));
         abus.bank_wrapping_cpu_write_16(0x0000, 0x00ABCE);
     }
+
+    #[test]
+    fn addr_stack() {
+        let mut abus = ABus::new_empty_rom();
+        let mut cpu = Cpu::new(&mut abus);
+        // Stack,S
+        cpu.s = 0x0123;
+        abus.cpu_write_8(0x45, 0x000001);
+        assert_eq!(0x000168, cpu.stack(0x000000, &mut abus));
+        abus.cpu_write_8(0x00, 0x000001);
+        // Wrapping
+        cpu.s = 0xFFDE;
+        abus.cpu_write_8(0x45, 0x000001);
+        assert_eq!(0x000023, cpu.stack(0x000000, &mut abus));
+        abus.cpu_write_8(0x00, 0x000001);
+        // (Stack,S),Y
+        cpu.db = 0x9A;
+        cpu.s = 0x0123;
+        cpu.y = 0x1234;
+        abus.cpu_write_8(0x45, 0x000001);
+        abus.bank_wrapping_cpu_write_16(0xABCD, 0x000168);
+        assert_eq!(0x9ABE01, cpu.stack_ptr_y(0x000000, &mut abus));
+        abus.cpu_write_8(0x00, 0x000001);
+        abus.bank_wrapping_cpu_write_16(0x0000, 0x000168);
+        // Wrapping on pointer and +Y
+        cpu.db = 0xFF;
+        cpu.s = 0xFFBA;
+        cpu.y = 0x5678;
+        abus.cpu_write_8(0x45, 0x000001);
+        abus.bank_wrapping_cpu_write_16(0xABCD, 0x00FFFF);
+        assert_eq!(0x000245, cpu.stack_ptr_y(0x000000, &mut abus));
+        abus.cpu_write_8(0x00, 0x000001);
+        abus.bank_wrapping_cpu_write_16(0x0000, 0x00FFFF);
+    }
 }
