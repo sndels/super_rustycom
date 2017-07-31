@@ -76,7 +76,7 @@ impl Cpu {
                 self.pc = self.pc.wrapping_add(3);
             }
             op::TXS => {
-                if self.e {
+                if self.get_emumode() {
                     let result = self.x;
                     self.s = result + 0x0100;
                     self.update_p_z(result);
@@ -165,14 +165,9 @@ impl Cpu {
                 let bits = abus.cpu_read_8(data_addr.0);
                 self.p &= !bits;
                 // Emulation forces M and X to 1
-                if self.e {
+                if self.get_emumode() {
                     self.set_p_m();
                     self.set_p_x();
-                }
-                // X = 1 forces XH and YH to 0x00
-                if self.get_p_x() {
-                    self.x &= 0x00FF;
-                    self.y &= 0x00FF;
                 }
                 self.pc = self.pc.wrapping_add(2);
             }
@@ -232,17 +227,15 @@ impl Cpu {
             }
             op::XCE => {
                 let tmp = self.e;
-                self.e = self.get_p_c();
+                if self.get_p_c(){
+                    self.set_emumode();
+                } else {
+                    self.clear_emumode();
+                }
                 if tmp {
                     self.set_p_c();
                 } else {
                     self.clear_p_c();
-                }
-                // Emulation forces M and X flags to 1 and SH to 0x01
-                if self.e {
-                    self.set_p_m();
-                    self.set_p_x();
-                    self.s = 0x0100 | (self.s & 0x00FF);
                 }
                 self.pc = self.pc.wrapping_add(1);
             }
@@ -291,7 +284,7 @@ impl Cpu {
     }
 
     fn dir_x(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
-        if self.e && (self.d & 0xFF) == 0 {
+        if self.get_emumode() && (self.d & 0xFF) == 0 {
             ((self.d | (abus.fetch_operand_8(addr).wrapping_add(self.x as u8) as u16)) as u32,
              WrappingMode::Page)
         } else {
@@ -301,7 +294,7 @@ impl Cpu {
     }
 
     fn dir_y(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
-        if self.e && (self.d & 0xFF) == 0 {
+        if self.get_emumode() && (self.d & 0xFF) == 0 {
             ((self.d | (abus.fetch_operand_8(addr).wrapping_add(self.y as u8) as u16)) as u32,
              WrappingMode::Page)
         } else {
@@ -312,7 +305,7 @@ impl Cpu {
 
     fn dir_ptr_16(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
         let pointer = self.dir(addr, abus).0;
-        if self.e && (self.d & 0xFF) == 0 {
+        if self.get_emumode() && (self.d & 0xFF) == 0 {
             let ll = abus.cpu_read_8(pointer);
             let hh = abus.cpu_read_8((pointer & 0xFF00) | (pointer as u8).wrapping_add(1) as u32);
             (addr_8_8_8(self.db, hh, ll), WrappingMode::AddrSpace)
@@ -328,7 +321,7 @@ impl Cpu {
 
     fn dir_ptr_16_x(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
         let pointer = self.dir_x(addr, abus).0;
-        if self.e && (self.d & 0xFF) == 0 {
+        if self.get_emumode() && (self.d & 0xFF) == 0 {
             let ll = abus.cpu_read_8(pointer);
             let hh = abus.cpu_read_8((pointer & 0xFF00) | (pointer as u8).wrapping_add(1) as u32);
             (addr_8_8_8(self.db, hh, ll), WrappingMode::AddrSpace)
@@ -390,7 +383,7 @@ impl Cpu {
 
     fn push_16(&mut self, value: u16, abus: &mut ABus) {
         self.decrement_s(1);
-        if self.e {
+        if self.get_emumode() {
             abus.page_wrapping_cpu_write_16(value, self.s as u32);
         } else {
             abus.bank_wrapping_cpu_write_16(value, self.s as u32);
@@ -400,7 +393,7 @@ impl Cpu {
 
     fn push_24(&mut self, value: u32, abus: &mut ABus) {
         self.decrement_s(2);
-        if self.e {
+        if self.get_emumode() {
             abus.page_wrapping_cpu_write_24(value, self.s as u32);
         } else {
             abus.bank_wrapping_cpu_write_24(value, self.s as u32);
@@ -416,7 +409,7 @@ impl Cpu {
     fn pull_16(&mut self, abus: &mut ABus) -> u16{
         self.increment_s(1);
         let value: u16;
-        if self.e {
+        if self.get_emumode() {
             value = abus.page_wrapping_cpu_read_16(self.s as u32);
         } else {
             value = abus.bank_wrapping_cpu_read_16(self.s as u32);
@@ -428,7 +421,7 @@ impl Cpu {
     fn pull_24(&mut self, abus: &mut ABus) -> u32 {
         self.increment_s(1);
         let value: u32;
-        if self.e {
+        if self.get_emumode() {
             value = abus.page_wrapping_cpu_read_24(self.s as u32);
         } else {
             value = abus.bank_wrapping_cpu_read_24(self.s as u32);
@@ -438,7 +431,7 @@ impl Cpu {
     }
 
     fn decrement_s(&mut self, offset: u8) {
-        if self.e {
+        if self.get_emumode() {
             self.s = 0x0100 | (self.s as u8).wrapping_sub(offset) as u16;
         } else {
             self.s = self.s.wrapping_sub(offset as u16);
@@ -446,7 +439,7 @@ impl Cpu {
     }
 
     fn increment_s(&mut self, offset: u8) {
-        if self.e {
+        if self.get_emumode() {
             self.s = 0x0100 | (self.s as u8).wrapping_add(offset) as u16;
         } else {
             self.s = self.s.wrapping_add(offset as u16);
@@ -486,6 +479,7 @@ impl Cpu {
     pub fn get_p_m(&self) -> bool { self.p & P_M > 0 }
     pub fn get_p_v(&self) -> bool { self.p & P_V > 0 }
     pub fn get_p_n(&self) -> bool { self.p & P_N > 0 }
+    pub fn get_emumode(&self) -> bool { self.e }
 
     fn set_p_c(&mut self) { self.p |= P_C }
     fn set_p_z(&mut self) { self.p |= P_Z }
@@ -500,6 +494,12 @@ impl Cpu {
     fn set_p_m(&mut self) { self.p |= P_M }
     fn set_p_v(&mut self) { self.p |= P_V }
     fn set_p_n(&mut self) { self.p |= P_N }
+    fn set_emumode(&mut self) {
+        self.e = true;
+        self.set_p_m();
+        self.set_p_x();
+        self.s = 0x0100 | (self.s & 0x00FF);
+    }
 
     fn clear_p_c(&mut self) { self.p &= !(P_C) }
     fn clear_p_z(&mut self) { self.p &= !(P_Z) }
@@ -509,6 +509,7 @@ impl Cpu {
     fn clear_p_m(&mut self) { self.p &= !(P_M) }
     fn clear_p_v(&mut self) { self.p &= !(P_V) }
     fn clear_p_n(&mut self) { self.p &= !(P_N) }
+    fn clear_emumode(&mut self) { self.e = false }
 
     fn update_p_z(&mut self, result: u16) {
         if result == 0 {
@@ -692,7 +693,7 @@ mod tests {
         let mut abus = ABus::new_empty_rom();
         let mut cpu = Cpu::new(&mut abus);
         cpu.s = 0x01FF;
-        cpu.e = true;
+        cpu.set_emumode();
         // Regular emumode pushes
         cpu.push_8(0x12, &mut abus);
         assert_eq!(0x01FE, cpu.s);
@@ -719,7 +720,7 @@ mod tests {
         abus.bank_wrapping_cpu_write_24(0x000000, 0x0001FE);
         // Regular pushes
         cpu.s = 0x01FF;
-        cpu.e = false;
+        cpu.clear_emumode() ;
         cpu.push_8(0x12, &mut abus);
         assert_eq!(0x01FE, cpu.s);
         assert_eq!(0x12, abus.cpu_read_8(0x0001FF));
@@ -753,7 +754,7 @@ mod tests {
         let mut abus = ABus::new_empty_rom();
         let mut cpu = Cpu::new(&mut abus);
         cpu.s = 0x01FC;
-        cpu.e = true;
+        cpu.set_emumode() ;
         // Regular emumode pulls
         abus.page_wrapping_cpu_write_24(0x123456, 0x0001FD);
         assert_eq!(0x56, cpu.pull_8(&mut abus));
@@ -778,7 +779,7 @@ mod tests {
         abus.page_wrapping_cpu_write_24(0x000000, 0x0001FF);
         // Regular pulls
         cpu.s = 0x01FC;
-        cpu.e = false;
+        cpu.clear_emumode() ;
         abus.bank_wrapping_cpu_write_24(0x123456, 0x0001FD);
         assert_eq!(0x56, cpu.pull_8(&mut abus));
         assert_eq!(0x01FD, cpu.s);
@@ -867,7 +868,7 @@ mod tests {
         cpu.db = 0x7F;
         cpu.pc = 0x0010;
         cpu.d = 0x1234;
-        cpu.e = true;
+        cpu.set_emumode() ;
         // Direct
         abus.cpu_write_8(0x12, 0x7E0011);
         assert_eq!((0x001246, WrappingMode::Bank), cpu.dir(addr_8_16(cpu.pb, cpu.pc), &mut abus));
