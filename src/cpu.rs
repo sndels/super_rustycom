@@ -536,15 +536,15 @@ impl Cpu {
     }
 
     // Instructions
-    fn op_adc(&mut self, data_addr: (u32, WrappingMode), abus: &mut ABus) {
+    fn op_adc(&mut self, data_addr: &(u32, WrappingMode), abus: &mut ABus) {
+        let carry: u16 = if self.get_p_c() { 1 } else { 0 };
         if self.get_p_m() { // 8-bit accumulator
             let data = abus.cpu_read_8(data_addr.0);
             let result: u8;
-            if self.get_p_c() { // BCD arithmetic
+            if self.get_p_d() { // BCD arithmetic
                 let decimal_acc = bcd_to_dec_8(self.a as u8);
                 let decimal_data = bcd_to_dec_8(data);
-                let decimal_result = if self.get_p_c() { decimal_acc + decimal_data + 1 }
-                                     else              { decimal_acc + decimal_data };
+                let decimal_result = decimal_acc + decimal_data + carry as u8;
                 let bcd_result = dec_to_bcd_8(decimal_result % 100);
                 if decimal_result > 99 {
                     self.set_p_c();
@@ -554,8 +554,7 @@ impl Cpu {
                 result = bcd_result;
             } else { // Binary arithmetic
                 let acc_8 = self.a as u8;
-                let result_16 = if self.get_p_c() { acc_8 as u16 + (data as u16) + 1 }
-                                else              { acc_8 as u16 + (data as u16) };
+                let result_16 = acc_8 as u16 + (data as u16) + carry;
                 if result_16 > 0xFF {
                     self.set_p_c();
                 } else {
@@ -565,8 +564,8 @@ impl Cpu {
             }
             self.update_p_n_8(result);
             self.update_p_z(result as u16);
-            if (self.a < 0x80 && data < 0x80 && result > 0x7F) ||
-               (self.a > 0x7F && data > 0x7F && result < 0x80) {
+            if ((self.a as u8) < 0x80 && data < 0x80 && result > 0x7F) ||
+               ((self.a as u8) > 0x7F && data > 0x7F && result < 0x80) {
                 self.set_p_v();
             } else {
                 self.clear_p_v();
@@ -580,11 +579,10 @@ impl Cpu {
                 WrappingMode::AddrSpace => data = abus.addr_wrapping_cpu_read_16(data_addr.0),
             }
             let result: u16;
-            if self.get_p_c() { // BCD arithmetic
+            if self.get_p_d() { // BCD arithmetic
                 let decimal_acc = bcd_to_dec_16(self.a);
                 let decimal_data = bcd_to_dec_16(data);
-                let decimal_result = if self.get_p_c() { decimal_acc + decimal_data + 1 }
-                                     else              { decimal_acc + decimal_data };
+                let decimal_result = decimal_acc + decimal_data + carry;
                 let bcd_result = dec_to_bcd_16(decimal_result % 10000);
                 if decimal_result > 9999 {
                     self.set_p_c();
@@ -593,8 +591,7 @@ impl Cpu {
                 }
                 result = bcd_result;
             } else { // Binary arithmetic
-                let result_32 = if self.get_p_c() { (self.a as u32) + (data as u32) + 1 }
-                                else              { (self.a as u32) + (data as u32) };
+                let result_32 = (self.a as u32) + (data as u32) + carry as u32;
                 if result_32 > 0xFFFF {
                     self.set_p_c();
                 } else {
@@ -1097,4 +1094,312 @@ mod tests {
         assert_eq!(99, bcd_to_dec_8(0x99));
         assert_eq!(9999, bcd_to_dec_16(0x9999))
     }
-}
+
+    #[test]
+    fn op_adc() {
+        // NOTE: Currently doesn't check actual rule boundaries,
+        //       real BCD V flag behaviour should be verified if actually needed
+        let mut abus = ABus::new_empty_rom();
+        let mut cpu = Cpu::new(&mut abus);
+        cpu.clear_emumode();
+
+        // 8bit binary arithmetic
+        cpu.a = 0x2345;
+        cpu.p = 0b0000_0000;
+        cpu.set_p_m();
+        abus.bank_wrapping_cpu_write_16(0x6789, 0x000000);
+        let data_addr = (0x000000, WrappingMode::Page);
+        cpu.op_adc(&data_addr, &mut abus);
+        assert_eq!(0x23CE, cpu.a);
+        // Wrapping add, C set
+        assert_eq!(false, cpu.get_p_c());
+        cpu.op_adc(&data_addr, &mut abus);
+        assert_eq!(0x2357, cpu.a);
+        assert_eq!(true, cpu.get_p_c());
+        // Add with carry, C cleared
+        cpu.op_adc(&data_addr, &mut abus);
+        assert_eq!(0x23E1, cpu.a);
+        assert_eq!(false, cpu.get_p_c());
+        // Z, C set
+        abus.cpu_write_8(0x1F, 0x000000);
+        assert_eq!(false, cpu.get_p_z());
+        cpu.op_adc(&data_addr, &mut abus);
+        assert_eq!(0x2300, cpu.a);
+        assert_eq!(true, cpu.get_p_c());
+        assert_eq!(true, cpu.get_p_z());
+        // Z cleared
+        cpu.op_adc(&data_addr, &mut abus);
+        assert_eq!(0x2320, cpu.a);
+        assert_eq!(false, cpu.get_p_z());
+        // N set
+        abus.cpu_write_8(0x7A, 0x000000);
+        assert_eq!(false, cpu.get_p_n());
+        cpu.op_adc(&data_addr, &mut abus);
+        assert_eq!(0x239A, cpu.a);
+        assert_eq!(true, cpu.get_p_n());
+        // N cleared
+        cpu.op_adc(&data_addr, &mut abus);
+        assert_eq!(0x2314, cpu.a);
+        assert_eq!(false, cpu.get_p_n());
+        // V set (positive)
+        assert_eq!(false, cpu.get_p_v());
+        cpu.op_adc(&data_addr, &mut abus);
+        assert_eq!(0x238F, cpu.a);
+        assert_eq!(true, cpu.get_p_v());
+        // V set (negative)
+        abus.cpu_write_8(0xCF, 0x000000);
+        cpu.clear_p_v();
+        cpu.op_adc(&data_addr, &mut abus);
+        assert_eq!(0x235E, cpu.a);
+        assert_eq!(true, cpu.get_p_v());
+        // V cleared (positive)
+        abus.cpu_write_8(0x20, 0x000000);
+        cpu.op_adc(&data_addr, &mut abus);
+        assert_eq!(0x237F, cpu.a);
+        assert_eq!(false, cpu.get_p_v());
+        // V cleared (negative)
+        cpu.a = 0x23AF;
+        cpu.set_p_v();
+        abus.cpu_write_8(0xDF, 0x000000);
+        cpu.op_adc(&data_addr, &mut abus);
+        assert_eq!(0x238E, cpu.a);
+        assert_eq!(false, cpu.get_p_v());
+        abus.bank_wrapping_cpu_write_16(0x0000, 0x000000);
+
+        // 8bit BCD arithmetic
+        cpu.a = 0x2345;
+        cpu.p = 0b0000_0000;
+        cpu.set_p_m();
+        cpu.set_p_d();
+        abus.bank_wrapping_cpu_write_16(0x1234, 0x000000);
+        let data_addr = (0x000000, WrappingMode::Page);
+        cpu.op_adc(&data_addr, &mut abus);
+        assert_eq!(0x2379, cpu.a);
+        // Wrapping add, C set
+        assert_eq!(false, cpu.get_p_c());
+        cpu.op_adc(&data_addr, &mut abus);
+        assert_eq!(0x2313, cpu.a);
+        assert_eq!(true, cpu.get_p_c());
+        // Add with carry, C cleared
+        cpu.op_adc(&data_addr, &mut abus);
+        assert_eq!(0x2348, cpu.a);
+        assert_eq!(false, cpu.get_p_c());
+        // Z, C set
+        abus.cpu_write_8(0x52, 0x000000);
+        assert_eq!(false, cpu.get_p_z());
+        cpu.op_adc(&data_addr, &mut abus);
+        assert_eq!(0x2300, cpu.a);
+        assert_eq!(true, cpu.get_p_z());
+        assert_eq!(true, cpu.get_p_c());
+        // Z cleared
+        cpu.op_adc(&data_addr, &mut abus);
+        assert_eq!(0x2353, cpu.a);
+        assert_eq!(false, cpu.get_p_z());
+        // N set
+        abus.cpu_write_8(0x34, 0x000000);
+        assert_eq!(false, cpu.get_p_n());
+        cpu.op_adc(&data_addr, &mut abus);
+        assert_eq!(0x2387, cpu.a);
+        assert_eq!(true, cpu.get_p_n());
+        // N cleared
+        cpu.op_adc(&data_addr, &mut abus);
+        assert_eq!(0x2321, cpu.a);
+        assert_eq!(false, cpu.get_p_n());
+        // V set (positive)
+        abus.cpu_write_8(0x74, 0x000000);
+        assert_eq!(false, cpu.get_p_v());
+        cpu.op_adc(&data_addr, &mut abus);
+        assert_eq!(0x2396, cpu.a);
+        assert_eq!(true, cpu.get_p_v());
+        // V set (negative)
+        cpu.a = 0x2382;
+        abus.cpu_write_8(0x84, 0x000000);
+        cpu.clear_p_v();
+        cpu.op_adc(&data_addr, &mut abus);
+        assert_eq!(0x2366, cpu.a);
+        assert_eq!(true, cpu.get_p_v());
+        // V cleared (positive)
+        cpu.a = 0x2322;
+        abus.cpu_write_8(0x24, 0x000000);
+        cpu.op_adc(&data_addr, &mut abus);
+        assert_eq!(0x2347, cpu.a);
+        assert_eq!(false, cpu.get_p_v());
+        // V cleared (negative)
+        cpu.a = 0x2392;
+        abus.cpu_write_8(0x94, 0x000000);
+        cpu.set_p_v();
+        cpu.op_adc(&data_addr, &mut abus);
+        assert_eq!(0x2386, cpu.a);
+        assert_eq!(false, cpu.get_p_v());
+        abus.bank_wrapping_cpu_write_16(0x0000, 0x000000);
+
+        // 16bit binary arithmetic
+        cpu.a = 0x5678;
+        cpu.p = 0b0000_0000;
+        abus.bank_wrapping_cpu_write_16(0x6789, 0x000000);
+        let data_addr = (0x000000, WrappingMode::Page);
+        cpu.op_adc(&data_addr, &mut abus);
+        assert_eq!(0xBE01, cpu.a);
+        // Wrapping add, C set
+        assert_eq!(false, cpu.get_p_c());
+        cpu.op_adc(&data_addr, &mut abus);
+        assert_eq!(0x258A, cpu.a);
+        assert_eq!(true, cpu.get_p_c());
+        // Add with carry, C cleared
+        cpu.op_adc(&data_addr, &mut abus);
+        assert_eq!(0x8D14, cpu.a);
+        assert_eq!(false, cpu.get_p_c());
+        // Z, C set
+        abus.bank_wrapping_cpu_write_16(0x72EC, 0x000000);
+        assert_eq!(false, cpu.get_p_z());
+        cpu.op_adc(&data_addr, &mut abus);
+        assert_eq!(0x0000, cpu.a);
+        assert_eq!(true, cpu.get_p_z());
+        assert_eq!(true, cpu.get_p_c());
+        // Z cleared
+        cpu.op_adc(&data_addr, &mut abus);
+        assert_eq!(0x72ED, cpu.a);
+        assert_eq!(false, cpu.get_p_z());
+        // N set
+        assert_eq!(false, cpu.get_p_n());
+        cpu.op_adc(&data_addr, &mut abus);
+        assert_eq!(0xE5D9, cpu.a);
+        assert_eq!(true, cpu.get_p_n());
+        // N cleared
+        cpu.op_adc(&data_addr, &mut abus);
+        assert_eq!(0x58C5, cpu.a);
+        assert_eq!(false, cpu.get_p_n());
+        // V set (positive)
+        assert_eq!(false, cpu.get_p_v());
+        cpu.op_adc(&data_addr, &mut abus);
+        assert_eq!(0xCBB2, cpu.a);
+        assert_eq!(true, cpu.get_p_v());
+        // V set (negative)
+        abus.bank_wrapping_cpu_write_16(0x9432, 0x000000);
+        cpu.clear_p_v();
+        cpu.op_adc(&data_addr, &mut abus);
+        assert_eq!(0x5FE4, cpu.a);
+        assert_eq!(true, cpu.get_p_v());
+        // V cleared (positive)
+        abus.bank_wrapping_cpu_write_16(0x1234, 0x000000);
+        cpu.op_adc(&data_addr, &mut abus);
+        assert_eq!(0x7219, cpu.a);
+        assert_eq!(false, cpu.get_p_v());
+        // V cleared (negative)
+        cpu.a = 0xA234;
+        abus.bank_wrapping_cpu_write_16(0xDEFF, 0x000000);
+        cpu.set_p_v();
+        cpu.op_adc(&data_addr, &mut abus);
+        assert_eq!(0x8133, cpu.a);
+        assert_eq!(false, cpu.get_p_v());
+        cpu.clear_p_c();
+        abus.bank_wrapping_cpu_write_16(0x0000, 0x000000);
+        // Data page wrapping
+        cpu.a = 0x1234;
+        abus.page_wrapping_cpu_write_16(0x2345, 0x0000FF);
+        let data_addr = (0x0000FF, WrappingMode::Page);
+        cpu.op_adc(&data_addr, &mut abus);
+        assert_eq!(0x3579, cpu.a);
+        abus.page_wrapping_cpu_write_16(0x0000, 0x0000FF);
+        // Data bank wrapping
+        cpu.a = 0x1234;
+        abus.bank_wrapping_cpu_write_16(0x2345, 0x00FFFF);
+        let data_addr = (0x00FFFF, WrappingMode::Bank);
+        cpu.op_adc(&data_addr, &mut abus);
+        assert_eq!(0x3579, cpu.a);
+        abus.bank_wrapping_cpu_write_16(0x0000, 0x00FFFF);
+        // Data address space wrapping
+        cpu.a = 0x1234;
+        abus.addr_wrapping_cpu_write_16(0x2345, 0xFFFFFF);
+        let data_addr = (0xFFFFFF, WrappingMode::AddrSpace);
+        cpu.op_adc(&data_addr, &mut abus);
+        assert_eq!(0x3579, cpu.a);
+        abus.addr_wrapping_cpu_write_16(0x0000, 0xFFFFFF);
+
+        // 16bit BCD arithmetic
+        cpu.a = 0x2345;
+        cpu.p = 0b0000_0000;
+        cpu.set_p_d();
+        abus.bank_wrapping_cpu_write_16(0x5678, 0x000000);
+        let data_addr = (0x000000, WrappingMode::Page);
+        cpu.op_adc(&data_addr, &mut abus);
+        assert_eq!(0x8023, cpu.a);
+        // Wrapping add, C set
+        assert_eq!(false, cpu.get_p_c());
+        cpu.op_adc(&data_addr, &mut abus);
+        assert_eq!(0x3701, cpu.a);
+        assert_eq!(true, cpu.get_p_c());
+        // Add with carry, C cleared
+        cpu.op_adc(&data_addr, &mut abus);
+        assert_eq!(0x9380, cpu.a);
+        assert_eq!(false, cpu.get_p_c());
+        // Z, C set
+        abus.bank_wrapping_cpu_write_16(0x0620, 0x000000);
+        assert_eq!(false, cpu.get_p_z());
+        cpu.op_adc(&data_addr, &mut abus);
+        assert_eq!(0x0000, cpu.a);
+        assert_eq!(true, cpu.get_p_z());
+        // Z cleared
+        cpu.op_adc(&data_addr, &mut abus);
+        assert_eq!(0x0621, cpu.a);
+        assert_eq!(false, cpu.get_p_z());
+        // N set
+        abus.bank_wrapping_cpu_write_16(0x8620, 0x000000);
+        assert_eq!(false, cpu.get_p_n());
+        cpu.op_adc(&data_addr, &mut abus);
+        assert_eq!(0x9241, cpu.a);
+        assert_eq!(true, cpu.get_p_n());
+        // N cleared
+        abus.bank_wrapping_cpu_write_16(0x4620, 0x000000);
+        cpu.op_adc(&data_addr, &mut abus);
+        assert_eq!(0x3861, cpu.a);
+        assert_eq!(false, cpu.get_p_n());
+        // V set (positive)
+        assert_eq!(false, cpu.get_p_v());
+        cpu.op_adc(&data_addr, &mut abus);
+        assert_eq!(0x8482, cpu.a);
+        assert_eq!(true, cpu.get_p_v());
+        // V set (negative)
+        abus.bank_wrapping_cpu_write_16(0x8620, 0x000000);
+        cpu.clear_p_v();
+        cpu.op_adc(&data_addr, &mut abus);
+        assert_eq!(0x7102, cpu.a);
+        assert_eq!(true, cpu.get_p_v());
+        // V cleared (positive)
+        abus.bank_wrapping_cpu_write_16(0x0620, 0x000000);
+        cpu.set_p_v();
+        cpu.op_adc(&data_addr, &mut abus);
+        assert_eq!(0x7723, cpu.a);
+        assert_eq!(false, cpu.get_p_v());
+        // V cleared (negative)
+        cpu.a = 0x9876;
+        abus.bank_wrapping_cpu_write_16(0x9678, 0x000000);
+        cpu.set_p_v();
+        cpu.op_adc(&data_addr, &mut abus);
+        assert_eq!(0x9554, cpu.a);
+        assert_eq!(false, cpu.get_p_v());
+        cpu.clear_p_c();
+        abus.bank_wrapping_cpu_write_16(0x0000, 0x000000);
+        // Data page wrapping
+        cpu.a = 0x1234;
+        abus.page_wrapping_cpu_write_16(0x2345, 0x0000FF);
+        let data_addr = (0x0000FF, WrappingMode::Page);
+        cpu.op_adc(&data_addr, &mut abus);
+        assert_eq!(0x3579, cpu.a);
+        abus.page_wrapping_cpu_write_16(0x0000, 0x0000FF);
+        // Data bank wrapping
+        cpu.a = 0x1234;
+        abus.bank_wrapping_cpu_write_16(0x2345, 0x00FFFF);
+        let data_addr = (0x00FFFF, WrappingMode::Bank);
+        cpu.op_adc(&data_addr, &mut abus);
+        assert_eq!(0x3579, cpu.a);
+        abus.bank_wrapping_cpu_write_16(0x0000, 0x00FFFF);
+        // Data address space wrapping
+        cpu.a = 0x1234;
+        abus.addr_wrapping_cpu_write_16(0x2345, 0xFFFFFF);
+        let data_addr = (0xFFFFFF, WrappingMode::AddrSpace);
+        cpu.op_adc(&data_addr, &mut abus);
+        assert_eq!(0x3579, cpu.a);
+        abus.addr_wrapping_cpu_write_16(0x0000, 0xFFFFFF);
+        }
+    }
