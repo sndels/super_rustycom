@@ -41,7 +41,7 @@ impl Cpu {
     fn execute(&mut self, opcode: u8, addr: u32, abus: &mut ABus) {
         match opcode {
             op::CLC => {
-                self.reset_p_c();
+                self.clear_p_c();
                 self.pc = self.pc.wrapping_add(1);
             }
             op::JSR_20 => {
@@ -191,7 +191,7 @@ impl Cpu {
                     self.update_p_n_8(result);
                     self.update_p_z(result as u16);
                     if (self.x as u8) < data {
-                        self.reset_p_c();
+                        self.clear_p_c();
                     } else {
                         self.set_p_c();
                     }
@@ -203,7 +203,7 @@ impl Cpu {
                     self.update_p_n_16(result);
                     self.update_p_z(result);
                     if self.x < data {
-                        self.reset_p_c();
+                        self.clear_p_c();
                     } else {
                         self.set_p_c();
                     }
@@ -236,7 +236,7 @@ impl Cpu {
                 if tmp {
                     self.set_p_c();
                 } else {
-                    self.reset_p_c();
+                    self.clear_p_c();
                 }
                 // Emulation forces M and X flags to 1 and SH to 0x01
                 if self.e {
@@ -501,20 +501,20 @@ impl Cpu {
     fn set_p_v(&mut self) { self.p |= P_V }
     fn set_p_n(&mut self) { self.p |= P_N }
 
-    fn reset_p_c(&mut self) { self.p &= !(P_C) }
-    fn reset_p_z(&mut self) { self.p &= !(P_Z) }
-    fn reset_p_i(&mut self) { self.p &= !(P_I) }
-    fn reset_p_d(&mut self) { self.p &= !(P_D) }
-    fn reset_p_x(&mut self) { self.p &= !(P_X) }
-    fn reset_p_m(&mut self) { self.p &= !(P_M) }
-    fn reset_p_v(&mut self) { self.p &= !(P_V) }
-    fn reset_p_n(&mut self) { self.p &= !(P_N) }
+    fn clear_p_c(&mut self) { self.p &= !(P_C) }
+    fn clear_p_z(&mut self) { self.p &= !(P_Z) }
+    fn clear_p_i(&mut self) { self.p &= !(P_I) }
+    fn clear_p_d(&mut self) { self.p &= !(P_D) }
+    fn clear_p_x(&mut self) { self.p &= !(P_X) }
+    fn clear_p_m(&mut self) { self.p &= !(P_M) }
+    fn clear_p_v(&mut self) { self.p &= !(P_V) }
+    fn clear_p_n(&mut self) { self.p &= !(P_N) }
 
     fn update_p_z(&mut self, result: u16) {
         if result == 0 {
             self.set_p_z();
         } else {
-            self.reset_p_z();
+            self.clear_p_z();
         }
     }
 
@@ -522,7 +522,7 @@ impl Cpu {
         if result > 0x7F {
             self.set_p_n();
         } else {
-            self.reset_p_n();
+            self.clear_p_n();
         }
     }
 
@@ -530,7 +530,7 @@ impl Cpu {
         if result > 0x7FFF {
             self.set_p_n();
         } else {
-            self.reset_p_n();
+            self.clear_p_n();
         }
     }
 
@@ -548,7 +548,7 @@ impl Cpu {
                 if decimal_result > 99 {
                     self.set_p_c();
                 } else {
-                    self.reset_p_c();
+                    self.clear_p_c();
                 }
                 result = bcd_result;
             } else { // Binary arithmetic
@@ -558,7 +558,7 @@ impl Cpu {
                 if result_16 > 0xFF {
                     self.set_p_c();
                 } else {
-                    self.reset_p_c();
+                    self.clear_p_c();
                 }
                 result = result_16 as u8;
             }
@@ -568,7 +568,7 @@ impl Cpu {
                (self.a > 0x7F && data > 0x7F && result < 0x80) {
                 self.set_p_v();
             } else {
-                self.reset_p_v();
+                self.clear_p_v();
             }
             self.a = (self.a & 0xFF00) | (result as u16);
         } else { // 16-bit accumulator
@@ -588,7 +588,7 @@ impl Cpu {
                 if decimal_result > 9999 {
                     self.set_p_c();
                 } else {
-                    self.reset_p_c();
+                    self.clear_p_c();
                 }
                 result = bcd_result;
             } else { // Binary arithmetic
@@ -597,7 +597,7 @@ impl Cpu {
                 if result_32 > 0xFFFF {
                     self.set_p_c();
                 } else {
-                    self.reset_p_c();
+                    self.clear_p_c();
                 }
                 result = result_32 as u16;
             }
@@ -607,7 +607,7 @@ impl Cpu {
                (self.a > 0x7FFF && data > 0x7FFF && result < 0x8000) {
                 self.set_p_v();
             } else {
-                self.reset_p_v();
+                self.clear_p_v();
             }
             self.a = result;
         }
