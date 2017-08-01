@@ -1,18 +1,17 @@
 use abus::ABus;
 use op;
 
-#[derive(Debug)]
 pub struct Cpu {
-    a:  u16,  // Accumulator
-    x:  u16,  // Index register
-    y:  u16,  // Index register
-    pc: u16,  // Program counter
-    s:  u16,  // Stack pointer
-    p:  u8,   // Processor status register
-    d:  u16,  // Zeropage offset
-    pb: u8,   // Program counter bank
-    db: u8,   // Data bank
-    e:  bool, // Emulation mode
+    a:  u16,         // Accumulator
+    x:  u16,         // Index register
+    y:  u16,         // Index register
+    pc: u16,         // Program counter
+    s:  u16,         // Stack pointer
+    p:  StatusReg,   // Processor status register
+    d:  u16,         // Zeropage offset
+    pb: u8,          // Program counter bank
+    db: u8,          // Data bank
+    e:  bool,        // Emulation mode
 }
 
 impl Cpu {
@@ -23,7 +22,7 @@ impl Cpu {
             y:  0x00,
             pc: abus.page_wrapping_cpu_read_16(0x00FF00 + RESET8 as u32), // TODO: This only applies to LoROM
             s:  0x01FF,
-            p:  P_M | P_X | P_I,
+            p:  StatusReg::new(),
             d : 0x00,
             pb: 0x0,
             db: 0x0,
@@ -41,7 +40,7 @@ impl Cpu {
     fn execute(&mut self, opcode: u8, addr: u32, abus: &mut ABus) {
         match opcode {
             op::CLC => {
-                self.clear_p_c();
+                self.p.c = false;
                 self.pc = self.pc.wrapping_add(1);
             }
             op::JSR_20 => {
@@ -54,12 +53,12 @@ impl Cpu {
                 self.pc = self.pull_16(abus).wrapping_add(1);
             }
             op::SEI => {
-                self.set_p_i();
+                self.p.i = true;
                 self.pc = self.pc.wrapping_add(1);
             }
             op::STA_8D => {
                 let data_addr = self.abs(addr, abus).0;
-                if !self.get_p_m() {
+                if !self.p.m {
                     abus.addr_wrapping_cpu_write_16(self.a, data_addr);
                 } else {
                     abus.cpu_write_8(self.a as u8, data_addr);
@@ -68,7 +67,7 @@ impl Cpu {
             }
             op::STX_8E => {
                 let data_addr = self.abs(addr, abus).0;
-                if !self.get_p_x() {
+                if !self.p.x {
                     abus.addr_wrapping_cpu_write_16(self.x, data_addr);
                 } else {
                     abus.cpu_write_8(self.x as u8, data_addr);
@@ -76,22 +75,22 @@ impl Cpu {
                 self.pc = self.pc.wrapping_add(3);
             }
             op::TXS => {
-                if self.get_emumode() {
+                if self.e {
                     let result = self.x;
                     self.s = result + 0x0100;
-                    self.update_p_z(result);
-                    self.update_p_n_8(result as u8);
+                    self.p.z = result == 0;
+                    self.p.n = result > 0x7F;
                 } else {
                     let result = self.x;
                     self.s = result;
-                    self.update_p_z(result);
-                    self.update_p_n_16(result);
+                    self.p.z = result == 0;
+                    self.p.n = result > 0x7FFF;
                 }
                 self.pc = self.pc.wrapping_add(1);
             }
             op::STZ_9C => {
                 let data_addr = self.abs(addr, abus).0;
-                if !self.get_p_m() {
+                if !self.p.m {
                     abus.addr_wrapping_cpu_write_16(0, data_addr);
                 } else {
                     abus.cpu_write_8(0, data_addr);
@@ -99,143 +98,147 @@ impl Cpu {
                 self.pc = self.pc.wrapping_add(3);
             }
             op::LDX_A2 => {
-                if self.get_p_x() {
+                if self.p.x {
                     let data_addr = self.imm(addr, abus);
                     let data = abus.cpu_read_8(data_addr.0) as u16;
                     self.x = data;
-                    self.update_p_z(data);
-                    self.update_p_n_8(data as u8);
+                    self.p.z = data == 0;
+                    self.p.n = data > 0x7F;
                     self.pc = self.pc.wrapping_add(2);
                 } else {
                     let data_addr = self.imm(addr, abus);
                     let data = abus.bank_wrapping_cpu_read_16(data_addr.0);
                     self.x = data;
-                    self.update_p_z(data);
-                    self.update_p_n_16(data);
+                    self.p.z = data == 0;
+                    self.p.n = data > 0x7FFF;
                     self.pc = self.pc.wrapping_add(3);
                 }
             }
             op::LDA_A9 => {
-                if self.get_p_m() {
+                if self.p.m {
                     let data_addr = self.imm(addr, abus);
                     let data = abus.cpu_read_8(data_addr.0) as u16;
                     self.a = (self.a & 0xFF00) + data;
-                    self.update_p_z(data);
-                    self.update_p_n_8(data as u8);
+                    self.p.z = data == 0;
+                    self.p.n = data > 0x7F;
                     self.pc = self.pc.wrapping_add(2);
                 } else {
                     let data_addr = self.imm(addr, abus);
                     let data = abus.bank_wrapping_cpu_read_16(data_addr.0);
                     self.a = data;
-                    self.update_p_z(data);
-                    self.update_p_n_16(data);
+                    self.p.z = data == 0;
+                    self.p.n = data > 0x7FFF;
                     self.pc = self.pc.wrapping_add(3);
                 }
             }
             op::TAX => {
                 let result = self.a;
-                if self.get_p_x() {
+                if self.p.x {
                     self.x = result & 0x00FF;
-                    self.update_p_n_8(result as u8);
+                    self.p.n = result > 0x7F;
                 } else {
                     self.x = result;
-                    self.update_p_n_16(result);
+                    self.p.n = result > 0x7FFF;
                 }
-                self.update_p_z(result);
+                self.p.z = result == 0;
                 self.pc = self.pc.wrapping_add(1);
             }
             op::LDX_AE => {
                 let data_addr = self.abs(addr, abus).0;
-                if self.get_p_x() {
+                if self.p.x {
                     let data = abus.cpu_read_8(data_addr);
                     self.x = data as u16;
-                    self.update_p_z(data as u16);
-                    self.update_p_n_8(data);
+                    self.p.z = data == 0;
+                    self.p.n = data > 0x7F;
                     self.pc = self.pc.wrapping_add(2);
                 } else {
                     let data = abus.bank_wrapping_cpu_read_16(data_addr);
                     self.x = data;
-                    self.update_p_z(data);
-                    self.update_p_n_16(data);
+                    self.p.z = data == 0;
+                    self.p.n = data > 0x7FFF;
                     self.pc = self.pc.wrapping_add(3);
                 }
             }
             op::REP => {
                 let data_addr = self.imm(addr, abus);
-                let bits = abus.cpu_read_8(data_addr.0);
-                self.p &= !bits;
+                let mask = abus.cpu_read_8(data_addr.0);
+                self.p.clear_flags(mask);
                 // Emulation forces M and X to 1
-                if self.get_emumode() {
-                    self.set_p_m();
-                    self.set_p_x();
+                if self.e {
+                    self.p.m = true;
+                    self.p.x = true;
                 }
                 self.pc = self.pc.wrapping_add(2);
             }
             op::BNE => {
-                if !self.get_p_z() {
+                if !self.p.z {
                     self.pc = self.rel_8(addr, abus).0 as u16;
                 } else {
                     self.pc = self.pc.wrapping_add(2);
                 }
             }
             op::CPX_E0 => {
-                if self.get_p_x() {
+                if self.p.x {
                     let data_addr = self.imm(addr, abus);
                     let data = abus.cpu_read_8(data_addr.0);
                     let result = (self.x as u8).wrapping_sub(data);// TODO: Matches binary subtraction?
-                    self.update_p_n_8(result);
-                    self.update_p_z(result as u16);
+                    self.p.n = result > 0x7F;
+                    self.p.z = result == 0;
                     if (self.x as u8) < data {
-                        self.clear_p_c();
+                        self.p.c = false;
                     } else {
-                        self.set_p_c();
+                        self.p.c = true;
                     }
                     self.pc = self.pc.wrapping_add(2);
                 } else {
                     let data_addr = self.imm(addr, abus);
                     let data = abus.bank_wrapping_cpu_read_16(data_addr.0);
                     let result = self.x.wrapping_sub(data);// TODO: Matches binary subtraction?
-                    self.update_p_n_16(result);
-                    self.update_p_z(result);
+                    self.p.n = result > 0x7FFF;
+                    self.p.z = result == 0;
                     if self.x < data {
-                        self.clear_p_c();
+                        self.p.c = false;
                     } else {
-                        self.set_p_c();
+                        self.p.c = true;
                     }
                     self.pc = self.pc.wrapping_add(3);
                 }
             }
             op::SEP => {
                 let data_addr = self.imm(addr, abus);
-                let bits = abus.cpu_read_8(data_addr.0);
-                self.p |= bits;
+                let mask = abus.cpu_read_8(data_addr.0);
+                self.p.set_flags(mask);
+                if self.p.x {
+                    self.x &= 0x00FF;
+                    self.y &= 0x00FF;
+                 }
                 self.pc = self.pc.wrapping_add(2);
             }
             op::INX => {
-                if self.get_p_x() {
+                if self.p.x {
                     self.x = ((self.x as u8).wrapping_add(1)) as u16;
                     let result = self.x as u8;
-                    self.update_p_n_8(result);
+                    self.p.n = result > 0x7F;
                 } else {
                     self.x = self.x.wrapping_add(1);
                     let result = self.x;
-                    self.update_p_n_16(result);
+                    self.p.n = result > 0x7FFF;
                 }
                 let result = self.x;
-                self.update_p_z(result);
+                self.p.z = result == 0;
                 self.pc = self.pc.wrapping_add(1);
             }
             op::XCE => {
                 let tmp = self.e;
-                if self.get_p_c(){
+                if self.p.c{
                     self.set_emumode();
                 } else {
-                    self.clear_emumode();
+                    self.e = false
                 }
                 if tmp {
-                    self.set_p_c();
+                    self.p.c = true;
                 } else {
-                    self.clear_p_c();
+                    self.p.c = false;
                 }
                 self.pc = self.pc.wrapping_add(1);
             }
@@ -284,7 +287,7 @@ impl Cpu {
     }
 
     fn dir_x(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
-        if self.get_emumode() && (self.d & 0xFF) == 0 {
+        if self.e && (self.d & 0xFF) == 0 {
             ((self.d | (abus.fetch_operand_8(addr).wrapping_add(self.x as u8) as u16)) as u32,
              WrappingMode::Page)
         } else {
@@ -294,7 +297,7 @@ impl Cpu {
     }
 
     fn dir_y(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
-        if self.get_emumode() && (self.d & 0xFF) == 0 {
+        if self.e && (self.d & 0xFF) == 0 {
             ((self.d | (abus.fetch_operand_8(addr).wrapping_add(self.y as u8) as u16)) as u32,
              WrappingMode::Page)
         } else {
@@ -305,7 +308,7 @@ impl Cpu {
 
     fn dir_ptr_16(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
         let pointer = self.dir(addr, abus).0;
-        if self.get_emumode() && (self.d & 0xFF) == 0 {
+        if self.e && (self.d & 0xFF) == 0 {
             let ll = abus.cpu_read_8(pointer);
             let hh = abus.cpu_read_8((pointer & 0xFF00) | (pointer as u8).wrapping_add(1) as u32);
             (addr_8_8_8(self.db, hh, ll), WrappingMode::AddrSpace)
@@ -321,7 +324,7 @@ impl Cpu {
 
     fn dir_ptr_16_x(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
         let pointer = self.dir_x(addr, abus).0;
-        if self.get_emumode() && (self.d & 0xFF) == 0 {
+        if self.e && (self.d & 0xFF) == 0 {
             let ll = abus.cpu_read_8(pointer);
             let hh = abus.cpu_read_8((pointer & 0xFF00) | (pointer as u8).wrapping_add(1) as u32);
             (addr_8_8_8(self.db, hh, ll), WrappingMode::AddrSpace)
@@ -383,7 +386,7 @@ impl Cpu {
 
     fn push_16(&mut self, value: u16, abus: &mut ABus) {
         self.decrement_s(1);
-        if self.get_emumode() {
+        if self.e {
             abus.page_wrapping_cpu_write_16(value, self.s as u32);
         } else {
             abus.bank_wrapping_cpu_write_16(value, self.s as u32);
@@ -393,7 +396,7 @@ impl Cpu {
 
     fn push_24(&mut self, value: u32, abus: &mut ABus) {
         self.decrement_s(2);
-        if self.get_emumode() {
+        if self.e {
             abus.page_wrapping_cpu_write_24(value, self.s as u32);
         } else {
             abus.bank_wrapping_cpu_write_24(value, self.s as u32);
@@ -409,7 +412,7 @@ impl Cpu {
     fn pull_16(&mut self, abus: &mut ABus) -> u16{
         self.increment_s(1);
         let value: u16;
-        if self.get_emumode() {
+        if self.e {
             value = abus.page_wrapping_cpu_read_16(self.s as u32);
         } else {
             value = abus.bank_wrapping_cpu_read_16(self.s as u32);
@@ -421,7 +424,7 @@ impl Cpu {
     fn pull_24(&mut self, abus: &mut ABus) -> u32 {
         self.increment_s(1);
         let value: u32;
-        if self.get_emumode() {
+        if self.e {
             value = abus.page_wrapping_cpu_read_24(self.s as u32);
         } else {
             value = abus.bank_wrapping_cpu_read_24(self.s as u32);
@@ -431,7 +434,7 @@ impl Cpu {
     }
 
     fn decrement_s(&mut self, offset: u8) {
-        if self.get_emumode() {
+        if self.e {
             self.s = 0x0100 | (self.s as u8).wrapping_sub(offset) as u16;
         } else {
             self.s = self.s.wrapping_sub(offset as u16);
@@ -439,7 +442,7 @@ impl Cpu {
     }
 
     fn increment_s(&mut self, offset: u8) {
-        if self.get_emumode() {
+        if self.e {
             self.s = 0x0100 | (self.s as u8).wrapping_add(offset) as u16;
         } else {
             self.s = self.s.wrapping_add(offset as u16);
@@ -450,7 +453,7 @@ impl Cpu {
         println!("A:  ${:04X}", self.a);
         println!("X:  ${:04X}", self.x);
         println!("Y:  ${:04X}", self.y);
-        println!("P:  {:08b}", self.p);
+        println!("P:  {:08b}", self.p.get_value());
         println!("PB: ${:02X}", self.pb);
         println!("DB: ${:02X}", self.db);
         println!("PC: ${:04X}", self.pc);
@@ -460,115 +463,68 @@ impl Cpu {
     }
 
     pub fn print_flags(&self) {
-        if self.get_p_c() { println!("Carry"); }
-        if self.get_p_z() { println!("Zero"); }
-        if self.get_p_i() { println!("Interrupt"); }
-        if self.get_p_d() { println!("Decimal"); }
-        if self.get_p_x() { println!("Index"); }
-        if self.get_p_m() { println!("Memory"); }
-        if self.get_p_v() { println!("Overflow"); }
-        if self.get_p_n() { println!("Negative"); }
+        if self.p.c { println!("Carry"); }
+        if self.p.z { println!("Zero"); }
+        if self.p.i { println!("Interrupt"); }
+        if self.p.d { println!("Decimal"); }
+        if self.p.x { println!("Index"); }
+        if self.p.m { println!("Memory"); }
+        if self.p.v { println!("Overflow"); }
+        if self.p.n { println!("Negative"); }
     }
 
-    // Flag operations
-    pub fn get_p_c(&self) -> bool { self.p & P_C > 0 }
-    pub fn get_p_z(&self) -> bool { self.p & P_Z > 0 }
-    pub fn get_p_i(&self) -> bool { self.p & P_I > 0 }
-    pub fn get_p_d(&self) -> bool { self.p & P_D > 0 }
-    pub fn get_p_x(&self) -> bool { self.p & P_X > 0 }
-    pub fn get_p_m(&self) -> bool { self.p & P_M > 0 }
-    pub fn get_p_v(&self) -> bool { self.p & P_V > 0 }
-    pub fn get_p_n(&self) -> bool { self.p & P_N > 0 }
-    pub fn get_emumode(&self) -> bool { self.e }
+    pub fn get_p_c(&self) -> bool { self.p.c }
+    pub fn get_p_z(&self) -> bool { self.p.z }
+    pub fn get_p_i(&self) -> bool { self.p.i }
+    pub fn get_p_d(&self) -> bool { self.p.d }
+    pub fn get_p_x(&self) -> bool { self.p.x }
+    pub fn get_p_m(&self) -> bool { self.p.m }
+    pub fn get_p_v(&self) -> bool { self.p.v }
+    pub fn get_p_n(&self) -> bool { self.p.n }
 
-    fn set_p_c(&mut self) { self.p |= P_C }
-    fn set_p_z(&mut self) { self.p |= P_Z }
-    fn set_p_i(&mut self) { self.p |= P_I }
-    fn set_p_d(&mut self) { self.p |= P_D }
-    fn set_p_x(&mut self) {
-        self.p |= P_X;
-        // X = 1 forces XH and YH to 0x00
-        self.x &= 0x00FF;
-        self.y &= 0x00FF;
-    }
-    fn set_p_m(&mut self) { self.p |= P_M }
-    fn set_p_v(&mut self) { self.p |= P_V }
-    fn set_p_n(&mut self) { self.p |= P_N }
     fn set_emumode(&mut self) {
         self.e = true;
-        self.set_p_m();
-        self.set_p_x();
+        self.p.m = true;
+        self.p.x = true;
+        self.x &= 0x00FF;
+        self.y &= 0x00FF;
         self.s = 0x0100 | (self.s & 0x00FF);
-    }
-
-    fn clear_p_c(&mut self) { self.p &= !(P_C) }
-    fn clear_p_z(&mut self) { self.p &= !(P_Z) }
-    fn clear_p_i(&mut self) { self.p &= !(P_I) }
-    fn clear_p_d(&mut self) { self.p &= !(P_D) }
-    fn clear_p_x(&mut self) { self.p &= !(P_X) }
-    fn clear_p_m(&mut self) { self.p &= !(P_M) }
-    fn clear_p_v(&mut self) { self.p &= !(P_V) }
-    fn clear_p_n(&mut self) { self.p &= !(P_N) }
-    fn clear_emumode(&mut self) { self.e = false }
-
-    fn update_p_z(&mut self, result: u16) {
-        if result == 0 {
-            self.set_p_z();
-        } else {
-            self.clear_p_z();
-        }
-    }
-
-    fn update_p_n_8(&mut self, result: u8) {
-        if result > 0x7F {
-            self.set_p_n();
-        } else {
-            self.clear_p_n();
-        }
-    }
-
-    fn update_p_n_16(&mut self, result: u16) {
-        if result > 0x7FFF {
-            self.set_p_n();
-        } else {
-            self.clear_p_n();
-        }
     }
 
     // Instructions
     fn op_adc(&mut self, data_addr: &(u32, WrappingMode), abus: &mut ABus) {
-        let carry: u16 = if self.get_p_c() { 1 } else { 0 };
-        if self.get_p_m() { // 8-bit accumulator
+        let carry: u16 = if self.p.c { 1 } else { 0 };
+        if self.p.m { // 8-bit accumulator
             let data = abus.cpu_read_8(data_addr.0);
             let result: u8;
-            if self.get_p_d() { // BCD arithmetic
+            if self.p.d { // BCD arithmetic
                 let decimal_acc = bcd_to_dec_8(self.a as u8);
                 let decimal_data = bcd_to_dec_8(data);
                 let decimal_result = decimal_acc + decimal_data + carry as u8;
                 let bcd_result = dec_to_bcd_8(decimal_result % 100);
                 if decimal_result > 99 {
-                    self.set_p_c();
+                    self.p.c = true;
                 } else {
-                    self.clear_p_c();
+                    self.p.c = false;
                 }
                 result = bcd_result;
             } else { // Binary arithmetic
                 let acc_8 = self.a as u8;
                 let result_16 = acc_8 as u16 + (data as u16) + carry;
                 if result_16 > 0xFF {
-                    self.set_p_c();
+                    self.p.c = true;
                 } else {
-                    self.clear_p_c();
+                    self.p.c = false;
                 }
                 result = result_16 as u8;
             }
-            self.update_p_n_8(result);
-            self.update_p_z(result as u16);
+            self.p.n = result > 0x7F;
+            self.p.z = result == 0;
             if ((self.a as u8) < 0x80 && data < 0x80 && result > 0x7F) ||
                ((self.a as u8) > 0x7F && data > 0x7F && result < 0x80) {
-                self.set_p_v();
+                self.p.v = true;
             } else {
-                self.clear_p_v();
+                self.p.v = false;
             }
             self.a = (self.a & 0xFF00) | (result as u16);
         } else { // 16-bit accumulator
@@ -579,33 +535,33 @@ impl Cpu {
                 WrappingMode::AddrSpace => data = abus.addr_wrapping_cpu_read_16(data_addr.0),
             }
             let result: u16;
-            if self.get_p_d() { // BCD arithmetic
+            if self.p.d { // BCD arithmetic
                 let decimal_acc = bcd_to_dec_16(self.a);
                 let decimal_data = bcd_to_dec_16(data);
                 let decimal_result = decimal_acc + decimal_data + carry;
                 let bcd_result = dec_to_bcd_16(decimal_result % 10000);
                 if decimal_result > 9999 {
-                    self.set_p_c();
+                    self.p.c = true;
                 } else {
-                    self.clear_p_c();
+                    self.p.c = false;
                 }
                 result = bcd_result;
             } else { // Binary arithmetic
                 let result_32 = (self.a as u32) + (data as u32) + carry as u32;
                 if result_32 > 0xFFFF {
-                    self.set_p_c();
+                    self.p.c = true;
                 } else {
-                    self.clear_p_c();
+                    self.p.c = false;
                 }
                 result = result_32 as u16;
             }
-            self.update_p_n_16(result as u16);
-            self.update_p_z(result as u16);
+            self.p.n = result > 0x7FFF;
+            self.p.z = result == 0;
             if (self.a < 0x8000 && data < 0x8000 && result > 0x7FFF) ||
                (self.a > 0x7FFF && data > 0x7FFF && result < 0x8000) {
-                self.set_p_v();
+                self.p.v = true;
             } else {
-                self.clear_p_v();
+                self.p.v = false;
             }
             self.a = result;
         }
@@ -680,6 +636,68 @@ enum WrappingMode {
     AddrSpace
 }
 
+#[derive(Clone)]
+struct StatusReg {
+    n: bool,
+    v: bool,
+    m: bool,
+    x: bool,
+    d: bool,
+    i: bool,
+    z: bool,
+    c: bool
+}
+
+impl StatusReg {
+    pub fn new() -> StatusReg{
+        StatusReg{
+            n: false,
+            v: false,
+            m: true,
+            x: true,
+            d: false,
+            i: true,
+            z: false,
+            c: false,
+        }
+    }
+
+    pub fn set_flags(&mut self, mask: u8) {
+        if mask & P_N > 0 { self.n = true; }
+        if mask & P_V > 0 { self.v = true; }
+        if mask & P_M > 0 { self.m = true; }
+        if mask & P_X > 0 { self.x = true; }
+        if mask & P_D > 0 { self.d = true; }
+        if mask & P_I > 0 { self.i = true; }
+        if mask & P_Z > 0 { self.z = true; }
+        if mask & P_C > 0 { self.c = true; }
+    }
+
+    pub fn clear_flags(&mut self, mask: u8) {
+        if mask & P_N > 0 { self.n = false; }
+        if mask & P_V > 0 { self.v = false; }
+        if mask & P_M > 0 { self.m = false; }
+        if mask & P_X > 0 { self.x = false; }
+        if mask & P_D > 0 { self.d = false; }
+        if mask & P_I > 0 { self.i = false; }
+        if mask & P_Z > 0 { self.z = false; }
+        if mask & P_C > 0 { self.c = false; }
+    }
+
+    pub fn get_value(&self) -> u8 {
+        let mut value: u8 = 0b0000_0000;
+        if self.n { value |= P_N; }
+        if self.v { value |= P_V; }
+        if self.m { value |= P_M; }
+        if self.x { value |= P_X; }
+        if self.d { value |= P_D; }
+        if self.i { value |= P_I; }
+        if self.z { value |= P_Z; }
+        if self.c { value |= P_C; }
+        value
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -717,7 +735,7 @@ mod tests {
         abus.bank_wrapping_cpu_write_24(0x000000, 0x0001FE);
         // Regular pushes
         cpu.s = 0x01FF;
-        cpu.clear_emumode() ;
+        cpu.e = false;
         cpu.push_8(0x12, &mut abus);
         assert_eq!(0x01FE, cpu.s);
         assert_eq!(0x12, abus.cpu_read_8(0x0001FF));
@@ -776,7 +794,7 @@ mod tests {
         abus.page_wrapping_cpu_write_24(0x000000, 0x0001FF);
         // Regular pulls
         cpu.s = 0x01FC;
-        cpu.clear_emumode() ;
+        cpu.e = false;
         abus.bank_wrapping_cpu_write_24(0x123456, 0x0001FD);
         assert_eq!(0x56, cpu.pull_8(&mut abus));
         assert_eq!(0x01FD, cpu.s);
@@ -1101,198 +1119,198 @@ mod tests {
         //       real BCD V flag behaviour should be verified if actually needed
         let mut abus = ABus::new_empty_rom();
         let mut cpu = Cpu::new(&mut abus);
-        cpu.clear_emumode();
+        cpu.e = false;
 
         // 8bit binary arithmetic
         cpu.a = 0x2345;
-        cpu.p = 0b0000_0000;
-        cpu.set_p_m();
+        cpu.p.clear_flags(0b1111_1111);
+        cpu.p.m = true;
         abus.bank_wrapping_cpu_write_16(0x6789, 0x000000);
         let data_addr = (0x000000, WrappingMode::Page);
         cpu.op_adc(&data_addr, &mut abus);
         assert_eq!(0x23CE, cpu.a);
         // Wrapping add, C set
-        assert_eq!(false, cpu.get_p_c());
+        assert_eq!(false, cpu.p.c);
         cpu.op_adc(&data_addr, &mut abus);
         assert_eq!(0x2357, cpu.a);
-        assert_eq!(true, cpu.get_p_c());
+        assert_eq!(true, cpu.p.c);
         // Add with carry, C cleared
         cpu.op_adc(&data_addr, &mut abus);
         assert_eq!(0x23E1, cpu.a);
-        assert_eq!(false, cpu.get_p_c());
+        assert_eq!(false, cpu.p.c);
         // Z, C set
         abus.cpu_write_8(0x1F, 0x000000);
-        assert_eq!(false, cpu.get_p_z());
+        assert_eq!(false, cpu.p.z);
         cpu.op_adc(&data_addr, &mut abus);
         assert_eq!(0x2300, cpu.a);
-        assert_eq!(true, cpu.get_p_c());
-        assert_eq!(true, cpu.get_p_z());
+        assert_eq!(true, cpu.p.c);
+        assert_eq!(true, cpu.p.z);
         // Z cleared
         cpu.op_adc(&data_addr, &mut abus);
         assert_eq!(0x2320, cpu.a);
-        assert_eq!(false, cpu.get_p_z());
+        assert_eq!(false, cpu.p.z);
         // N set
         abus.cpu_write_8(0x7A, 0x000000);
-        assert_eq!(false, cpu.get_p_n());
+        assert_eq!(false, cpu.p.n);
         cpu.op_adc(&data_addr, &mut abus);
         assert_eq!(0x239A, cpu.a);
-        assert_eq!(true, cpu.get_p_n());
+        assert_eq!(true, cpu.p.n);
         // N cleared
         cpu.op_adc(&data_addr, &mut abus);
         assert_eq!(0x2314, cpu.a);
-        assert_eq!(false, cpu.get_p_n());
+        assert_eq!(false, cpu.p.n);
         // V set (positive)
-        assert_eq!(false, cpu.get_p_v());
+        assert_eq!(false, cpu.p.v);
         cpu.op_adc(&data_addr, &mut abus);
         assert_eq!(0x238F, cpu.a);
-        assert_eq!(true, cpu.get_p_v());
+        assert_eq!(true, cpu.p.v);
         // V set (negative)
         abus.cpu_write_8(0xCF, 0x000000);
-        cpu.clear_p_v();
+        cpu.p.v = false;
         cpu.op_adc(&data_addr, &mut abus);
         assert_eq!(0x235E, cpu.a);
-        assert_eq!(true, cpu.get_p_v());
+        assert_eq!(true, cpu.p.v);
         // V cleared (positive)
         abus.cpu_write_8(0x20, 0x000000);
         cpu.op_adc(&data_addr, &mut abus);
         assert_eq!(0x237F, cpu.a);
-        assert_eq!(false, cpu.get_p_v());
+        assert_eq!(false, cpu.p.v);
         // V cleared (negative)
         cpu.a = 0x23AF;
-        cpu.set_p_v();
+        cpu.p.v = true;
         abus.cpu_write_8(0xDF, 0x000000);
         cpu.op_adc(&data_addr, &mut abus);
         assert_eq!(0x238E, cpu.a);
-        assert_eq!(false, cpu.get_p_v());
+        assert_eq!(false, cpu.p.v);
         abus.bank_wrapping_cpu_write_16(0x0000, 0x000000);
 
         // 8bit BCD arithmetic
         cpu.a = 0x2345;
-        cpu.p = 0b0000_0000;
-        cpu.set_p_m();
-        cpu.set_p_d();
+        cpu.p.clear_flags(0b1111_1111);
+        cpu.p.m = true;
+        cpu.p.d = true;
         abus.bank_wrapping_cpu_write_16(0x1234, 0x000000);
         let data_addr = (0x000000, WrappingMode::Page);
         cpu.op_adc(&data_addr, &mut abus);
         assert_eq!(0x2379, cpu.a);
         // Wrapping add, C set
-        assert_eq!(false, cpu.get_p_c());
+        assert_eq!(false, cpu.p.c);
         cpu.op_adc(&data_addr, &mut abus);
         assert_eq!(0x2313, cpu.a);
-        assert_eq!(true, cpu.get_p_c());
+        assert_eq!(true, cpu.p.c);
         // Add with carry, C cleared
         cpu.op_adc(&data_addr, &mut abus);
         assert_eq!(0x2348, cpu.a);
-        assert_eq!(false, cpu.get_p_c());
+        assert_eq!(false, cpu.p.c);
         // Z, C set
         abus.cpu_write_8(0x52, 0x000000);
-        assert_eq!(false, cpu.get_p_z());
+        assert_eq!(false, cpu.p.z);
         cpu.op_adc(&data_addr, &mut abus);
         assert_eq!(0x2300, cpu.a);
-        assert_eq!(true, cpu.get_p_z());
-        assert_eq!(true, cpu.get_p_c());
+        assert_eq!(true, cpu.p.z);
+        assert_eq!(true, cpu.p.c);
         // Z cleared
         cpu.op_adc(&data_addr, &mut abus);
         assert_eq!(0x2353, cpu.a);
-        assert_eq!(false, cpu.get_p_z());
+        assert_eq!(false, cpu.p.z);
         // N set
         abus.cpu_write_8(0x34, 0x000000);
-        assert_eq!(false, cpu.get_p_n());
+        assert_eq!(false, cpu.p.n);
         cpu.op_adc(&data_addr, &mut abus);
         assert_eq!(0x2387, cpu.a);
-        assert_eq!(true, cpu.get_p_n());
+        assert_eq!(true, cpu.p.n);
         // N cleared
         cpu.op_adc(&data_addr, &mut abus);
         assert_eq!(0x2321, cpu.a);
-        assert_eq!(false, cpu.get_p_n());
+        assert_eq!(false, cpu.p.n);
         // V set (positive)
         abus.cpu_write_8(0x74, 0x000000);
-        assert_eq!(false, cpu.get_p_v());
+        assert_eq!(false, cpu.p.v);
         cpu.op_adc(&data_addr, &mut abus);
         assert_eq!(0x2396, cpu.a);
-        assert_eq!(true, cpu.get_p_v());
+        assert_eq!(true, cpu.p.v);
         // V set (negative)
         cpu.a = 0x2382;
         abus.cpu_write_8(0x84, 0x000000);
-        cpu.clear_p_v();
+        cpu.p.v = false;
         cpu.op_adc(&data_addr, &mut abus);
         assert_eq!(0x2366, cpu.a);
-        assert_eq!(true, cpu.get_p_v());
+        assert_eq!(true, cpu.p.v);
         // V cleared (positive)
         cpu.a = 0x2322;
         abus.cpu_write_8(0x24, 0x000000);
         cpu.op_adc(&data_addr, &mut abus);
         assert_eq!(0x2347, cpu.a);
-        assert_eq!(false, cpu.get_p_v());
+        assert_eq!(false, cpu.p.v);
         // V cleared (negative)
         cpu.a = 0x2392;
         abus.cpu_write_8(0x94, 0x000000);
-        cpu.set_p_v();
+        cpu.p.v = true;
         cpu.op_adc(&data_addr, &mut abus);
         assert_eq!(0x2386, cpu.a);
-        assert_eq!(false, cpu.get_p_v());
+        assert_eq!(false, cpu.p.v);
         abus.bank_wrapping_cpu_write_16(0x0000, 0x000000);
 
         // 16bit binary arithmetic
         cpu.a = 0x5678;
-        cpu.p = 0b0000_0000;
+        cpu.p.clear_flags(0b1111_1111);
         abus.bank_wrapping_cpu_write_16(0x6789, 0x000000);
         let data_addr = (0x000000, WrappingMode::Page);
         cpu.op_adc(&data_addr, &mut abus);
         assert_eq!(0xBE01, cpu.a);
         // Wrapping add, C set
-        assert_eq!(false, cpu.get_p_c());
+        assert_eq!(false, cpu.p.c);
         cpu.op_adc(&data_addr, &mut abus);
         assert_eq!(0x258A, cpu.a);
-        assert_eq!(true, cpu.get_p_c());
+        assert_eq!(true, cpu.p.c);
         // Add with carry, C cleared
         cpu.op_adc(&data_addr, &mut abus);
         assert_eq!(0x8D14, cpu.a);
-        assert_eq!(false, cpu.get_p_c());
+        assert_eq!(false, cpu.p.c);
         // Z, C set
         abus.bank_wrapping_cpu_write_16(0x72EC, 0x000000);
-        assert_eq!(false, cpu.get_p_z());
+        assert_eq!(false, cpu.p.z);
         cpu.op_adc(&data_addr, &mut abus);
         assert_eq!(0x0000, cpu.a);
-        assert_eq!(true, cpu.get_p_z());
-        assert_eq!(true, cpu.get_p_c());
+        assert_eq!(true, cpu.p.z);
+        assert_eq!(true, cpu.p.c);
         // Z cleared
         cpu.op_adc(&data_addr, &mut abus);
         assert_eq!(0x72ED, cpu.a);
-        assert_eq!(false, cpu.get_p_z());
+        assert_eq!(false, cpu.p.z);
         // N set
-        assert_eq!(false, cpu.get_p_n());
+        assert_eq!(false, cpu.p.n);
         cpu.op_adc(&data_addr, &mut abus);
         assert_eq!(0xE5D9, cpu.a);
-        assert_eq!(true, cpu.get_p_n());
+        assert_eq!(true, cpu.p.n);
         // N cleared
         cpu.op_adc(&data_addr, &mut abus);
         assert_eq!(0x58C5, cpu.a);
-        assert_eq!(false, cpu.get_p_n());
+        assert_eq!(false, cpu.p.n);
         // V set (positive)
-        assert_eq!(false, cpu.get_p_v());
+        assert_eq!(false, cpu.p.v);
         cpu.op_adc(&data_addr, &mut abus);
         assert_eq!(0xCBB2, cpu.a);
-        assert_eq!(true, cpu.get_p_v());
+        assert_eq!(true, cpu.p.v);
         // V set (negative)
         abus.bank_wrapping_cpu_write_16(0x9432, 0x000000);
-        cpu.clear_p_v();
+        cpu.p.v = false;
         cpu.op_adc(&data_addr, &mut abus);
         assert_eq!(0x5FE4, cpu.a);
-        assert_eq!(true, cpu.get_p_v());
+        assert_eq!(true, cpu.p.v);
         // V cleared (positive)
         abus.bank_wrapping_cpu_write_16(0x1234, 0x000000);
         cpu.op_adc(&data_addr, &mut abus);
         assert_eq!(0x7219, cpu.a);
-        assert_eq!(false, cpu.get_p_v());
+        assert_eq!(false, cpu.p.v);
         // V cleared (negative)
         cpu.a = 0xA234;
         abus.bank_wrapping_cpu_write_16(0xDEFF, 0x000000);
-        cpu.set_p_v();
+        cpu.p.v = true;
         cpu.op_adc(&data_addr, &mut abus);
         assert_eq!(0x8133, cpu.a);
-        assert_eq!(false, cpu.get_p_v());
-        cpu.clear_p_c();
+        assert_eq!(false, cpu.p.v);
+        cpu.p.c = false;
         abus.bank_wrapping_cpu_write_16(0x0000, 0x000000);
         // Data page wrapping
         cpu.a = 0x1234;
@@ -1318,67 +1336,67 @@ mod tests {
 
         // 16bit BCD arithmetic
         cpu.a = 0x2345;
-        cpu.p = 0b0000_0000;
-        cpu.set_p_d();
+        cpu.p.clear_flags(0b1111_1111);
+        cpu.p.d = true;
         abus.bank_wrapping_cpu_write_16(0x5678, 0x000000);
         let data_addr = (0x000000, WrappingMode::Page);
         cpu.op_adc(&data_addr, &mut abus);
         assert_eq!(0x8023, cpu.a);
         // Wrapping add, C set
-        assert_eq!(false, cpu.get_p_c());
+        assert_eq!(false, cpu.p.c);
         cpu.op_adc(&data_addr, &mut abus);
         assert_eq!(0x3701, cpu.a);
-        assert_eq!(true, cpu.get_p_c());
+        assert_eq!(true, cpu.p.c);
         // Add with carry, C cleared
         cpu.op_adc(&data_addr, &mut abus);
         assert_eq!(0x9380, cpu.a);
-        assert_eq!(false, cpu.get_p_c());
+        assert_eq!(false, cpu.p.c);
         // Z, C set
         abus.bank_wrapping_cpu_write_16(0x0620, 0x000000);
-        assert_eq!(false, cpu.get_p_z());
+        assert_eq!(false, cpu.p.z);
         cpu.op_adc(&data_addr, &mut abus);
         assert_eq!(0x0000, cpu.a);
-        assert_eq!(true, cpu.get_p_z());
+        assert_eq!(true, cpu.p.z);
         // Z cleared
         cpu.op_adc(&data_addr, &mut abus);
         assert_eq!(0x0621, cpu.a);
-        assert_eq!(false, cpu.get_p_z());
+        assert_eq!(false, cpu.p.z);
         // N set
         abus.bank_wrapping_cpu_write_16(0x8620, 0x000000);
-        assert_eq!(false, cpu.get_p_n());
+        assert_eq!(false, cpu.p.n);
         cpu.op_adc(&data_addr, &mut abus);
         assert_eq!(0x9241, cpu.a);
-        assert_eq!(true, cpu.get_p_n());
+        assert_eq!(true, cpu.p.n);
         // N cleared
         abus.bank_wrapping_cpu_write_16(0x4620, 0x000000);
         cpu.op_adc(&data_addr, &mut abus);
         assert_eq!(0x3861, cpu.a);
-        assert_eq!(false, cpu.get_p_n());
+        assert_eq!(false, cpu.p.n);
         // V set (positive)
-        assert_eq!(false, cpu.get_p_v());
+        assert_eq!(false, cpu.p.v);
         cpu.op_adc(&data_addr, &mut abus);
         assert_eq!(0x8482, cpu.a);
-        assert_eq!(true, cpu.get_p_v());
+        assert_eq!(true, cpu.p.v);
         // V set (negative)
         abus.bank_wrapping_cpu_write_16(0x8620, 0x000000);
-        cpu.clear_p_v();
+        cpu.p.v = false;
         cpu.op_adc(&data_addr, &mut abus);
         assert_eq!(0x7102, cpu.a);
-        assert_eq!(true, cpu.get_p_v());
+        assert_eq!(true, cpu.p.v);
         // V cleared (positive)
         abus.bank_wrapping_cpu_write_16(0x0620, 0x000000);
-        cpu.set_p_v();
+        cpu.p.v = true;
         cpu.op_adc(&data_addr, &mut abus);
         assert_eq!(0x7723, cpu.a);
-        assert_eq!(false, cpu.get_p_v());
+        assert_eq!(false, cpu.p.v);
         // V cleared (negative)
         cpu.a = 0x9876;
         abus.bank_wrapping_cpu_write_16(0x9678, 0x000000);
-        cpu.set_p_v();
+        cpu.p.v = true;
         cpu.op_adc(&data_addr, &mut abus);
         assert_eq!(0x9554, cpu.a);
-        assert_eq!(false, cpu.get_p_v());
-        cpu.clear_p_c();
+        assert_eq!(false, cpu.p.v);
+        cpu.p.c = false;
         abus.bank_wrapping_cpu_write_16(0x0000, 0x000000);
         // Data page wrapping
         cpu.a = 0x1234;
