@@ -491,79 +491,61 @@ impl Cpu {
         self.s = 0x0100 | (self.s & 0x00FF);
     }
 
+    fn add_8(&mut self, lhs: u8, rhs: u8) -> u8 {
+        let result_8: u8;
+        if self.p.d { // BCD arithmetic
+            let dec_lhs = bcd_to_dec_8(lhs);
+            let dec_rhs = bcd_to_dec_8(rhs);
+            let dec_result = dec_lhs + dec_rhs + self.p.c as u8;
+            self.p.c = dec_result > 99;
+            result_8 = dec_to_bcd_8(dec_result % 100);
+        } else { // Binary arithmetic
+            let result_16 = lhs as u16 + rhs as u16 + self.p.c as u16;
+            self.p.c = result_16 > 0xFF;
+            result_8 = result_16 as u8;
+        }
+        self.p.n = result_8 > 0x7F;
+        self.p.z = result_8 == 0;
+        self.p.v = (lhs < 0x80 && rhs < 0x80 && result_8 > 0x7F) ||
+                   (lhs > 0x7F && rhs > 0x7F && result_8 < 0x80);
+        result_8
+    }
+
+    fn add_16(&mut self, lhs: u16, rhs: u16) -> u16 {
+        let result_16: u16;
+        if self.p.d { // BCD arithmetic
+            let dec_acc = bcd_to_dec_16(lhs);
+            let dec_data = bcd_to_dec_16(rhs);
+            let dec_result = dec_acc + dec_data + self.p.c as u16;
+            self.p.c = dec_result > 9999;
+            result_16 = dec_to_bcd_16(dec_result % 10000);
+        } else { // Binary arithmetic
+            let result_32 = (lhs as u32) + (rhs as u32) + self.p.c as u32;
+            self.p.c = result_32 > 0xFFFF;
+            result_16 = result_32 as u16;
+        }
+        self.p.n = result_16 > 0x7FFF;
+        self.p.z = result_16 == 0;
+        self.p.v = (lhs < 0x8000 && rhs < 0x8000 && result_16 > 0x7FFF) ||
+                   (lhs > 0x7FFF && rhs > 0x7FFF && result_16 < 0x8000);
+        result_16
+    }
+
     // Instructions
     fn op_adc(&mut self, data_addr: &(u32, WrappingMode), abus: &mut ABus) {
-        let carry: u16 = if self.p.c { 1 } else { 0 };
         if self.p.m { // 8-bit accumulator
+            let acc_8 = self.a as u8;
             let data = abus.cpu_read_8(data_addr.0);
-            let result: u8;
-            if self.p.d { // BCD arithmetic
-                let decimal_acc = bcd_to_dec_8(self.a as u8);
-                let decimal_data = bcd_to_dec_8(data);
-                let decimal_result = decimal_acc + decimal_data + carry as u8;
-                let bcd_result = dec_to_bcd_8(decimal_result % 100);
-                if decimal_result > 99 {
-                    self.p.c = true;
-                } else {
-                    self.p.c = false;
-                }
-                result = bcd_result;
-            } else { // Binary arithmetic
-                let acc_8 = self.a as u8;
-                let result_16 = acc_8 as u16 + (data as u16) + carry;
-                if result_16 > 0xFF {
-                    self.p.c = true;
-                } else {
-                    self.p.c = false;
-                }
-                result = result_16 as u8;
-            }
-            self.p.n = result > 0x7F;
-            self.p.z = result == 0;
-            if ((self.a as u8) < 0x80 && data < 0x80 && result > 0x7F) ||
-               ((self.a as u8) > 0x7F && data > 0x7F && result < 0x80) {
-                self.p.v = true;
-            } else {
-                self.p.v = false;
-            }
-            self.a = (self.a & 0xFF00) | (result as u16);
+            self.a = (self.a & 0xFF00) | (self.add_8(acc_8, data) as u16);
         } else { // 16-bit accumulator
+            let acc_16 = self.a;
             let data: u16;
             match data_addr.1 {
                 WrappingMode::Page      => data = abus.page_wrapping_cpu_read_16(data_addr.0),
                 WrappingMode::Bank      => data = abus.bank_wrapping_cpu_read_16(data_addr.0),
                 WrappingMode::AddrSpace => data = abus.addr_wrapping_cpu_read_16(data_addr.0),
             }
-            let result: u16;
-            if self.p.d { // BCD arithmetic
-                let decimal_acc = bcd_to_dec_16(self.a);
-                let decimal_data = bcd_to_dec_16(data);
-                let decimal_result = decimal_acc + decimal_data + carry;
-                let bcd_result = dec_to_bcd_16(decimal_result % 10000);
-                if decimal_result > 9999 {
-                    self.p.c = true;
-                } else {
-                    self.p.c = false;
-                }
-                result = bcd_result;
-            } else { // Binary arithmetic
-                let result_32 = (self.a as u32) + (data as u32) + carry as u32;
-                if result_32 > 0xFFFF {
-                    self.p.c = true;
-                } else {
-                    self.p.c = false;
-                }
-                result = result_32 as u16;
-            }
-            self.p.n = result > 0x7FFF;
-            self.p.z = result == 0;
-            if (self.a < 0x8000 && data < 0x8000 && result > 0x7FFF) ||
-               (self.a > 0x7FFF && data > 0x7FFF && result < 0x8000) {
-                self.p.v = true;
-            } else {
-                self.p.v = false;
-            }
-            self.a = result;
+            self.a = self.add_16(acc_16, data);
         }
     }
 }
@@ -1114,12 +1096,190 @@ mod tests {
     }
 
     #[test]
-    fn op_adc() {
-        // NOTE: Currently doesn't check actual rule boundaries,
-        //       real BCD V flag behaviour should be verified if actually needed
+    fn add_8(){
         let mut abus = ABus::new_empty_rom();
         let mut cpu = Cpu::new(&mut abus);
         cpu.e = false;
+
+        // Binary arithmetic
+        cpu.p.clear_flags(0b1111_1111);
+        assert_eq!(0x35, cpu.add_8(0x12, 0x23));
+        // Wrapping, C set
+        assert_eq!(false, cpu.p.c);
+        assert_eq!(0x01, cpu.add_8(0x02, 0xFF));
+        assert_eq!(true, cpu.p.c);
+        // Add with carry, C cleared
+        assert_eq!(0x01, cpu.add_8(0x00, 0x00));
+        assert_eq!(false, cpu.p.c);
+        // Z, C set
+        assert_eq!(false, cpu.p.z);
+        assert_eq!(0x00, cpu.add_8(0x01, 0xFF));
+        assert_eq!(true, cpu.p.z);
+        assert_eq!(true, cpu.p.c);
+        // Z cleared
+        assert_eq!(0x36, cpu.add_8(0x12, 0x23));
+        assert_eq!(false, cpu.p.z);
+        // N set
+        assert_eq!(false, cpu.p.n);
+        assert_eq!(0x9B, cpu.add_8(0x45, 0x56));
+        assert_eq!(true, cpu.p.n);
+        // N cleared
+        assert_eq!(0x35, cpu.add_8(0x12, 0x23));
+        assert_eq!(false, cpu.p.n);
+        // V set (positive)
+        assert_eq!(false, cpu.p.v);
+        assert_eq!(0x9B, cpu.add_8(0x45, 0x56));
+        assert_eq!(true, cpu.p.v);
+        // V set (negative)
+        cpu.p.v = false;
+        assert_eq!(0x67, cpu.add_8(0xAB, 0xBC));
+        assert_eq!(true, cpu.p.v);
+        // V cleared (positive)
+        assert_eq!(true, cpu.p.v);
+        assert_eq!(0x36, cpu.add_8(0x12, 0x23));
+        assert_eq!(false, cpu.p.v);
+        // V cleared (negative)
+        cpu.p.v = true;
+        assert_eq!(0xEB, cpu.add_8(0xED, 0xFE));
+        assert_eq!(false, cpu.p.v);
+
+        // BCD arithmetic
+        cpu.p.clear_flags(0b1111_1111);
+        cpu.p.d = true;
+        assert_eq!(0x35, cpu.add_8(0x12, 0x23));
+        // Wrapping, C set
+        assert_eq!(false, cpu.p.c);
+        assert_eq!(0x01, cpu.add_8(0x02, 0x99));
+        assert_eq!(true, cpu.p.c);
+        // Add with carry, C cleared
+        assert_eq!(0x01, cpu.add_8(0x00, 0x00));
+        assert_eq!(false, cpu.p.c);
+        // Z, C set
+        assert_eq!(false, cpu.p.z);
+        assert_eq!(0x00, cpu.add_8(0x01, 0x99));
+        assert_eq!(true, cpu.p.z);
+        assert_eq!(true, cpu.p.c);
+        // Z cleared
+        assert_eq!(0x36, cpu.add_8(0x12, 0x23));
+        assert_eq!(false, cpu.p.z);
+        // N set
+        assert_eq!(false, cpu.p.n);
+        assert_eq!(0x97, cpu.add_8(0x65, 0x32));
+        assert_eq!(true, cpu.p.n);
+        // N cleared
+        assert_eq!(0x35, cpu.add_8(0x12, 0x23));
+        assert_eq!(false, cpu.p.n);
+        // V set (positive)
+        assert_eq!(false, cpu.p.v);
+        assert_eq!(0x89, cpu.add_8(0x65, 0x24));
+        assert_eq!(true, cpu.p.v);
+        // V set (negative)
+        cpu.p.v = false;
+        assert_eq!(0x61, cpu.add_8(0x80, 0x81));
+        assert_eq!(true, cpu.p.v);
+        // V cleared (positive)
+        assert_eq!(0x70, cpu.add_8(0x45, 0x24));
+        assert_eq!(false, cpu.p.v);
+        // V cleared (negative)
+        cpu.p.v = true;
+        assert_eq!(0x95, cpu.add_8(0x98, 0x97));
+        assert_eq!(false, cpu.p.v);
+    }
+
+    #[test]
+    fn add_16() {
+        let mut abus = ABus::new_empty_rom();
+        let mut cpu = Cpu::new(&mut abus);
+        cpu.e = false;
+
+        // Binary arithmetic
+        cpu.p.clear_flags(0b1111_1111);
+        assert_eq!(0x3579, cpu.add_16(0x1234, 0x2345));
+        // Wrapping, C set
+        assert_eq!(false, cpu.p.c);
+        assert_eq!(0x0001, cpu.add_16(0x0002, 0xFFFF));
+        assert_eq!(true, cpu.p.c);
+        // Add with carry, C cleared
+        assert_eq!(0x0001, cpu.add_16(0x0000, 0x0000));
+        assert_eq!(false, cpu.p.c);
+        // Z, C set
+        assert_eq!(false, cpu.p.z);
+        assert_eq!(0x0000, cpu.add_16(0x0001, 0xFFFF));
+        assert_eq!(true, cpu.p.z);
+        assert_eq!(true, cpu.p.c);
+        // Z cleared
+        assert_eq!(0x357A, cpu.add_16(0x1234, 0x2345));
+        assert_eq!(false, cpu.p.z);
+        // N set
+        assert_eq!(false, cpu.p.n);
+        assert_eq!(0xBE01, cpu.add_16(0x5678, 0x6789));
+        assert_eq!(true, cpu.p.n);
+        // N cleared
+        assert_eq!(0x3579, cpu.add_16(0x1234, 0x2345));
+        assert_eq!(false, cpu.p.n);
+        // V set (positive)
+        assert_eq!(false, cpu.p.v);
+        assert_eq!(0xBE01, cpu.add_16(0x5678, 0x6789));
+        assert_eq!(true, cpu.p.v);
+        // V set (negative)
+        cpu.p.v = false;
+        assert_eq!(0x68AB, cpu.add_16(0xABCD, 0xBCDE));
+        assert_eq!(true, cpu.p.v);
+        // V cleared (positive)
+        assert_eq!(0x357A, cpu.add_16(0x1234, 0x2345));
+        assert_eq!(false, cpu.p.v);
+        // V cleared (negative)
+        cpu.p.v = true;
+        assert_eq!(0xECA7, cpu.add_16(0xEDCB, 0xFEDC));
+        assert_eq!(false, cpu.p.v);
+
+        // BCD arithmetic
+        cpu.p.clear_flags(0b1111_1111);
+        cpu.p.d = true;
+        assert_eq!(0x3579, cpu.add_16(0x1234, 0x2345));
+        // Wrapping, C set
+        assert_eq!(false, cpu.p.c);
+        assert_eq!(0x0001, cpu.add_16(0x0002, 0x9999));
+        assert_eq!(true, cpu.p.c);
+        // Add with carry, C cleared
+        assert_eq!(0x0001, cpu.add_16(0x0000, 0x0000));
+        assert_eq!(false, cpu.p.c);
+        // Z, C set
+        assert_eq!(false, cpu.p.z);
+        assert_eq!(0x0000, cpu.add_16(0x0001, 0x9999));
+        assert_eq!(true, cpu.p.z);
+        assert_eq!(true, cpu.p.c);
+        // Z cleared
+        assert_eq!(0x3580, cpu.add_16(0x1234, 0x2345));
+        assert_eq!(false, cpu.p.z);
+        // N set
+        assert_eq!(false, cpu.p.n);
+        assert_eq!(0x9753, cpu.add_16(0x6543, 0x3210));
+        assert_eq!(true, cpu.p.n);
+        // N cleared
+        assert_eq!(0x3579, cpu.add_16(0x1234, 0x2345));
+        assert_eq!(false, cpu.p.n);
+        // V set (positive)
+        assert_eq!(false, cpu.p.v);
+        assert_eq!(0x9753, cpu.add_16(0x6543, 0x3210));
+        assert_eq!(true, cpu.p.v);
+        // V set (negative)
+        cpu.p.v = false;
+        assert_eq!(0x6283, cpu.add_16(0x8091, 0x8192));
+        assert_eq!(true, cpu.p.v);
+        // V cleared (positive)
+        assert_eq!(0x6913, cpu.add_16(0x4567, 0x2345));
+        assert_eq!(false, cpu.p.v);
+        // V cleared (negative)
+        cpu.p.v = true;
+        assert_eq!(0x9617, cpu.add_16(0x9864, 0x9753));
+        assert_eq!(false, cpu.p.v);
+    }
+
+    #[test]
+    fn op_adc() {
+        let mut abus = ABus::new_empty_rom();
+        let mut cpu = Cpu::new(&mut abus);
 
         // 8bit binary arithmetic
         cpu.a = 0x2345;
@@ -1129,60 +1289,6 @@ mod tests {
         let data_addr = (0x000000, WrappingMode::Page);
         cpu.op_adc(&data_addr, &mut abus);
         assert_eq!(0x23CE, cpu.a);
-        // Wrapping add, C set
-        assert_eq!(false, cpu.p.c);
-        cpu.op_adc(&data_addr, &mut abus);
-        assert_eq!(0x2357, cpu.a);
-        assert_eq!(true, cpu.p.c);
-        // Add with carry, C cleared
-        cpu.op_adc(&data_addr, &mut abus);
-        assert_eq!(0x23E1, cpu.a);
-        assert_eq!(false, cpu.p.c);
-        // Z, C set
-        abus.cpu_write_8(0x1F, 0x000000);
-        assert_eq!(false, cpu.p.z);
-        cpu.op_adc(&data_addr, &mut abus);
-        assert_eq!(0x2300, cpu.a);
-        assert_eq!(true, cpu.p.c);
-        assert_eq!(true, cpu.p.z);
-        // Z cleared
-        cpu.op_adc(&data_addr, &mut abus);
-        assert_eq!(0x2320, cpu.a);
-        assert_eq!(false, cpu.p.z);
-        // N set
-        abus.cpu_write_8(0x7A, 0x000000);
-        assert_eq!(false, cpu.p.n);
-        cpu.op_adc(&data_addr, &mut abus);
-        assert_eq!(0x239A, cpu.a);
-        assert_eq!(true, cpu.p.n);
-        // N cleared
-        cpu.op_adc(&data_addr, &mut abus);
-        assert_eq!(0x2314, cpu.a);
-        assert_eq!(false, cpu.p.n);
-        // V set (positive)
-        assert_eq!(false, cpu.p.v);
-        cpu.op_adc(&data_addr, &mut abus);
-        assert_eq!(0x238F, cpu.a);
-        assert_eq!(true, cpu.p.v);
-        // V set (negative)
-        abus.cpu_write_8(0xCF, 0x000000);
-        cpu.p.v = false;
-        cpu.op_adc(&data_addr, &mut abus);
-        assert_eq!(0x235E, cpu.a);
-        assert_eq!(true, cpu.p.v);
-        // V cleared (positive)
-        abus.cpu_write_8(0x20, 0x000000);
-        cpu.op_adc(&data_addr, &mut abus);
-        assert_eq!(0x237F, cpu.a);
-        assert_eq!(false, cpu.p.v);
-        // V cleared (negative)
-        cpu.a = 0x23AF;
-        cpu.p.v = true;
-        abus.cpu_write_8(0xDF, 0x000000);
-        cpu.op_adc(&data_addr, &mut abus);
-        assert_eq!(0x238E, cpu.a);
-        assert_eq!(false, cpu.p.v);
-        abus.bank_wrapping_cpu_write_16(0x0000, 0x000000);
 
         // 8bit BCD arithmetic
         cpu.a = 0x2345;
@@ -1193,63 +1299,6 @@ mod tests {
         let data_addr = (0x000000, WrappingMode::Page);
         cpu.op_adc(&data_addr, &mut abus);
         assert_eq!(0x2379, cpu.a);
-        // Wrapping add, C set
-        assert_eq!(false, cpu.p.c);
-        cpu.op_adc(&data_addr, &mut abus);
-        assert_eq!(0x2313, cpu.a);
-        assert_eq!(true, cpu.p.c);
-        // Add with carry, C cleared
-        cpu.op_adc(&data_addr, &mut abus);
-        assert_eq!(0x2348, cpu.a);
-        assert_eq!(false, cpu.p.c);
-        // Z, C set
-        abus.cpu_write_8(0x52, 0x000000);
-        assert_eq!(false, cpu.p.z);
-        cpu.op_adc(&data_addr, &mut abus);
-        assert_eq!(0x2300, cpu.a);
-        assert_eq!(true, cpu.p.z);
-        assert_eq!(true, cpu.p.c);
-        // Z cleared
-        cpu.op_adc(&data_addr, &mut abus);
-        assert_eq!(0x2353, cpu.a);
-        assert_eq!(false, cpu.p.z);
-        // N set
-        abus.cpu_write_8(0x34, 0x000000);
-        assert_eq!(false, cpu.p.n);
-        cpu.op_adc(&data_addr, &mut abus);
-        assert_eq!(0x2387, cpu.a);
-        assert_eq!(true, cpu.p.n);
-        // N cleared
-        cpu.op_adc(&data_addr, &mut abus);
-        assert_eq!(0x2321, cpu.a);
-        assert_eq!(false, cpu.p.n);
-        // V set (positive)
-        abus.cpu_write_8(0x74, 0x000000);
-        assert_eq!(false, cpu.p.v);
-        cpu.op_adc(&data_addr, &mut abus);
-        assert_eq!(0x2396, cpu.a);
-        assert_eq!(true, cpu.p.v);
-        // V set (negative)
-        cpu.a = 0x2382;
-        abus.cpu_write_8(0x84, 0x000000);
-        cpu.p.v = false;
-        cpu.op_adc(&data_addr, &mut abus);
-        assert_eq!(0x2366, cpu.a);
-        assert_eq!(true, cpu.p.v);
-        // V cleared (positive)
-        cpu.a = 0x2322;
-        abus.cpu_write_8(0x24, 0x000000);
-        cpu.op_adc(&data_addr, &mut abus);
-        assert_eq!(0x2347, cpu.a);
-        assert_eq!(false, cpu.p.v);
-        // V cleared (negative)
-        cpu.a = 0x2392;
-        abus.cpu_write_8(0x94, 0x000000);
-        cpu.p.v = true;
-        cpu.op_adc(&data_addr, &mut abus);
-        assert_eq!(0x2386, cpu.a);
-        assert_eq!(false, cpu.p.v);
-        abus.bank_wrapping_cpu_write_16(0x0000, 0x000000);
 
         // 16bit binary arithmetic
         cpu.a = 0x5678;
@@ -1258,60 +1307,6 @@ mod tests {
         let data_addr = (0x000000, WrappingMode::Page);
         cpu.op_adc(&data_addr, &mut abus);
         assert_eq!(0xBE01, cpu.a);
-        // Wrapping add, C set
-        assert_eq!(false, cpu.p.c);
-        cpu.op_adc(&data_addr, &mut abus);
-        assert_eq!(0x258A, cpu.a);
-        assert_eq!(true, cpu.p.c);
-        // Add with carry, C cleared
-        cpu.op_adc(&data_addr, &mut abus);
-        assert_eq!(0x8D14, cpu.a);
-        assert_eq!(false, cpu.p.c);
-        // Z, C set
-        abus.bank_wrapping_cpu_write_16(0x72EC, 0x000000);
-        assert_eq!(false, cpu.p.z);
-        cpu.op_adc(&data_addr, &mut abus);
-        assert_eq!(0x0000, cpu.a);
-        assert_eq!(true, cpu.p.z);
-        assert_eq!(true, cpu.p.c);
-        // Z cleared
-        cpu.op_adc(&data_addr, &mut abus);
-        assert_eq!(0x72ED, cpu.a);
-        assert_eq!(false, cpu.p.z);
-        // N set
-        assert_eq!(false, cpu.p.n);
-        cpu.op_adc(&data_addr, &mut abus);
-        assert_eq!(0xE5D9, cpu.a);
-        assert_eq!(true, cpu.p.n);
-        // N cleared
-        cpu.op_adc(&data_addr, &mut abus);
-        assert_eq!(0x58C5, cpu.a);
-        assert_eq!(false, cpu.p.n);
-        // V set (positive)
-        assert_eq!(false, cpu.p.v);
-        cpu.op_adc(&data_addr, &mut abus);
-        assert_eq!(0xCBB2, cpu.a);
-        assert_eq!(true, cpu.p.v);
-        // V set (negative)
-        abus.bank_wrapping_cpu_write_16(0x9432, 0x000000);
-        cpu.p.v = false;
-        cpu.op_adc(&data_addr, &mut abus);
-        assert_eq!(0x5FE4, cpu.a);
-        assert_eq!(true, cpu.p.v);
-        // V cleared (positive)
-        abus.bank_wrapping_cpu_write_16(0x1234, 0x000000);
-        cpu.op_adc(&data_addr, &mut abus);
-        assert_eq!(0x7219, cpu.a);
-        assert_eq!(false, cpu.p.v);
-        // V cleared (negative)
-        cpu.a = 0xA234;
-        abus.bank_wrapping_cpu_write_16(0xDEFF, 0x000000);
-        cpu.p.v = true;
-        cpu.op_adc(&data_addr, &mut abus);
-        assert_eq!(0x8133, cpu.a);
-        assert_eq!(false, cpu.p.v);
-        cpu.p.c = false;
-        abus.bank_wrapping_cpu_write_16(0x0000, 0x000000);
         // Data page wrapping
         cpu.a = 0x1234;
         abus.page_wrapping_cpu_write_16(0x2345, 0x0000FF);
@@ -1342,62 +1337,6 @@ mod tests {
         let data_addr = (0x000000, WrappingMode::Page);
         cpu.op_adc(&data_addr, &mut abus);
         assert_eq!(0x8023, cpu.a);
-        // Wrapping add, C set
-        assert_eq!(false, cpu.p.c);
-        cpu.op_adc(&data_addr, &mut abus);
-        assert_eq!(0x3701, cpu.a);
-        assert_eq!(true, cpu.p.c);
-        // Add with carry, C cleared
-        cpu.op_adc(&data_addr, &mut abus);
-        assert_eq!(0x9380, cpu.a);
-        assert_eq!(false, cpu.p.c);
-        // Z, C set
-        abus.bank_wrapping_cpu_write_16(0x0620, 0x000000);
-        assert_eq!(false, cpu.p.z);
-        cpu.op_adc(&data_addr, &mut abus);
-        assert_eq!(0x0000, cpu.a);
-        assert_eq!(true, cpu.p.z);
-        // Z cleared
-        cpu.op_adc(&data_addr, &mut abus);
-        assert_eq!(0x0621, cpu.a);
-        assert_eq!(false, cpu.p.z);
-        // N set
-        abus.bank_wrapping_cpu_write_16(0x8620, 0x000000);
-        assert_eq!(false, cpu.p.n);
-        cpu.op_adc(&data_addr, &mut abus);
-        assert_eq!(0x9241, cpu.a);
-        assert_eq!(true, cpu.p.n);
-        // N cleared
-        abus.bank_wrapping_cpu_write_16(0x4620, 0x000000);
-        cpu.op_adc(&data_addr, &mut abus);
-        assert_eq!(0x3861, cpu.a);
-        assert_eq!(false, cpu.p.n);
-        // V set (positive)
-        assert_eq!(false, cpu.p.v);
-        cpu.op_adc(&data_addr, &mut abus);
-        assert_eq!(0x8482, cpu.a);
-        assert_eq!(true, cpu.p.v);
-        // V set (negative)
-        abus.bank_wrapping_cpu_write_16(0x8620, 0x000000);
-        cpu.p.v = false;
-        cpu.op_adc(&data_addr, &mut abus);
-        assert_eq!(0x7102, cpu.a);
-        assert_eq!(true, cpu.p.v);
-        // V cleared (positive)
-        abus.bank_wrapping_cpu_write_16(0x0620, 0x000000);
-        cpu.p.v = true;
-        cpu.op_adc(&data_addr, &mut abus);
-        assert_eq!(0x7723, cpu.a);
-        assert_eq!(false, cpu.p.v);
-        // V cleared (negative)
-        cpu.a = 0x9876;
-        abus.bank_wrapping_cpu_write_16(0x9678, 0x000000);
-        cpu.p.v = true;
-        cpu.op_adc(&data_addr, &mut abus);
-        assert_eq!(0x9554, cpu.a);
-        assert_eq!(false, cpu.p.v);
-        cpu.p.c = false;
-        abus.bank_wrapping_cpu_write_16(0x0000, 0x000000);
         // Data page wrapping
         cpu.a = 0x1234;
         abus.page_wrapping_cpu_write_16(0x2345, 0x0000FF);
