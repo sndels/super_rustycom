@@ -576,9 +576,9 @@ impl Cpu {
             let acc_16 = self.a;
             let data: u16;
             match data_addr.1 {
-                WrappingMode::Page      => data = abus.page_wrapping_cpu_read_16(data_addr.0),
                 WrappingMode::Bank      => data = abus.bank_wrapping_cpu_read_16(data_addr.0),
                 WrappingMode::AddrSpace => data = abus.addr_wrapping_cpu_read_16(data_addr.0),
+                WrappingMode::Page      => unreachable!()
             }
             self.a = self.add_sub_16(acc_16, data, false);
         }
@@ -593,9 +593,9 @@ impl Cpu {
             let acc_16 = self.a;
             let data: u16;
             match data_addr.1 {
-                WrappingMode::Page      => data = abus.page_wrapping_cpu_read_16(data_addr.0),
                 WrappingMode::Bank      => data = abus.bank_wrapping_cpu_read_16(data_addr.0),
                 WrappingMode::AddrSpace => data = abus.addr_wrapping_cpu_read_16(data_addr.0),
+                WrappingMode::Page      => unreachable!()
             }
             self.a = self.add_sub_16(acc_16, data, true);
         }
@@ -1603,16 +1603,9 @@ mod tests {
         cpu.a = 0x5678;
         cpu.p.clear_flags(0b1111_1111);
         abus.bank_wrapping_cpu_write_16(0x6789, 0x000000);
-        let data_addr = (0x000000, WrappingMode::Page);
+        let data_addr = (0x000000, WrappingMode::Bank);
         cpu.op_adc(&data_addr, &mut abus);
         assert_eq!(0xBE01, cpu.a);
-        // Data page wrapping
-        cpu.a = 0x1234;
-        abus.page_wrapping_cpu_write_16(0x2345, 0x0000FF);
-        let data_addr = (0x0000FF, WrappingMode::Page);
-        cpu.op_adc(&data_addr, &mut abus);
-        assert_eq!(0x3579, cpu.a);
-        abus.page_wrapping_cpu_write_16(0x0000, 0x0000FF);
         // Data bank wrapping
         cpu.a = 0x1234;
         abus.bank_wrapping_cpu_write_16(0x2345, 0x00FFFF);
@@ -1633,16 +1626,9 @@ mod tests {
         cpu.p.clear_flags(0b1111_1111);
         cpu.p.d = true;
         abus.bank_wrapping_cpu_write_16(0x5678, 0x000000);
-        let data_addr = (0x000000, WrappingMode::Page);
+        let data_addr = (0x000000, WrappingMode::Bank);
         cpu.op_adc(&data_addr, &mut abus);
         assert_eq!(0x8023, cpu.a);
-        // Data page wrapping
-        cpu.a = 0x1234;
-        abus.page_wrapping_cpu_write_16(0x2345, 0x0000FF);
-        let data_addr = (0x0000FF, WrappingMode::Page);
-        cpu.op_adc(&data_addr, &mut abus);
-        assert_eq!(0x3579, cpu.a);
-        abus.page_wrapping_cpu_write_16(0x0000, 0x0000FF);
         // Data bank wrapping
         cpu.a = 0x1234;
         abus.bank_wrapping_cpu_write_16(0x2345, 0x00FFFF);
@@ -1687,17 +1673,9 @@ mod tests {
         cpu.a = 0x0001;
         cpu.p.clear_flags(0b1111_1111);
         abus.bank_wrapping_cpu_write_16(0x2003, 0x000000);
-        let data_addr = (0x000000, WrappingMode::Page);
+        let data_addr = (0x000000, WrappingMode::Bank);
         cpu.op_sbc(&data_addr, &mut abus);
         assert_eq!(0xDFFD, cpu.a);
-        // Data page wrapping
-        cpu.a = 0x3579;
-        cpu.p.clear_flags(0b1111_1111);
-        abus.page_wrapping_cpu_write_16(0x2345, 0x0000FF);
-        let data_addr = (0x0000FF, WrappingMode::Page);
-        cpu.op_sbc(&data_addr, &mut abus);
-        assert_eq!(0x1233, cpu.a);
-        abus.page_wrapping_cpu_write_16(0x0000, 0x0000FF);
         // Data bank wrapping
         cpu.a = 0x3579;
         cpu.p.clear_flags(0b1111_1111);
@@ -1720,17 +1698,9 @@ mod tests {
         cpu.p.clear_flags(0b1111_1111);
         cpu.p.d = true;
         abus.bank_wrapping_cpu_write_16(0x5678, 0x000000);
-        let data_addr = (0x000000, WrappingMode::Page);
+        let data_addr = (0x000000, WrappingMode::Bank);
         cpu.op_sbc(&data_addr, &mut abus);
         assert_eq!(0x2344, cpu.a);
-        // Data page wrapping
-        cpu.a = 0x3579;
-        cpu.p.clear_flags(0b1111_1111);
-        abus.page_wrapping_cpu_write_16(0x2345, 0x0000FF);
-        let data_addr = (0x0000FF, WrappingMode::Page);
-        cpu.op_sbc(&data_addr, &mut abus);
-        assert_eq!(0x1233, cpu.a);
-        abus.page_wrapping_cpu_write_16(0x0000, 0x0000FF);
         // Data bank wrapping
         cpu.a = 0x3579;
         cpu.p.clear_flags(0b1111_1111);
