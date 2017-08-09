@@ -92,6 +92,12 @@ impl Cpu {
             op::CMP_D9 => op!(abs_y, op_cmp, 3),
             op::CMP_DD => op!(abs_x, op_cmp, 3),
             op::CMP_DF => op!(long_x, op_cmp, 4),
+            op::CPX_E0 => op!(imm, op_cpx, 3 - self.p.x as u16),
+            op::CPX_E4 => op!(dir, op_cpx, 2),
+            op::CPX_EC => op!(abs, op_cpx, 3),
+            op::CPY_C0 => op!(imm, op_cpy, 3 - self.p.x as u16),
+            op::CPY_C4 => op!(dir, op_cpy, 2),
+            op::CPY_CC => op!(abs, op_cpy, 3),
             op::CLC => {
                 self.p.c = false;
                 self.pc = self.pc.wrapping_add(1);
@@ -228,33 +234,6 @@ impl Cpu {
                     self.pc = self.rel_8(addr, abus).0 as u16;
                 } else {
                     self.pc = self.pc.wrapping_add(2);
-                }
-            }
-            op::CPX_E0 => {
-                if self.p.x {
-                    let data_addr = self.imm(addr, abus);
-                    let data = abus.cpu_read_8(data_addr.0);
-                    let result = (self.x as u8).wrapping_sub(data);// TODO: Matches binary subtraction?
-                    self.p.n = result > 0x7F;
-                    self.p.z = result == 0;
-                    if (self.x as u8) < data {
-                        self.p.c = false;
-                    } else {
-                        self.p.c = true;
-                    }
-                    self.pc = self.pc.wrapping_add(2);
-                } else {
-                    let data_addr = self.imm(addr, abus);
-                    let data = abus.bank_wrapping_cpu_read_16(data_addr.0);
-                    let result = self.x.wrapping_sub(data);// TODO: Matches binary subtraction?
-                    self.p.n = result > 0x7FFF;
-                    self.p.z = result == 0;
-                    if self.x < data {
-                        self.p.c = false;
-                    } else {
-                        self.p.c = true;
-                    }
-                    self.pc = self.pc.wrapping_add(3);
                 }
             }
             op::SEP => {
