@@ -47,6 +47,21 @@ impl Cpu {
         }
 
         match opcode {
+            op::ADC_61 => op!(dir_ptr_16_x, op_adc, 2),
+            op::ADC_63 => op!(stack, op_adc, 2),
+            op::ADC_65 => op!(dir, op_adc, 2),
+            op::ADC_67 => op!(dir_ptr_24, op_adc, 2),
+            op::ADC_69 => op!(imm, op_adc, 3 - self.p.m as u16),
+            op::ADC_6D => op!(abs, op_adc, 3),
+            op::ADC_6F => op!(long, op_adc, 4),
+            op::ADC_71 => op!(dir_ptr_16_y, op_adc, 2),
+            op::ADC_72 => op!(dir_ptr_16, op_adc, 2),
+            op::ADC_73 => op!(stack_ptr_y, op_adc, 2),
+            op::ADC_75 => op!(dir_x, op_adc, 2),
+            op::ADC_77 => op!(dir_ptr_24_y, op_adc, 2),
+            op::ADC_79 => op!(abs_y, op_adc, 3),
+            op::ADC_7D => op!(abs_x, op_adc, 3),
+            op::ADC_7F => op!(long_x, op_adc, 4),
             op::CLC => {
                 self.p.c = false;
                 self.pc = self.pc.wrapping_add(1);
