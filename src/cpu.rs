@@ -172,6 +172,11 @@ impl Cpu {
             op::ORA_19 => op!(abs_y, op_ora, 3),
             op::ORA_1D => op!(abs_x, op_ora, 3),
             op::ORA_1F => op!(long_x, op_ora, 4),
+            op::BIT_24 => op!(dir, op_bit, 2),
+            op::BIT_2C => op!(abs, op_bit, 3),
+            op::BIT_34 => op!(dir_x, op_bit, 2),
+            op::BIT_3C => op!(abs_x, op_bit, 3),
+            op::BIT_89 => op!(imm, op_bit, 3 - self.p.m as u16),
             op::CLC => {
                 self.p.c = false;
                 self.pc = self.pc.wrapping_add(1);
