@@ -177,6 +177,10 @@ impl Cpu {
             op::BIT_34 => op!(dir_x, op_bit, 2),
             op::BIT_3C => op!(abs_x, op_bit, 3),
             op::BIT_89 => op!(imm, op_bit, 3 - self.p.m as u16),
+            op::TRB_14 => op!(dir, op_trb, 2),
+            op::TRB_1C => op!(abs, op_trb, 3),
+            op::TSB_04 => op!(dir, op_tsb, 2),
+            op::TSB_0C => op!(abs, op_tsb, 3),
             op::CLC => {
                 self.p.c = false;
                 self.pc = self.pc.wrapping_add(1);
