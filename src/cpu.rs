@@ -37,13 +37,28 @@ impl Cpu {
     }
 
     fn execute(&mut self, opcode: u8, addr: u32, abus: &mut ABus) {
-        // Macro for common instruction types
+        // DRY macros
         macro_rules! op {
             ($addressing:ident, $op_func:ident, $op_length:expr) => ({
                 let data_addr = self.$addressing(addr, abus);
                 self.$op_func(&data_addr, abus);
                 self.pc = self.pc.wrapping_add($op_length);
             });
+        }
+
+        macro_rules! inc_dec {
+            ($cond:expr, $reg_ref:expr, $op:ident) => ({
+                if $cond {
+                    $reg_ref = ($reg_ref & 0xFF00) | ($reg_ref as u8).$op(1) as u16;
+                    self.p.n = $reg_ref as u8 > 0x7F;
+                    self.p.z = $reg_ref as u8 == 0;
+                } else {
+                    $reg_ref = $reg_ref.$op(1);
+                    self.p.n = $reg_ref > 0x7FFF;
+                    self.p.z = $reg_ref == 0;
+                }
+                self.pc = self.pc.wrapping_add(1);
+            })
         }
 
         match opcode {
@@ -98,6 +113,20 @@ impl Cpu {
             op::CPY_C0 => op!(imm, op_cpy, 3 - self.p.x as u16),
             op::CPY_C4 => op!(dir, op_cpy, 2),
             op::CPY_CC => op!(abs, op_cpy, 3),
+            op::DEC_3A => inc_dec!(self.p.m, *&mut self.a, wrapping_sub),
+            op::DEC_C6 => op!(dir, op_dec, 2),
+            op::DEC_CE => op!(abs, op_dec, 3),
+            op::DEC_D6 => op!(dir_x, op_dec, 2),
+            op::DEC_DE => op!(abs_x, op_dec, 3),
+            op::DEX    => inc_dec!(self.p.x, *&mut self.x, wrapping_sub),
+            op::DEY    => inc_dec!(self.p.x, *&mut self.y, wrapping_sub),
+            op::INC_1A => inc_dec!(self.p.m, *&mut self.a, wrapping_add),
+            op::INC_E6 => op!(dir, op_inc, 2),
+            op::INC_EE => op!(abs, op_inc, 3),
+            op::INC_F6 => op!(dir_x, op_inc, 2),
+            op::INC_FE => op!(abs_x, op_inc, 3),
+            op::INX    => inc_dec!(self.p.x, *&mut self.x, wrapping_add),
+            op::INY    => inc_dec!(self.p.x, *&mut self.y, wrapping_add),
             op::CLC => {
                 self.p.c = false;
                 self.pc = self.pc.wrapping_add(1);
@@ -245,20 +274,6 @@ impl Cpu {
                     self.y &= 0x00FF;
                  }
                 self.pc = self.pc.wrapping_add(2);
-            }
-            op::INX => {
-                if self.p.x {
-                    self.x = ((self.x as u8).wrapping_add(1)) as u16;
-                    let result = self.x as u8;
-                    self.p.n = result > 0x7F;
-                } else {
-                    self.x = self.x.wrapping_add(1);
-                    let result = self.x;
-                    self.p.n = result > 0x7FFF;
-                }
-                let result = self.x;
-                self.p.z = result == 0;
-                self.pc = self.pc.wrapping_add(1);
             }
             op::XCE => {
                 let tmp = self.e;
