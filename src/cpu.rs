@@ -257,18 +257,48 @@ impl Cpu {
             op::BVC    => branch!(!self.p.v),
             op::BVS    => branch!(self.p.v),
             op::BRL    => self.pc = self.rel_16(addr, abus).0 as u16,
+            op::JMP_4C => self.pc = self.abs(addr, abus).0 as u16,
+            op::JMP_5C => {
+                let jump_addr = self.long(addr, abus).0;
+                self.pb = (jump_addr >> 16) as u8;
+                self.pc = jump_addr as u16;
+            }
+            op::JMP_6C => self.pc = self.abs_ptr_16(addr, abus).0 as u16,
+            op::JMP_7C => self.pc = self.abs_ptr_x(addr, abus).0 as u16,
+            op::JMP_DC => {
+                let jump_addr = self.abs_ptr_24(addr, abus).0;
+                self.pb = (jump_addr >> 16) as u8;
+                self.pc = jump_addr as u16;
+            }
+            op::JSL    => {
+                let jump_addr = self.long(addr, abus).0;
+                let pb = self.pb;
+                self.push_8(pb, abus);
+                let pc = self.pc;
+                self.push_16(pc.wrapping_add(3), abus);
+                self.pb = (jump_addr >> 16) as u8;
+                self.pc = jump_addr as u16;
+            }
+            op::JSR_20 => {
+                let jump_addr = self.abs(addr, abus).0;
+                let return_addr = self.pc.wrapping_add(2);
+                self.push_16(return_addr, abus);
+                self.pc = jump_addr as u16;
+            }
+            op::JSR_FC => {
+                let jump_addr = self.abs_ptr_x(addr, abus).0;
+                let return_addr = self.pc.wrapping_add(2);
+                self.push_16(return_addr, abus);
+                self.pc = jump_addr as u16;
+            }
+            op::RTL    => {
+                self.pc = self.pull_16(abus).wrapping_add(1);
+                self.pb = self.pull_8(abus);
+            }
+            op::RTS    => self.pc = self.pull_16(abus).wrapping_add(1),
             op::CLC    => {
                 self.p.c = false;
                 self.pc = self.pc.wrapping_add(1);
-            }
-            op::JSR_20 => {
-                let jump_addr = addr_8_16(self.pb, abus.fetch_operand_16(addr));
-                let ret_addr = self.pc.wrapping_add(2);
-                self.push_16(ret_addr, abus);
-                self.pc = jump_addr as u16;
-            }
-            op::RTS => {
-                self.pc = self.pull_16(abus).wrapping_add(1);
             }
             op::SEI => {
                 self.p.i = true;
