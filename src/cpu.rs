@@ -181,6 +181,62 @@ impl Cpu {
             op::TRB_1C => op!(abs, op_trb, 3),
             op::TSB_04 => op!(dir, op_tsb, 2),
             op::TSB_0C => op!(abs, op_tsb, 3),
+            op::ASL_06 => op!(dir, op_asl, 2),
+            op::ASL_0A => {
+                if self.p.m {
+                    let old_a = self.a as u8;
+                    self.a = (self.a & 0xFF) | self.arithmetic_shift_left_8(old_a) as u16;
+                } else {
+                    let old_a = self.a;
+                    self.a = self.arithmetic_shift_left_16(old_a);
+                }
+                self.pc = self.pc.wrapping_add(1);
+            }
+            op::ASL_0E => op!(abs, op_asl, 3),
+            op::ASL_16 => op!(dir_x, op_asl, 2),
+            op::ASL_1E => op!(abs_x, op_asl, 3),
+            op::LSR_46 => op!(dir, op_lsr, 2),
+            op::LSR_4A => {
+                if self.p.m {
+                    let old_a = self.a as u8;
+                    self.a = (self.a & 0xFF) | self.logical_shift_right_8(old_a) as u16;
+                } else {
+                    let old_a = self.a;
+                    self.a = self.logical_shift_right_16(old_a);
+                }
+                self.pc = self.pc.wrapping_add(1);
+            }
+            op::LSR_4E => op!(abs, op_lsr, 3),
+            op::LSR_56 => op!(dir_x, op_lsr, 2),
+            op::LSR_5E => op!(abs_x, op_lsr, 3),
+            op::ROL_26 => op!(dir, op_rol, 2),
+            op::ROL_2A => {
+                if self.p.m {
+                    let old_a = self.a as u8;
+                    self.a = (self.a & 0xFF) | self.rotate_left_8(old_a) as u16;
+                } else {
+                    let old_a = self.a;
+                    self.a = self.rotate_left_16(old_a);
+                }
+                self.pc = self.pc.wrapping_add(1);
+            }
+            op::ROL_2E => op!(abs, op_rol, 3),
+            op::ROL_36 => op!(dir_x, op_rol, 2),
+            op::ROL_3E => op!(abs_x, op_rol, 3),
+            op::ROR_66 => op!(dir, op_ror, 2),
+            op::ROR_6A => {
+                if self.p.m {
+                    let old_a = self.a as u8;
+                    self.a = (self.a & 0xFF) | self.rotate_right_8(old_a) as u16;
+                } else {
+                    let old_a = self.a;
+                    self.a = self.rotate_right_16(old_a);
+                }
+                self.pc = self.pc.wrapping_add(1);
+            }
+            op::ROR_6E => op!(abs, op_ror, 3),
+            op::ROR_76 => op!(dir_x, op_ror, 2),
+            op::ROR_7E => op!(abs_x, op_ror, 3),
             op::CLC => {
                 self.p.c = false;
                 self.pc = self.pc.wrapping_add(1);
