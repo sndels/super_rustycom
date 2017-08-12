@@ -20,7 +20,7 @@ impl Cpu {
             a:  0x00,
             x:  0x00,
             y:  0x00,
-            pc: abus.page_wrapping_cpu_read_16(0x00FF00 + RESET8 as u32), // TODO: This only applies to LoROM
+            pc: abus.page_wrapping_cpu_read_16(RESET8),
             s:  0x01FF,
             p:  StatusReg::new(),
             d : 0x00,
@@ -1206,17 +1206,17 @@ fn bcd_to_dec_16(value: u16) -> u16 {
     hh * 1000 + mh * 100 + ml * 10 + ll
 }
 
-// Interrupts
-const COP16: u8   = 0xE4;
-const BRK16: u8   = 0xE6;
-const ABORT16: u8 = 0xE8;
-const NMI16: u8   = 0xEA;
-const IRQ16: u8   = 0xEE;
-const COP8: u8    = 0xF4;
-const ABORT8: u8  = 0xF8;
-const NMI8: u8    = 0xFA;
-const RESET8: u8  = 0xFC;
-const IRQBRK8: u8 = 0xFE;
+// Interrupt vectors
+const COP16: u32   = 0x00FFE4;
+const BRK16: u32   = 0x00FFE6;
+const ABORT16: u32 = 0x00FFE8;
+const NMI16: u32   = 0x00FFEA;
+const IRQ16: u32   = 0x00FFEE;
+const COP8: u32    = 0x00FFF4;
+const ABORT8: u32  = 0x00FFF8;
+const NMI8: u32    = 0x00FFFA;
+const RESET8: u32  = 0x00FFFC;
+const IRQBRK8: u32 = 0x00FFFE;
 
 // P flags
 const P_C: u8 = 0b0000_0001;
