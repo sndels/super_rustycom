@@ -61,6 +61,16 @@ impl Cpu {
             })
         }
 
+        macro_rules! branch {
+            ($condition:expr) => ({
+               if $condition {
+                    self.pc = self.rel_8(addr, abus).0 as u16;
+                } else {
+                    self.pc = self.pc.wrapping_add(2);
+                }
+            })
+        }
+
         match opcode {
             op::ADC_61 => op!(dir_ptr_16_x, op_adc, 2),
             op::ADC_63 => op!(stack, op_adc, 2),
@@ -237,7 +247,17 @@ impl Cpu {
             op::ROR_6E => op!(abs, op_ror, 3),
             op::ROR_76 => op!(dir_x, op_ror, 2),
             op::ROR_7E => op!(abs_x, op_ror, 3),
-            op::CLC => {
+            op::BCC    => branch!(!self.p.c),
+            op::BCS    => branch!(self.p.c),
+            op::BEQ    => branch!(self.p.z),
+            op::BMI    => branch!(self.p.n),
+            op::BNE    => branch!(!self.p.z),
+            op::BPL    => branch!(!self.p.n),
+            op::BRA    => self.pc = self.rel_8(addr, abus).0 as u16,
+            op::BVC    => branch!(!self.p.v),
+            op::BVS    => branch!(self.p.v),
+            op::BRL    => self.pc = self.rel_16(addr, abus).0 as u16,
+            op::CLC    => {
                 self.p.c = false;
                 self.pc = self.pc.wrapping_add(1);
             }
@@ -367,13 +387,6 @@ impl Cpu {
                     self.p.x = true;
                 }
                 self.pc = self.pc.wrapping_add(2);
-            }
-            op::BNE => {
-                if !self.p.z {
-                    self.pc = self.rel_8(addr, abus).0 as u16;
-                } else {
-                    self.pc = self.pc.wrapping_add(2);
-                }
             }
             op::SEP => {
                 let data_addr = self.imm(addr, abus);
