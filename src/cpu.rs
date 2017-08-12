@@ -296,6 +296,48 @@ impl Cpu {
                 self.pb = self.pull_8(abus);
             }
             op::RTS    => self.pc = self.pull_16(abus).wrapping_add(1),
+            op::BRK    => {
+                if self.e {
+                    let pc = self.pc;
+                    self.push_16(pc.wrapping_add(2), abus);
+                    let p = self.p.get_value();
+                    self.push_8(p | P_X, abus);// B(RK)-flag is set to distinguish BRK from IRQ
+                    self.pb = 0x00;
+                    self.pc = abus.page_wrapping_cpu_read_16(IRQBRK8);
+                } else {
+                    let pb = self.pb;
+                    self.push_8(pb, abus);
+                    let pc = self.pc;
+                    self.push_16(pc.wrapping_add(2), abus);
+                    let p = self.p.get_value();
+                    self.push_8(p, abus);
+                    self.pb = 0x00;
+                    self.pc = abus.page_wrapping_cpu_read_16(BRK16);
+                }
+                self.p.i = true;
+                self.p.d = false;
+            }
+            op::COP    => {
+                if self.e {
+                    let pc = self.pc;
+                    self.push_16(pc.wrapping_add(2), abus);
+                    let p = self.p.get_value();
+                    self.push_8(p, abus);
+                    self.pb = 0x00;
+                    self.pc = abus.page_wrapping_cpu_read_16(COP8);
+                } else {
+                    let pb = self.pb;
+                    self.push_8(pb, abus);
+                    let pc = self.pc;
+                    self.push_16(pc.wrapping_add(2), abus);
+                    let p = self.p.get_value();
+                    self.push_8(p, abus);
+                    self.pb = 0x00;
+                    self.pc = abus.page_wrapping_cpu_read_16(COP16);
+                }
+                self.p.i = true;
+                self.p.d = false;
+            }
             op::CLC    => {
                 self.p.c = false;
                 self.pc = self.pc.wrapping_add(1);
