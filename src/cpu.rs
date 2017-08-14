@@ -36,8 +36,16 @@ impl Cpu {
         self.execute(opcode, addr, abus);
     }
 
-    // TODO: Page wrapping in emulation mode?
     fn execute(&mut self, opcode: u8, addr: u32, abus: &mut ABus) {
+        // Macro for common instruction types
+        macro_rules! op {
+            ($addressing:ident, $op_func:ident, $op_length:expr) => ({
+                let data_addr = self.$addressing(addr, abus);
+                self.$op_func(&data_addr, abus);
+                self.pc = self.pc.wrapping_add($op_length);
+            });
+        }
+
         match opcode {
             op::CLC => {
                 self.p.c = false;
