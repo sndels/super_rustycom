@@ -71,6 +71,13 @@ impl Cpu {
             })
         }
 
+        macro_rules! cl_se {
+            ($flag:expr, $value:expr) => ({
+                $flag = $value;
+                self.pc = self.pc.wrapping_add(1);
+            })
+        }
+
         match opcode {
             op::ADC_61 => op!(dir_ptr_16_x, op_adc, 2),
             op::ADC_63 => op!(stack, op_adc, 2),
@@ -348,14 +355,13 @@ impl Cpu {
                     self.pb = pb;
                 }
             }
-            op::CLC    => {
-                self.p.c = false;
-                self.pc = self.pc.wrapping_add(1);
-            }
-            op::SEI => {
-                self.p.i = true;
-                self.pc = self.pc.wrapping_add(1);
-            }
+            op::CLC    => cl_se!(*&mut self.p.c, false),
+            op::CLD    => cl_se!(*&mut self.p.d, false),
+            op::CLI    => cl_se!(*&mut self.p.i, false),
+            op::CLV    => cl_se!(*&mut self.p.v, false),
+            op::SEC    => cl_se!(*&mut self.p.c, true),
+            op::SED    => cl_se!(*&mut self.p.d, true),
+            op::SEI    => cl_se!(*&mut self.p.i, true),
             op::STA_8D => {
                 let data_addr = self.abs(addr, abus).0;
                 if !self.p.m {
