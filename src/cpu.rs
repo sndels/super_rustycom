@@ -1394,6 +1394,17 @@ impl StatusReg {
         if self.c { value |= P_C; }
         value
     }
+
+    pub fn set_value(&mut self, value: u8) {
+        self.n = value & P_N > 0;
+        self.v = value & P_V > 0;
+        self.m = value & P_M > 0;
+        self.x = value & P_X > 0;
+        self.d = value & P_D > 0;
+        self.i = value & P_I > 0;
+        self.z = value & P_Z > 0;
+        self.c = value & P_C > 0;
+    }
 }
 
 #[cfg(test)]
