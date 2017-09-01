@@ -403,40 +403,6 @@ impl Cpu {
                 }
                 self.pc = self.pc.wrapping_add(3);
             }
-            op::LDX_A2 => {
-                if self.p.x {
-                    let data_addr = self.imm(addr, abus);
-                    let data = abus.cpu_read_8(data_addr.0) as u16;
-                    self.x = data;
-                    self.p.z = data == 0;
-                    self.p.n = data > 0x7F;
-                    self.pc = self.pc.wrapping_add(2);
-                } else {
-                    let data_addr = self.imm(addr, abus);
-                    let data = abus.bank_wrapping_cpu_read_16(data_addr.0);
-                    self.x = data;
-                    self.p.z = data == 0;
-                    self.p.n = data > 0x7FFF;
-                    self.pc = self.pc.wrapping_add(3);
-                }
-            }
-            op::LDA_A9 => {
-                if self.p.m {
-                    let data_addr = self.imm(addr, abus);
-                    let data = abus.cpu_read_8(data_addr.0) as u16;
-                    self.a = (self.a & 0xFF00) + data;
-                    self.p.z = data == 0;
-                    self.p.n = data > 0x7F;
-                    self.pc = self.pc.wrapping_add(2);
-                } else {
-                    let data_addr = self.imm(addr, abus);
-                    let data = abus.bank_wrapping_cpu_read_16(data_addr.0);
-                    self.a = data;
-                    self.p.z = data == 0;
-                    self.p.n = data > 0x7FFF;
-                    self.pc = self.pc.wrapping_add(3);
-                }
-            }
             op::TAX => {
                 let result = self.a;
                 if self.p.x {
@@ -448,22 +414,6 @@ impl Cpu {
                 }
                 self.p.z = result == 0;
                 self.pc = self.pc.wrapping_add(1);
-            }
-            op::LDX_AE => {
-                let data_addr = self.abs(addr, abus).0;
-                if self.p.x {
-                    let data = abus.cpu_read_8(data_addr);
-                    self.x = data as u16;
-                    self.p.z = data == 0;
-                    self.p.n = data > 0x7F;
-                    self.pc = self.pc.wrapping_add(2);
-                } else {
-                    let data = abus.bank_wrapping_cpu_read_16(data_addr);
-                    self.x = data;
-                    self.p.z = data == 0;
-                    self.p.n = data > 0x7FFF;
-                    self.pc = self.pc.wrapping_add(3);
-                }
             }
             op::REP => {
                 let data_addr = self.imm(addr, abus);
@@ -486,6 +436,31 @@ impl Cpu {
                  }
                 self.pc = self.pc.wrapping_add(2);
             }
+            op::LDA_A1 => op!(dir_ptr_16_x, op_lda, 2),
+            op::LDA_A3 => op!(stack, op_lda, 2),
+            op::LDA_A5 => op!(dir, op_lda, 2),
+            op::LDA_A7 => op!(dir_ptr_24, op_lda, 2),
+            op::LDA_A9 => op!(imm, op_lda, 3 - self.p.m as u16),
+            op::LDA_AD => op!(abs, op_lda, 3),
+            op::LDA_AF => op!(long, op_lda, 4),
+            op::LDA_B1 => op!(dir_ptr_16_y, op_lda, 2),
+            op::LDA_B2 => op!(dir_ptr_16, op_lda, 2),
+            op::LDA_B3 => op!(stack_ptr_y, op_lda, 2),
+            op::LDA_B5 => op!(dir_x, op_lda, 2),
+            op::LDA_B7 => op!(dir_ptr_24_y, op_lda, 2),
+            op::LDA_B9 => op!(abs_y, op_lda, 3),
+            op::LDA_BD => op!(abs_x, op_lda, 3),
+            op::LDA_BF => op!(long_x, op_lda, 4),
+            op::LDX_A2 => op!(imm, op_ldx, 3 - self.p.x as u16),
+            op::LDX_A6 => op!(dir, op_ldx, 2),
+            op::LDX_AE => op!(abs, op_ldx, 3),
+            op::LDX_B6 => op!(dir_y, op_ldx, 2),
+            op::LDX_BE => op!(abs_y, op_ldx, 3),
+            op::LDY_A0 => op!(imm, op_ldy, 3 - self.p.x as u16),
+            op::LDY_A4 => op!(dir, op_ldy, 2),
+            op::LDY_AC => op!(abs, op_ldy, 3),
+            op::LDY_B4 => op!(dir_x, op_ldy, 2),
+            op::LDY_BC => op!(abs_x, op_ldy, 3),
             op::XCE => {
                 let tmp = self.e;
                 if self.p.c{
