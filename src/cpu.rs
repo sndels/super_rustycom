@@ -338,6 +338,16 @@ impl Cpu {
                 self.p.i = true;
                 self.p.d = false;
             }
+            op::RTI    => {
+                let p = self.pull_8(abus);
+                self.p.set_value(p);
+                let pc = self.pull_16(abus);
+                self.pc = pc;
+                if !self.e {
+                    let pb = self.pull_8(abus);
+                    self.pb = pb;
+                }
+            }
             op::CLC    => {
                 self.p.c = false;
                 self.pc = self.pc.wrapping_add(1);
