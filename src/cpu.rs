@@ -78,6 +78,45 @@ impl Cpu {
             })
         }
 
+        macro_rules! push_eff {
+            ($addressing:ident, $op_length:expr) => ({
+                let data_addr = self.$addressing(addr, abus);
+                let data = abus.bank_wrapping_cpu_read_16(data_addr.0);
+                self.push_16(data, abus);
+                self.pc = self.pc.wrapping_add($op_length);
+            })
+        }
+
+        macro_rules! push_reg {
+            ($cond:expr, $reg_ref:expr) => ({
+                if $cond {
+                    let value = $reg_ref as u8;
+                    self.push_8(value, abus);
+                } else {
+                    let value = $reg_ref as u16;
+                    self.push_16(value, abus);
+                }
+                self.pc = self.pc.wrapping_add(1);
+            })
+        }
+
+        macro_rules! pull_reg {
+            ($cond:expr, $reg_ref:expr) => ({
+                if $cond {
+                    let value = self.pull_8(abus);
+                    $reg_ref = ($reg_ref & 0xFF00) | value as u16;
+                    self.p.n = value > 0x7F;
+                    self.p.z = value == 0;
+                } else {
+                    let value = self.pull_16(abus);
+                    $reg_ref = value;
+                    self.p.n = value > 0x7FFF;
+                    self.p.z = value == 0;
+                }
+                self.pc = self.pc.wrapping_add(1);
+            })
+        }
+
         match opcode {
             op::ADC_61 => op!(dir_ptr_16_x, op_adc, 2),
             op::ADC_63 => op!(stack, op_adc, 2),
@@ -462,6 +501,32 @@ impl Cpu {
             op::MVP    => op!(src_dest, op_mvp, 0), // Op "loops" until move is complete
             op::NOP    => self.pc = self.pc.wrapping_add(1),
             op::WDM    => self.pc = self.pc.wrapping_add(2),
+            op::PEA    => push_eff!(imm, 3),
+            op::PEI    => push_eff!(dir, 2),
+            op::PER    => push_eff!(imm, 3),
+            op::PHA    => push_reg!(self.p.m, *&self.a),
+            op::PHX    => push_reg!(self.p.x, *&self.x),
+            op::PHY    => push_reg!(self.p.x, *&self.y),
+            op::PLA    => pull_reg!(self.p.m, *&mut self.a),
+            op::PLX    => pull_reg!(self.p.x, *&mut self.x),
+            op::PLY    => pull_reg!(self.p.x, *&mut self.y),
+            op::PHB    => push_reg!(true, *&self.db),
+            op::PHD    => push_reg!(false, *&self.d),
+            op::PHK    => push_reg!(true, *&self.pb),
+            op::PHP    => push_reg!(true, *&self.p.get_value()),
+            op::PLB    => {
+                let value = self.pull_8(abus);
+                self.db = value;
+                self.p.n = value > 0x7F;
+                self.p.z = value == 0;
+                self.pc = self.pc.wrapping_add(1);
+            }
+            op::PLD    => pull_reg!(false, *&mut self.d),
+            op::PLP    => {
+                let value = self.pull_8(abus);
+                self.p.set_value(value);
+                self.pc = self.pc.wrapping_add(1);
+            }
             op::XCE => {
                 let tmp = self.e;
                 if self.p.c{
