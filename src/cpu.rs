@@ -12,6 +12,8 @@ pub struct Cpu {
     pb: u8,          // Program counter bank
     db: u8,          // Data bank
     e:  bool,        // Emulation mode
+    stopped: bool,   // Stopped until an interrupt
+    waiting: bool,   // Waiting for an interrupt
 }
 
 impl Cpu {
@@ -27,6 +29,8 @@ impl Cpu {
             pb: 0x0,
             db: 0x0,
             e:  true,
+            stopped: false,
+            waiting: false,
         }
     }
 
@@ -527,6 +531,8 @@ impl Cpu {
                 self.p.set_value(value);
                 self.pc = self.pc.wrapping_add(1);
             }
+            op::STP    => self.stopped = true,
+            op::WAI    => self.waiting = true,
             op::XCE => {
                 let tmp = self.e;
                 if self.p.c{
@@ -754,16 +760,18 @@ impl Cpu {
     }
 
     pub fn print_registers(&self) {
-        println!("A:  ${:04X}", self.a);
-        println!("X:  ${:04X}", self.x);
-        println!("Y:  ${:04X}", self.y);
-        println!("P:  {:08b}", self.p.get_value());
-        println!("PB: ${:02X}", self.pb);
-        println!("DB: ${:02X}", self.db);
-        println!("PC: ${:04X}", self.pc);
-        println!("S:  ${:04X}", self.s);
-        println!("D:  ${:04X}", self.d);
-        println!("E:  {}", self.e);
+        println!("A:        ${:04X}", self.a);
+        println!("X:        ${:04X}", self.x);
+        println!("Y:        ${:04X}", self.y);
+        println!("P:        {:08b}", self.p.get_value());
+        println!("PB:       ${:02X}", self.pb);
+        println!("DB:       ${:02X}", self.db);
+        println!("PC:       ${:04X}", self.pc);
+        println!("S:        ${:04X}", self.s);
+        println!("D:        ${:04X}", self.d);
+        println!("E:        {}", self.e);
+        println!("Stopped:  {}", self.stopped);
+        println!("Waiting:  {}", self.waiting);
     }
 
     pub fn print_flags(&self) {
