@@ -458,6 +458,8 @@ impl Cpu {
             op::STZ_74 => op!(dir_x, op_stz, 2),
             op::STZ_9C => op!(abs, op_stz, 3),
             op::STZ_9E => op!(abs_x, op_stz, 3),
+            op::MVN    => op!(src_dest, op_mvn, 0), // Op "loops" until move is complete
+            op::MVP    => op!(src_dest, op_mvp, 0), // Op "loops" until move is complete
             op::XCE => {
                 let tmp = self.e;
                 if self.p.c{
@@ -1304,6 +1306,26 @@ impl Cpu {
                 WrappingMode::Page      => unreachable!()
             }
         }
+    }
+
+    fn op_mvn(&mut self, data_addrs: &(u32, u32), abus: &mut ABus) {
+        let data = abus.cpu_read_8(data_addrs.0);
+        abus.cpu_write_8(data, data_addrs.1);
+        self.a = self.a.wrapping_sub(1);
+        self.x = if self.p.x { (self.x as u8).wrapping_add(1) as u16 } else { self.x.wrapping_add(1) };
+        self.y = if self.p.x { (self.y as u8).wrapping_add(1) as u16 } else { self.y.wrapping_add(1) };
+        self.db = (data_addrs.1 >> 16) as u8;
+        if self.a == 0xFFFF { self.pc = self.pc.wrapping_add(3); }
+    }
+
+    fn op_mvp(&mut self, data_addrs: &(u32, u32), abus: &mut ABus) {
+        let data = abus.cpu_read_8(data_addrs.0);
+        abus.cpu_write_8(data, data_addrs.1);
+        self.a = self.a.wrapping_sub(1);
+        self.x = if self.p.x { (self.x as u8).wrapping_sub(1) as u16 } else { self.x.wrapping_sub(1) };
+        self.y = if self.p.x { (self.y as u8).wrapping_sub(1) as u16 } else { self.y.wrapping_sub(1) };
+        self.db = (data_addrs.1 >> 16) as u8;
+        if self.a == 0xFFFF { self.pc = self.pc.wrapping_add(3); }
     }
 }
 
@@ -3486,5 +3508,71 @@ mod tests {
         abus.addr_wrapping_cpu_write_16(0xFF7F, data_addr.0);
         cpu.op_stz(&data_addr, &mut abus);
         assert_eq!(0x0000, abus.addr_wrapping_cpu_read_16(data_addr.0));
+    }
+
+    #[test]
+    fn op_mvn() {
+        let mut abus = ABus::new_empty_rom();
+        let mut cpu = Cpu::new(&mut abus);
+        cpu.p.x = false;
+        cpu.pc = 0x0000;
+        cpu.db = 0x0000;
+        cpu.a = 0x0000;
+        cpu.x = 0x0000;
+        cpu.y = 0x0000;
+        // Simple move
+        let data_addrs = (0x010000, 0x020000);
+        abus.cpu_write_8(0x12, data_addrs.0);
+        cpu.op_mvn(&data_addrs, &mut abus);
+        assert_eq!(0x12, abus.cpu_read_8(data_addrs.1));
+        assert_eq!(0xFFFF, cpu.a);
+        assert_eq!(0x0001, cpu.x);
+        assert_eq!(0x0001, cpu.y);
+        assert_eq!(0x02, cpu.db);
+        // X, Y wrapping
+        cpu.x = 0xFFFF;
+        cpu.y = 0xFFFF;
+        cpu.op_mvn(&data_addrs, &mut abus);
+        assert_eq!(0x0000, cpu.x);
+        assert_eq!(0x0000, cpu.y);
+        // "Looping"
+        cpu.a = 0x0005;
+        cpu.x = 0x0000;
+        cpu.y = 0x0000;
+        while cpu.a != 0xFFFF { cpu.op_mvn(&data_addrs, &mut abus); }
+        assert_eq!(0x0006, cpu.x);
+        assert_eq!(0x0006, cpu.y);
+    }
+
+    #[test]
+    fn op_mvp() {
+        let mut abus = ABus::new_empty_rom();
+        let mut cpu = Cpu::new(&mut abus);
+        cpu.p.x = false;
+        cpu.pc = 0x0000;
+        cpu.db = 0x0000;
+        cpu.a = 0x0000;
+        cpu.x = 0xFFFF;
+        cpu.y = 0xFFFF;
+        // Simple move
+        let data_addrs = (0x010000, 0x020000);
+        abus.cpu_write_8(0x12, data_addrs.0);
+        cpu.op_mvp(&data_addrs, &mut abus);
+        assert_eq!(0x12, abus.cpu_read_8(data_addrs.1));
+        assert_eq!(0xFFFF, cpu.a);
+        assert_eq!(0xFFFE, cpu.x);
+        assert_eq!(0xFFFE, cpu.y);
+        assert_eq!(0x02, cpu.db);
+        // X, Y wrapping
+        cpu.x = 0x0000;
+        cpu.y = 0x0000;
+        cpu.op_mvp(&data_addrs, &mut abus);
+        assert_eq!(0xFFFF, cpu.x);
+        assert_eq!(0xFFFF, cpu.y);
+        // "Looping"
+        cpu.a = 0x0005;
+        while cpu.a != 0xFFFF { cpu.op_mvp(&data_addrs, &mut abus); }
+        assert_eq!(0xFFF9, cpu.x);
+        assert_eq!(0xFFF9, cpu.y);
     }
 }
