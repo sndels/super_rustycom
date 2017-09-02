@@ -121,6 +121,21 @@ impl Cpu {
             })
         }
 
+        macro_rules! transfer {
+            ($cond:expr, $src_reg:expr, $dst_reg:expr) => ({
+                if $cond {
+                    $dst_reg = ($dst_reg & 0xFF00) | ($src_reg & 0x00FF);
+                    self.p.n = $src_reg as u8 > 0x7F;
+                    self.p.z = $src_reg as u8 == 0;
+                } else {
+                    $dst_reg = $src_reg;
+                    self.p.n = $src_reg > 0x7FFF;
+                    self.p.z = $src_reg == 0;
+                }
+                self.pc = self.pc.wrapping_add(1);
+            })
+        }
+
         match opcode {
             op::ADC_61 => op!(dir_ptr_16_x, op_adc, 2),
             op::ADC_63 => op!(stack, op_adc, 2),
@@ -405,32 +420,6 @@ impl Cpu {
             op::SEC    => cl_se!(*&mut self.p.c, true),
             op::SED    => cl_se!(*&mut self.p.d, true),
             op::SEI    => cl_se!(*&mut self.p.i, true),
-            op::TXS    => {
-                if self.e {
-                    let result = self.x;
-                    self.s = result + 0x0100;
-                    self.p.z = result == 0;
-                    self.p.n = result > 0x7F;
-                } else {
-                    let result = self.x;
-                    self.s = result;
-                    self.p.z = result == 0;
-                    self.p.n = result > 0x7FFF;
-                }
-                self.pc = self.pc.wrapping_add(1);
-            }
-            op::TAX    => {
-                let result = self.a;
-                if self.p.x {
-                    self.x = result & 0x00FF;
-                    self.p.n = result > 0x7F;
-                } else {
-                    self.x = result;
-                    self.p.n = result > 0x7FFF;
-                }
-                self.p.z = result == 0;
-                self.pc = self.pc.wrapping_add(1);
-            }
             op::REP    => {
                 let data_addr = self.imm(addr, abus);
                 let mask = abus.cpu_read_8(data_addr.0);
@@ -533,6 +522,24 @@ impl Cpu {
             }
             op::STP    => self.stopped = true,
             op::WAI    => self.waiting = true,
+            op::TAX    => transfer!(self.p.x, *&self.a, *&mut self.x),
+            op::TAY    => transfer!(self.p.x, *&self.a, *&mut self.y),
+            op::TSX    => transfer!(self.p.x, *&self.s, *&mut self.x),
+            op::TXA    => transfer!(self.p.m, *&self.x, *&mut self.a),
+            op::TXS    => {
+                    self.s = if self.e { 0x0100 | (self.x & 0x00FF) } else { self.x };
+                    self.pc = self.pc.wrapping_add(1);
+            }
+            op::TXY    => transfer!(self.p.x, *&self.x, *&mut self.y),
+            op::TYA    => transfer!(self.p.m, *&self.y, *&mut self.a),
+            op::TYX    => transfer!(self.p.x, *&self.y, *&mut self.x),
+            op::TCD    => transfer!(false, *&self.a, *&mut self.d),
+            op::TCS    => {
+                    self.s = if self.e { 0x0100 | (self.a & 0x00FF) } else { self.a };
+                    self.pc = self.pc.wrapping_add(1);
+            }
+            op::TDC    => transfer!(false, *&self.d, *&mut self.a),
+            op::TSC    => transfer!(false, *&self.s, *&mut self.a),
             op::XCE => {
                 let tmp = self.e;
                 if self.p.c{
