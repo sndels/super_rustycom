@@ -362,25 +362,7 @@ impl Cpu {
             op::SEC    => cl_se!(*&mut self.p.c, true),
             op::SED    => cl_se!(*&mut self.p.d, true),
             op::SEI    => cl_se!(*&mut self.p.i, true),
-            op::STA_8D => {
-                let data_addr = self.abs(addr, abus).0;
-                if !self.p.m {
-                    abus.addr_wrapping_cpu_write_16(self.a, data_addr);
-                } else {
-                    abus.cpu_write_8(self.a as u8, data_addr);
-                }
-                self.pc = self.pc.wrapping_add(3);
-            }
-            op::STX_8E => {
-                let data_addr = self.abs(addr, abus).0;
-                if !self.p.x {
-                    abus.addr_wrapping_cpu_write_16(self.x, data_addr);
-                } else {
-                    abus.cpu_write_8(self.x as u8, data_addr);
-                }
-                self.pc = self.pc.wrapping_add(3);
-            }
-            op::TXS => {
+            op::TXS    => {
                 if self.e {
                     let result = self.x;
                     self.s = result + 0x0100;
@@ -394,16 +376,7 @@ impl Cpu {
                 }
                 self.pc = self.pc.wrapping_add(1);
             }
-            op::STZ_9C => {
-                let data_addr = self.abs(addr, abus).0;
-                if !self.p.m {
-                    abus.addr_wrapping_cpu_write_16(0, data_addr);
-                } else {
-                    abus.cpu_write_8(0, data_addr);
-                }
-                self.pc = self.pc.wrapping_add(3);
-            }
-            op::TAX => {
+            op::TAX    => {
                 let result = self.a;
                 if self.p.x {
                     self.x = result & 0x00FF;
@@ -415,7 +388,7 @@ impl Cpu {
                 self.p.z = result == 0;
                 self.pc = self.pc.wrapping_add(1);
             }
-            op::REP => {
+            op::REP    => {
                 let data_addr = self.imm(addr, abus);
                 let mask = abus.cpu_read_8(data_addr.0);
                 self.p.clear_flags(mask);
@@ -426,7 +399,7 @@ impl Cpu {
                 }
                 self.pc = self.pc.wrapping_add(2);
             }
-            op::SEP => {
+            op::SEP    => {
                 let data_addr = self.imm(addr, abus);
                 let mask = abus.cpu_read_8(data_addr.0);
                 self.p.set_flags(mask);
@@ -461,6 +434,30 @@ impl Cpu {
             op::LDY_AC => op!(abs, op_ldy, 3),
             op::LDY_B4 => op!(dir_x, op_ldy, 2),
             op::LDY_BC => op!(abs_x, op_ldy, 3),
+            op::STA_81 => op!(dir_ptr_16_x, op_sta, 2),
+            op::STA_83 => op!(stack, op_sta, 2),
+            op::STA_85 => op!(dir, op_sta, 2),
+            op::STA_87 => op!(dir_ptr_24, op_sta, 2),
+            op::STA_8D => op!(abs, op_sta, 3),
+            op::STA_8F => op!(long, op_sta, 4),
+            op::STA_91 => op!(dir_ptr_16_y, op_sta, 2),
+            op::STA_92 => op!(dir_ptr_16, op_sta, 2),
+            op::STA_93 => op!(stack_ptr_y, op_sta, 2),
+            op::STA_95 => op!(dir_x, op_sta, 2),
+            op::STA_97 => op!(dir_ptr_24_y, op_sta, 2),
+            op::STA_99 => op!(abs_y, op_sta, 3),
+            op::STA_9D => op!(abs_x, op_sta, 3),
+            op::STA_9F => op!(long_x, op_sta, 4),
+            op::STX_86 => op!(dir, op_stx, 2),
+            op::STX_8E => op!(abs, op_stx, 3),
+            op::STX_96 => op!(dir_y, op_stx, 2),
+            op::STY_84 => op!(dir, op_sty, 2),
+            op::STY_8C => op!(abs, op_sty, 3),
+            op::STY_94 => op!(dir_x, op_sty, 2),
+            op::STZ_64 => op!(dir, op_stz, 2),
+            op::STZ_74 => op!(dir_x, op_stz, 2),
+            op::STZ_9C => op!(abs, op_stz, 3),
+            op::STZ_9E => op!(abs_x, op_stz, 3),
             op::XCE => {
                 let tmp = self.e;
                 if self.p.c{
@@ -1253,6 +1250,54 @@ impl Cpu {
             self.y = data;
             self.p.n = data > 0x7FFF;
             self.p.z = data == 0;
+        }
+    }
+
+    fn op_sta(&mut self, data_addr: &(u32, WrappingMode), abus: &mut ABus) {
+        if self.p.m {
+            abus.cpu_write_8(self.a as u8, data_addr.0);
+        } else {
+            match data_addr.1 {
+                WrappingMode::Bank      => abus.bank_wrapping_cpu_write_16(self.a, data_addr.0),
+                WrappingMode::AddrSpace => abus.addr_wrapping_cpu_write_16(self.a, data_addr.0),
+                WrappingMode::Page      => unreachable!()
+            }
+        }
+    }
+
+    fn op_stx(&mut self, data_addr: &(u32, WrappingMode), abus: &mut ABus) {
+        if self.p.x {
+            abus.cpu_write_8(self.x as u8, data_addr.0);
+        } else {
+            match data_addr.1 {
+                WrappingMode::Bank      => abus.bank_wrapping_cpu_write_16(self.x, data_addr.0),
+                WrappingMode::AddrSpace => abus.addr_wrapping_cpu_write_16(self.x, data_addr.0),
+                WrappingMode::Page      => unreachable!()
+            }
+        }
+    }
+
+    fn op_sty(&mut self, data_addr: &(u32, WrappingMode), abus: &mut ABus) {
+        if self.p.x {
+            abus.cpu_write_8(self.y as u8, data_addr.0);
+        } else {
+            match data_addr.1 {
+                WrappingMode::Bank      => abus.bank_wrapping_cpu_write_16(self.y, data_addr.0),
+                WrappingMode::AddrSpace => abus.addr_wrapping_cpu_write_16(self.y, data_addr.0),
+                WrappingMode::Page      => unreachable!()
+            }
+        }
+    }
+
+    fn op_stz(&mut self, data_addr: &(u32, WrappingMode), abus: &mut ABus) {
+        if self.p.m {
+            abus.cpu_write_8(0x00, data_addr.0);
+        } else {
+            match data_addr.1 {
+                WrappingMode::Bank      => abus.bank_wrapping_cpu_write_16(0x0000, data_addr.0),
+                WrappingMode::AddrSpace => abus.addr_wrapping_cpu_write_16(0x0000, data_addr.0),
+                WrappingMode::Page      => unreachable!()
+            }
         }
     }
 }
@@ -3300,5 +3345,124 @@ mod tests {
         cpu.op_ldy(&data_addr, &mut abus);
         assert_eq!(0x2345, cpu.y);
         abus.addr_wrapping_cpu_write_16(0x0000, data_addr.0);
+    }
+
+    #[test]
+    fn op_sta() {
+        let mut abus = ABus::new_empty_rom();
+        let mut cpu = Cpu::new(&mut abus);
+        // 8bit
+        cpu.a = 0x1234;
+        let data_addr = (0x000000, WrappingMode::Bank);
+        abus.bank_wrapping_cpu_write_16(0xFF7F, data_addr.0);
+        cpu.op_sta(&data_addr, &mut abus);
+        assert_eq!(0xFF34, abus.bank_wrapping_cpu_read_16(data_addr.0));
+        // 16bit
+        cpu.p.m = false;
+        abus.bank_wrapping_cpu_write_16(0xFF7F, data_addr.0);
+        cpu.op_sta(&data_addr, &mut abus);
+        assert_eq!(0x1234, abus.bank_wrapping_cpu_read_16(data_addr.0));
+        abus.bank_wrapping_cpu_write_16(0x0000, data_addr.0);
+        // Data bank wrapping
+        let data_addr = (0x00FFFF, WrappingMode::Bank);
+        abus.bank_wrapping_cpu_write_16(0xFF7F, data_addr.0);
+        cpu.op_sta(&data_addr, &mut abus);
+        assert_eq!(0x1234, abus.bank_wrapping_cpu_read_16(data_addr.0));
+        abus.bank_wrapping_cpu_write_16(0x0000, data_addr.0);
+        // Data addr space wrapping
+        let data_addr = (0xFFFFFF, WrappingMode::AddrSpace);
+        abus.addr_wrapping_cpu_write_16(0xFF7F, data_addr.0);
+        cpu.op_sta(&data_addr, &mut abus);
+        assert_eq!(0x1234, abus.addr_wrapping_cpu_read_16(data_addr.0));
+        abus.addr_wrapping_cpu_write_16(0x0000, data_addr.0);
+    }
+
+    #[test]
+    fn op_stx() {
+        let mut abus = ABus::new_empty_rom();
+        let mut cpu = Cpu::new(&mut abus);
+        // 8bit
+        cpu.x = 0x0034;
+        let data_addr = (0x000000, WrappingMode::Bank);
+        abus.bank_wrapping_cpu_write_16(0xFF7F, data_addr.0);
+        cpu.op_stx(&data_addr, &mut abus);
+        assert_eq!(0xFF34, abus.bank_wrapping_cpu_read_16(data_addr.0));
+        // 16bit
+        cpu.p.x = false;
+        cpu.x = 0x1234;
+        abus.bank_wrapping_cpu_write_16(0xFF7F, data_addr.0);
+        cpu.op_stx(&data_addr, &mut abus);
+        assert_eq!(0x1234, abus.bank_wrapping_cpu_read_16(data_addr.0));
+        abus.bank_wrapping_cpu_write_16(0x0000, data_addr.0);
+        // Data bank wrapping
+        let data_addr = (0x00FFFF, WrappingMode::Bank);
+        abus.bank_wrapping_cpu_write_16(0xFF7F, data_addr.0);
+        cpu.op_stx(&data_addr, &mut abus);
+        assert_eq!(0x1234, abus.bank_wrapping_cpu_read_16(data_addr.0));
+        abus.bank_wrapping_cpu_write_16(0x0000, data_addr.0);
+        // Data addr space wrapping
+        let data_addr = (0xFFFFFF, WrappingMode::AddrSpace);
+        abus.addr_wrapping_cpu_write_16(0xFF7F, data_addr.0);
+        cpu.op_stx(&data_addr, &mut abus);
+        assert_eq!(0x1234, abus.addr_wrapping_cpu_read_16(data_addr.0));
+        abus.addr_wrapping_cpu_write_16(0x0000, data_addr.0);
+    }
+
+    #[test]
+    fn op_sty() {
+        let mut abus = ABus::new_empty_rom();
+        let mut cpu = Cpu::new(&mut abus);
+        // 8bit
+        cpu.y = 0x0034;
+        let data_addr = (0x000000, WrappingMode::Bank);
+        abus.bank_wrapping_cpu_write_16(0xFF7F, data_addr.0);
+        cpu.op_sty(&data_addr, &mut abus);
+        assert_eq!(0xFF34, abus.bank_wrapping_cpu_read_16(data_addr.0));
+        // 16bit
+        cpu.p.x = false;
+        cpu.y = 0x1234;
+        abus.bank_wrapping_cpu_write_16(0xFF7F, data_addr.0);
+        cpu.op_sty(&data_addr, &mut abus);
+        assert_eq!(0x1234, abus.bank_wrapping_cpu_read_16(data_addr.0));
+        abus.bank_wrapping_cpu_write_16(0x0000, data_addr.0);
+        // Data bank wrapping
+        let data_addr = (0x00FFFF, WrappingMode::Bank);
+        abus.bank_wrapping_cpu_write_16(0xFF7F, data_addr.0);
+        cpu.op_sty(&data_addr, &mut abus);
+        assert_eq!(0x1234, abus.bank_wrapping_cpu_read_16(data_addr.0));
+        abus.bank_wrapping_cpu_write_16(0x0000, data_addr.0);
+        // Data addr space wrapping
+        let data_addr = (0xFFFFFF, WrappingMode::AddrSpace);
+        abus.addr_wrapping_cpu_write_16(0xFF7F, data_addr.0);
+        cpu.op_sty(&data_addr, &mut abus);
+        assert_eq!(0x1234, abus.addr_wrapping_cpu_read_16(data_addr.0));
+        abus.addr_wrapping_cpu_write_16(0x0000, data_addr.0);
+    }
+
+    #[test]
+    fn op_stz() {
+        let mut abus = ABus::new_empty_rom();
+        let mut cpu = Cpu::new(&mut abus);
+        // 8bit
+        let data_addr = (0x000000, WrappingMode::Bank);
+        abus.bank_wrapping_cpu_write_16(0xFF7F, data_addr.0);
+        cpu.op_stz(&data_addr, &mut abus);
+        assert_eq!(0xFF00, abus.bank_wrapping_cpu_read_16(data_addr.0));
+        // 16bit
+        cpu.p.m = false;
+        abus.bank_wrapping_cpu_write_16(0xFF7F, data_addr.0);
+        cpu.op_stz(&data_addr, &mut abus);
+        assert_eq!(0x0000, abus.bank_wrapping_cpu_read_16(data_addr.0));
+        abus.bank_wrapping_cpu_write_16(0x0000, data_addr.0);
+        // Data bank wrapping
+        let data_addr = (0x00FFFF, WrappingMode::Bank);
+        abus.bank_wrapping_cpu_write_16(0xFF7F, data_addr.0);
+        cpu.op_sta(&data_addr, &mut abus);
+        assert_eq!(0x0000, abus.bank_wrapping_cpu_read_16(data_addr.0));
+        // Data addr space wrapping
+        let data_addr = (0xFFFFFF, WrappingMode::AddrSpace);
+        abus.addr_wrapping_cpu_write_16(0xFF7F, data_addr.0);
+        cpu.op_stz(&data_addr, &mut abus);
+        assert_eq!(0x0000, abus.addr_wrapping_cpu_read_16(data_addr.0));
     }
 }
