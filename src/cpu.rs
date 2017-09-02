@@ -598,6 +598,11 @@ impl Cpu {
         (addr_8_16(self.pb, self.pc.wrapping_add(3).wrapping_add(offset)), WrappingMode::Bank)
     }
 
+    fn src_dest(&self, addr: u32, abus: &mut ABus) -> (u32, u32) {
+        let operand = abus.fetch_operand_16(addr);
+        (addr_8_16(operand as u8, self.x), addr_8_16((operand >> 8) as u8, self.y))
+    }
+
     fn stack(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
         (self.s.wrapping_add(abus.fetch_operand_8(addr) as u16) as u32, WrappingMode::Bank)
     }
@@ -1814,6 +1819,23 @@ mod tests {
         abus.bank_wrapping_cpu_write_16(0x6789, 0x00ABCE);
         assert_eq!((0x451359, WrappingMode::Bank), cpu.rel_16(addr_8_16(0x00, cpu.pc), &mut abus));
         abus.bank_wrapping_cpu_write_16(0x0000, 0x00ABCE);
+    }
+
+    #[test]
+    fn addr_src_dest() {
+        let mut abus = ABus::new_empty_rom();
+        let mut cpu = Cpu::new(&mut abus);
+        cpu.pc = 0x0123;
+        cpu.x = 0xABCD;
+        cpu.y = 0xBCDE;
+        abus.bank_wrapping_cpu_write_16(0x4567, 0x000124);
+        assert_eq!((0x67ABCD, 0x45BCDE), cpu.src_dest(addr_8_16(0x00, cpu.pc), &mut abus));
+        abus.bank_wrapping_cpu_write_16(0x0000, 0x000124);
+        // Wrapping
+        cpu.pc = 0xFFFE;
+        abus.bank_wrapping_cpu_write_16(0x4567, 0x00FFFF);
+        assert_eq!((0x67ABCD, 0x45BCDE), cpu.src_dest(addr_8_16(0x00, cpu.pc), &mut abus));
+        abus.bank_wrapping_cpu_write_16(0x0000, 0x00FFFF);
     }
 
     #[test]
