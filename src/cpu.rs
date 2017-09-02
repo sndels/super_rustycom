@@ -540,6 +540,11 @@ impl Cpu {
             }
             op::TDC    => transfer!(false, *&self.d, *&mut self.a),
             op::TSC    => transfer!(false, *&self.s, *&mut self.a),
+            op::XBA    => {
+                self.a = (self.a << 8) | (self.a >> 8);
+                self.p.n = self.a as u8 > 0x7F;
+                self.p.z = self.a as u8 > 0;
+            }
             op::XCE => {
                 let tmp = self.e;
                 if self.p.c{
