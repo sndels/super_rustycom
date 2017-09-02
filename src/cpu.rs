@@ -460,6 +460,8 @@ impl Cpu {
             op::STZ_9E => op!(abs_x, op_stz, 3),
             op::MVN    => op!(src_dest, op_mvn, 0), // Op "loops" until move is complete
             op::MVP    => op!(src_dest, op_mvp, 0), // Op "loops" until move is complete
+            op::NOP    => self.pc = self.pc.wrapping_add(1),
+            op::WDM    => self.pc = self.pc.wrapping_add(2),
             op::XCE => {
                 let tmp = self.e;
                 if self.p.c{
