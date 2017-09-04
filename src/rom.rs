@@ -48,49 +48,49 @@ impl Rom {
         }
     }
 
-    pub fn read_ws1_lo_rom_8(&self, bank: usize, bank_addr: usize) -> u8 {
+    pub fn read_ws1_lo_rom8(&self, bank: usize, bank_addr: usize) -> u8 {
         let offset = (bank_addr & 0xFFFF) - mmap::LOROM_FIRST;
         self.rom[bank * mmap::LOROM_FIRST + offset]
     }
 
-    pub fn read_ws1_hi_rom_8(&self, bank: usize, bank_addr: usize) -> u8 {
+    pub fn read_ws1_hi_rom8(&self, bank: usize, bank_addr: usize) -> u8 {
         unimplemented!()
     }
 
-    pub fn read_ws2_lo_rom_8(&self, bank: usize, bank_addr: usize) -> u8 {
+    pub fn read_ws2_lo_rom8(&self, bank: usize, bank_addr: usize) -> u8 {
         unimplemented!()
     }
 
-    pub fn read_ws2_hi_rom_8(&self, bank: usize, bank_addr: usize) -> u8 {
+    pub fn read_ws2_hi_rom8(&self, bank: usize, bank_addr: usize) -> u8 {
         self.rom[((bank - mmap::WS2_HIROM_FIRST_BANK) << 16) | bank_addr]
     }
 
     #[cfg(not(test))]
-    pub fn write_ws1_lo_rom_8(&mut self, value: u8, bank: usize, bank_addr: usize) {
+    pub fn write_ws1_lo_rom8(&mut self, value: u8, bank: usize, bank_addr: usize) {
         panic!("Write to rom at addr ${0:02X}:{1:04X}!", bank, bank_addr);
     }
 
     #[cfg(test)]
-    pub fn write_ws1_lo_rom_8(&mut self, value: u8, bank: usize, bank_addr: usize) {
+    pub fn write_ws1_lo_rom8(&mut self, value: u8, bank: usize, bank_addr: usize) {
         let offset = (bank_addr & 0xFFFF) - mmap::LOROM_FIRST;
         self.rom[bank * mmap::LOROM_FIRST + offset] = value;
     }
 
-    pub fn write_ws1_hi_rom_8(&mut self, value: u8, bank: usize, bank_addr: usize) {
+    pub fn write_ws1_hi_rom8(&mut self, value: u8, bank: usize, bank_addr: usize) {
         panic!("Write to rom at addr ${0:02X}:{1:04X}!", bank, bank_addr);
     }
 
-    pub fn write_ws2_lo_rom_8(&mut self, value: u8, bank: usize, bank_addr: usize) {
+    pub fn write_ws2_lo_rom8(&mut self, value: u8, bank: usize, bank_addr: usize) {
         panic!("Write to rom at addr ${0:02X}:{1:04X}!", bank, bank_addr);
     }
 
     #[cfg(not(test))]
-    pub fn write_ws2_hi_rom_8(&mut self, value: u8, bank: usize, bank_addr: usize) {
+    pub fn write_ws2_hi_rom8(&mut self, value: u8, bank: usize, bank_addr: usize) {
         panic!("Write to rom at addr ${0:02X}:{1:04X}!", bank, bank_addr);
     }
 
     #[cfg(test)]
-    pub fn write_ws2_hi_rom_8(&mut self, value: u8, bank: usize, bank_addr: usize) {
+    pub fn write_ws2_hi_rom8(&mut self, value: u8, bank: usize, bank_addr: usize) {
         self.rom[((bank - mmap::WS2_HIROM_FIRST_BANK) << 16) | bank_addr] = value;
     }
 }

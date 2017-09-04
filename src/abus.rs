@@ -161,7 +161,7 @@ impl ABus {
         }
     }
 
-    pub fn cpu_read_8(&mut self, addr: u32) -> u8 {
+    pub fn cpu_read8(&mut self, addr: u32) -> u8 {
         let bank = (addr >> 16) as usize;
         let bank_addr = (addr & 0x00FFFF) as usize;
         match bank {
@@ -171,13 +171,13 @@ impl ABus {
                         self.cpu_read_sys(bank_addr)
                     }
                     mmap::LOROM_FIRST...mmap::LOROM_LAST => {
-                        self.rom.read_ws1_lo_rom_8(bank, bank_addr)
+                        self.rom.read_ws1_lo_rom8(bank, bank_addr)
                     }
                     _ => unreachable!()
                 }
             }
             mmap::WS1_HIROM_FIRST_BANK...mmap::WS1_HIROM_LAST_BANK => {
-                self.rom.read_ws1_hi_rom_8(bank, bank_addr)
+                self.rom.read_ws1_hi_rom8(bank, bank_addr)
             }
             mmap::WRAM_FIRST_BANK...mmap::WRAM_LAST_BANK => {
                 self.wram[(bank - mmap::WRAM_FIRST_BANK) * 0x10000 + bank_addr]
@@ -188,62 +188,62 @@ impl ABus {
                         self.cpu_read_sys(bank_addr)
                     }
                     mmap::LOROM_FIRST...mmap::LOROM_LAST => {
-                        self.rom.read_ws2_lo_rom_8(bank, bank_addr)
+                        self.rom.read_ws2_lo_rom8(bank, bank_addr)
                     }
                     _ => unreachable!()
                 }
             }
             mmap::WS2_HIROM_FIRST_BANK...mmap::WS2_HIROM_LAST_BANK => {
-                self.rom.read_ws2_hi_rom_8(bank, bank_addr)
+                self.rom.read_ws2_hi_rom8(bank, bank_addr)
             }
             _ => unreachable!()
         }
     }
 
-    pub fn addr_wrapping_cpu_read_16(&mut self, addr: u32) -> u16 {
-        self.cpu_read_8(addr) as u16 |
-        ((self.cpu_read_8(addr_wrapping_add(addr, 1)) as u16) << 8)
+    pub fn addr_wrapping_cpu_read16(&mut self, addr: u32) -> u16 {
+        self.cpu_read8(addr) as u16 |
+        ((self.cpu_read8(addr_wrapping_add(addr, 1)) as u16) << 8)
     }
 
-    pub fn addr_wrapping_cpu_read_24(&mut self, addr: u32) -> u32 {
-        self.cpu_read_8(addr) as u32 |
-        ((self.cpu_read_8(addr_wrapping_add(addr, 1)) as u32) << 8) |
-        ((self.cpu_read_8(addr_wrapping_add(addr, 2)) as u32) << 16)
+    pub fn addr_wrapping_cpu_read24(&mut self, addr: u32) -> u32 {
+        self.cpu_read8(addr) as u32 |
+        ((self.cpu_read8(addr_wrapping_add(addr, 1)) as u32) << 8) |
+        ((self.cpu_read8(addr_wrapping_add(addr, 2)) as u32) << 16)
     }
 
 
-    pub fn bank_wrapping_cpu_read_16(&mut self, addr: u32) -> u16 {
-        self.cpu_read_8(addr) as u16 |
-        ((self.cpu_read_8(bank_wrapping_add(addr, 1)) as u16) << 8)
+    pub fn bank_wrapping_cpu_read16(&mut self, addr: u32) -> u16 {
+        self.cpu_read8(addr) as u16 |
+        ((self.cpu_read8(bank_wrapping_add(addr, 1)) as u16) << 8)
     }
 
-    pub fn bank_wrapping_cpu_read_24(&mut self, addr: u32) -> u32 {
-        self.cpu_read_8(addr) as u32 |
-        ((self.cpu_read_8(bank_wrapping_add(addr, 1)) as u32) << 8) |
-        ((self.cpu_read_8(bank_wrapping_add(addr, 2)) as u32) << 16)
+    pub fn bank_wrapping_cpu_read24(&mut self, addr: u32) -> u32 {
+        self.cpu_read8(addr) as u32 |
+        ((self.cpu_read8(bank_wrapping_add(addr, 1)) as u32) << 8) |
+        ((self.cpu_read8(bank_wrapping_add(addr, 2)) as u32) << 16)
     }
 
-    pub fn page_wrapping_cpu_read_16(&mut self, addr: u32) -> u16 {
-        self.cpu_read_8(addr) as u16 |
-        ((self.cpu_read_8(page_wrapping_add(addr, 1)) as u16) << 8)
+    pub fn page_wrapping_cpu_read16(&mut self, addr: u32) -> u16 {
+        self.cpu_read8(addr) as u16 |
+        ((self.cpu_read8(page_wrapping_add(addr, 1)) as u16) << 8)
     }
 
-    pub fn page_wrapping_cpu_read_24(&mut self, addr: u32) -> u32 {
-        self.cpu_read_8(addr) as u32 |
-        ((self.cpu_read_8(page_wrapping_add(addr, 1)) as u32) << 8) |
-        ((self.cpu_read_8(page_wrapping_add(addr, 2)) as u32) << 16)
+    pub fn page_wrapping_cpu_read24(&mut self, addr: u32) -> u32 {
+        self.cpu_read8(addr) as u32 |
+        ((self.cpu_read8(page_wrapping_add(addr, 1)) as u32) << 8) |
+        ((self.cpu_read8(page_wrapping_add(addr, 2)) as u32) << 16)
     }
 
-    pub fn fetch_operand_8(&mut self, addr: u32) -> u8 {
-        self.cpu_read_8(bank_wrapping_add(addr, 1))
+    pub fn fetch_operand8(&mut self, addr: u32) -> u8 {
+        self.cpu_read8(bank_wrapping_add(addr, 1))
     }
 
-    pub fn fetch_operand_16(&mut self, addr: u32) -> u16 {
-        self.bank_wrapping_cpu_read_16(bank_wrapping_add(addr, 1))
+    pub fn fetch_operand16(&mut self, addr: u32) -> u16 {
+        self.bank_wrapping_cpu_read16(bank_wrapping_add(addr, 1))
     }
 
-    pub fn fetch_operand_24(&mut self, addr: u32) -> u32 {
-        self.bank_wrapping_cpu_read_24(bank_wrapping_add(addr, 1))
+    pub fn fetch_operand24(&mut self, addr: u32) -> u32 {
+        self.bank_wrapping_cpu_read24(bank_wrapping_add(addr, 1))
     }
 
     fn cpu_write_sys(&mut self, value: u8, addr: usize) {
@@ -301,7 +301,7 @@ impl ABus {
         }
     }
 
-    pub fn cpu_write_8(&mut self, value: u8, addr: u32) {
+    pub fn cpu_write8(&mut self, value: u8, addr: u32) {
         let bank = (addr >> 16) as usize;
         let bank_addr = (addr & 0x00FFFF) as usize;
         match bank {
@@ -311,13 +311,13 @@ impl ABus {
                         self.cpu_write_sys(value, bank_addr)
                     }
                     mmap::LOROM_FIRST...mmap::LOROM_LAST => {
-                        self.rom.write_ws1_lo_rom_8(value, bank, bank_addr);
+                        self.rom.write_ws1_lo_rom8(value, bank, bank_addr);
                     }
                     _ => unreachable!()
                 }
             }
             mmap::WS1_HIROM_FIRST_BANK...mmap::WS1_HIROM_LAST_BANK => {
-                self.rom.write_ws1_hi_rom_8(value, bank, bank_addr);
+                self.rom.write_ws1_hi_rom8(value, bank, bank_addr);
             }
             mmap::WRAM_FIRST_BANK...mmap::WRAM_LAST_BANK => {
                 self.wram[(bank - mmap::WRAM_FIRST_BANK) * 0x10000 + bank_addr] = value;
@@ -328,49 +328,49 @@ impl ABus {
                         self.cpu_write_sys(value, bank_addr)
                     }
                     mmap::LOROM_FIRST...mmap::LOROM_LAST => {
-                        self.rom.write_ws2_lo_rom_8(value, bank, bank_addr);
+                        self.rom.write_ws2_lo_rom8(value, bank, bank_addr);
                     }
                     _ => unreachable!()
                 }
             }
             mmap::WS2_HIROM_FIRST_BANK...mmap::WS2_HIROM_LAST_BANK => {
-                self.rom.write_ws2_hi_rom_8(value, bank, bank_addr);
+                self.rom.write_ws2_hi_rom8(value, bank, bank_addr);
             }
             _ => unreachable!()
         }
     }
 
-    pub fn addr_wrapping_cpu_write_16(&mut self, value: u16, addr: u32) {
-        self.cpu_write_8(value as u8, addr);
-        self.cpu_write_8((value >> 8) as u8, addr_wrapping_add(addr, 1));
+    pub fn addr_wrapping_cpu_write16(&mut self, value: u16, addr: u32) {
+        self.cpu_write8(value as u8, addr);
+        self.cpu_write8((value >> 8) as u8, addr_wrapping_add(addr, 1));
     }
 
-    pub fn addr_wrapping_cpu_write_24(&mut self, value: u32, addr: u32) {
-        self.cpu_write_8(value as u8, addr);
-        self.cpu_write_8((value >> 8) as u8, addr_wrapping_add(addr, 1));
-        self.cpu_write_8((value >> 16) as u8, addr_wrapping_add(addr, 2));
+    pub fn addr_wrapping_cpu_write24(&mut self, value: u32, addr: u32) {
+        self.cpu_write8(value as u8, addr);
+        self.cpu_write8((value >> 8) as u8, addr_wrapping_add(addr, 1));
+        self.cpu_write8((value >> 16) as u8, addr_wrapping_add(addr, 2));
     }
 
-    pub fn bank_wrapping_cpu_write_16(&mut self, value: u16, addr: u32) {
-        self.cpu_write_8(value as u8, addr);
-        self.cpu_write_8((value >> 8) as u8, bank_wrapping_add(addr, 1));
+    pub fn bank_wrapping_cpu_write16(&mut self, value: u16, addr: u32) {
+        self.cpu_write8(value as u8, addr);
+        self.cpu_write8((value >> 8) as u8, bank_wrapping_add(addr, 1));
     }
 
-    pub fn bank_wrapping_cpu_write_24(&mut self, value: u32, addr: u32) {
-        self.cpu_write_8(value as u8, addr);
-        self.cpu_write_8((value >> 8) as u8, bank_wrapping_add(addr, 1));
-        self.cpu_write_8((value >> 16) as u8, bank_wrapping_add(addr, 2));
+    pub fn bank_wrapping_cpu_write24(&mut self, value: u32, addr: u32) {
+        self.cpu_write8(value as u8, addr);
+        self.cpu_write8((value >> 8) as u8, bank_wrapping_add(addr, 1));
+        self.cpu_write8((value >> 16) as u8, bank_wrapping_add(addr, 2));
     }
 
-    pub fn page_wrapping_cpu_write_16(&mut self, value: u16, addr: u32) {
-        self.cpu_write_8(value as u8, addr);
-        self.cpu_write_8((value >> 8) as u8, page_wrapping_add(addr, 1));
+    pub fn page_wrapping_cpu_write16(&mut self, value: u16, addr: u32) {
+        self.cpu_write8(value as u8, addr);
+        self.cpu_write8((value >> 8) as u8, page_wrapping_add(addr, 1));
     }
 
-    pub fn page_wrapping_cpu_write_24(&mut self, value: u32, addr: u32) {
-        self.cpu_write_8(value as u8, addr);
-        self.cpu_write_8((value >> 8) as u8, page_wrapping_add(addr, 1));
-        self.cpu_write_8((value >> 16) as u8, page_wrapping_add(addr, 2));
+    pub fn page_wrapping_cpu_write24(&mut self, value: u32, addr: u32) {
+        self.cpu_write8(value as u8, addr);
+        self.cpu_write8((value >> 8) as u8, page_wrapping_add(addr, 1));
+        self.cpu_write8((value >> 16) as u8, page_wrapping_add(addr, 2));
     }
 }
 
@@ -582,35 +582,35 @@ mod tests {
         abus.wram[0x100FF] = 0xEF;
         abus.wram[0x10000] = 0xCD;
         abus.wram[0x10001] = 0xAB;
-        assert_eq!(0xCDEF, abus.page_wrapping_cpu_read_16(0x7F00FF));
-        assert_eq!(0xABCDEF, abus.page_wrapping_cpu_read_24(0x7F00FF));
+        assert_eq!(0xCDEF, abus.page_wrapping_cpu_read16(0x7F00FF));
+        assert_eq!(0xABCDEF, abus.page_wrapping_cpu_read24(0x7F00FF));
         abus.wram[0x100FF] = 0x0;
         abus.wram[0x1FFFF] = 0xEF;
-        assert_eq!(0xCDEF, abus.bank_wrapping_cpu_read_16(0x7FFFFF));
-        assert_eq!(0xABCDEF, abus.bank_wrapping_cpu_read_24(0x7FFFFF));
+        assert_eq!(0xCDEF, abus.bank_wrapping_cpu_read16(0x7FFFFF));
+        assert_eq!(0xABCDEF, abus.bank_wrapping_cpu_read24(0x7FFFFF));
     }
 
     #[test]
     fn cpu_wrapping_writes() {
         let mut abus = ABus::new_empty_rom();
-        abus.bank_wrapping_cpu_write_16(0xABCD, 0x7FFFFF);
+        abus.bank_wrapping_cpu_write16(0xABCD, 0x7FFFFF);
         assert_eq!(0xCD, abus.wram[0x1FFFF]);
         assert_eq!(0xAB, abus.wram[0x10000]);
         abus.wram[0x1FFFF] = 0x0;
         abus.wram[0x10000] = 0x0;
-        abus.bank_wrapping_cpu_write_24(0xABCDEF, 0x7FFFFF);
+        abus.bank_wrapping_cpu_write24(0xABCDEF, 0x7FFFFF);
         assert_eq!(0xEF, abus.wram[0x1FFFF]);
         assert_eq!(0xCD, abus.wram[0x10000]);
         assert_eq!(0xAB, abus.wram[0x10001]);
         abus.wram[0x1FFFF] = 0x0;
         abus.wram[0x10000] = 0x0;
         abus.wram[0x10001] = 0x0;
-        abus.page_wrapping_cpu_write_16(0xABCD, 0x7F00FF);
+        abus.page_wrapping_cpu_write16(0xABCD, 0x7F00FF);
         assert_eq!(0xCD, abus.wram[0x100FF]);
         assert_eq!(0xAB, abus.wram[0x10000]);
         abus.wram[0x100FF] = 0x0;
         abus.wram[0x10000] = 0x0;
-        abus.page_wrapping_cpu_write_24(0xABCDEF, 0x7F00FF);
+        abus.page_wrapping_cpu_write24(0xABCDEF, 0x7F00FF);
         assert_eq!(0xEF, abus.wram[0x100FF]);
         assert_eq!(0xCD, abus.wram[0x10000]);
         assert_eq!(0xAB, abus.wram[0x10001]);
@@ -624,12 +624,12 @@ mod tests {
         abus.wram[0x1FFFF] = 0x56;
         abus.wram[0x10000] = 0x34;
         abus.wram[0x10001] = 0x12;
-        assert_eq!(0x56, abus.fetch_operand_8(0x7FFFFE));
-        assert_eq!(0x34, abus.fetch_operand_8(0x7FFFFF));
-        assert_eq!(0x5678, abus.fetch_operand_16(0x7FFFFD));
-        assert_eq!(0x3456, abus.fetch_operand_16(0x7FFFFE));
-        assert_eq!(0x56789A, abus.fetch_operand_24(0x7FFFFC));
-        assert_eq!(0x123456, abus.fetch_operand_24(0x7FFFFE));
+        assert_eq!(0x56, abus.fetch_operand8(0x7FFFFE));
+        assert_eq!(0x34, abus.fetch_operand8(0x7FFFFF));
+        assert_eq!(0x5678, abus.fetch_operand16(0x7FFFFD));
+        assert_eq!(0x3456, abus.fetch_operand16(0x7FFFFE));
+        assert_eq!(0x56789A, abus.fetch_operand24(0x7FFFFC));
+        assert_eq!(0x123456, abus.fetch_operand24(0x7FFFFE));
     }
 
     #[test]
@@ -640,7 +640,7 @@ mod tests {
             abus.wram[i] = 0xAA;
         }
         for i in 0..0x2000 {
-            assert_eq!(0xAA, abus.cpu_read_8(i));
+            assert_eq!(0xAA, abus.cpu_read8(i));
         }
         // PPU-read
 
