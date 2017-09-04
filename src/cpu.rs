@@ -35,10 +35,29 @@ impl Cpu {
     }
 
     pub fn step(&mut self, abus: &mut ABus) {
-        let addr = self.get_pb_pc();
+        let addr = self.current_address();
         let opcode = abus.cpu_read_8(addr);
         self.execute(opcode, addr, abus);
     }
+
+    pub fn a(&self)     -> u16  { self.a }
+    pub fn x(&self)     -> u16  { self.x }
+    pub fn y(&self)     -> u16  { self.y }
+    pub fn pb(&self)    -> u8   { self.pb }
+    pub fn db(&self)    -> u8   { self.db }
+    pub fn pc(&self)    -> u16  { self.pc }
+    pub fn s(&self)     -> u16  { self.s }
+    pub fn d(&self)     -> u16  { self.d }
+    pub fn e(&self)     -> bool { self.e }
+    pub fn p_c(&self)   -> bool { self.p.c }
+    pub fn p_z(&self)   -> bool { self.p.z }
+    pub fn p_i(&self)   -> bool { self.p.i }
+    pub fn p_d(&self)   -> bool { self.p.d }
+    pub fn p_x(&self)   -> bool { self.p.x }
+    pub fn p_m(&self)   -> bool { self.p.m }
+    pub fn p_v(&self)   -> bool { self.p.v }
+    pub fn p_n(&self)   -> bool { self.p.n }
+    pub fn current_address(&self) -> u32 { ((self.pb as u32) << 16) + self.pc as u32 }
 
     fn execute(&mut self, opcode: u8, addr: u32, abus: &mut ABus) {
         // DRY macros
@@ -365,7 +384,7 @@ impl Cpu {
                 if self.e {
                     let pc = self.pc;
                     self.push_16(pc.wrapping_add(2), abus);
-                    let p = self.p.get_value();
+                    let p = self.p.value();
                     self.push_8(p | P_X, abus);// B(RK)-flag is set to distinguish BRK from IRQ
                     self.pb = 0x00;
                     self.pc = abus.page_wrapping_cpu_read_16(IRQBRK8);
@@ -374,7 +393,7 @@ impl Cpu {
                     self.push_8(pb, abus);
                     let pc = self.pc;
                     self.push_16(pc.wrapping_add(2), abus);
-                    let p = self.p.get_value();
+                    let p = self.p.value();
                     self.push_8(p, abus);
                     self.pb = 0x00;
                     self.pc = abus.page_wrapping_cpu_read_16(BRK16);
@@ -386,7 +405,7 @@ impl Cpu {
                 if self.e {
                     let pc = self.pc;
                     self.push_16(pc.wrapping_add(2), abus);
-                    let p = self.p.get_value();
+                    let p = self.p.value();
                     self.push_8(p, abus);
                     self.pb = 0x00;
                     self.pc = abus.page_wrapping_cpu_read_16(COP8);
@@ -395,7 +414,7 @@ impl Cpu {
                     self.push_8(pb, abus);
                     let pc = self.pc;
                     self.push_16(pc.wrapping_add(2), abus);
-                    let p = self.p.get_value();
+                    let p = self.p.value();
                     self.push_8(p, abus);
                     self.pb = 0x00;
                     self.pc = abus.page_wrapping_cpu_read_16(COP16);
@@ -506,7 +525,7 @@ impl Cpu {
             op::PHB    => push_reg!(true, *&self.db),
             op::PHD    => push_reg!(false, *&self.d),
             op::PHK    => push_reg!(true, *&self.pb),
-            op::PHP    => push_reg!(true, *&self.p.get_value()),
+            op::PHP    => push_reg!(true, *&self.p.value()),
             op::PLB    => {
                 let value = self.pull_8(abus);
                 self.db = value;
@@ -562,10 +581,6 @@ impl Cpu {
             _ => panic!("Unknown opcode ${0:02X} at ${1:02X}:{2:04X}", opcode, addr >> 16, addr & 0xFFF)
         }
     }
-
-    fn get_pb_start(&self) -> u32 { (self.pb as u32) << 16 }
-    pub fn get_pb_pc(&self) -> u32 { ((self.pb as u32) << 16) + self.pc as u32 }
-    fn get_pb_addr(&self, addr: u16) -> u32 { ((self.pb as u32) << 16) + addr as u32 }
 
     // Addressing modes
     // TODO: DRY, mismatch funcs and macros?
@@ -770,41 +785,6 @@ impl Cpu {
             self.s = self.s.wrapping_add(offset as u16);
         }
     }
-
-    pub fn print_registers(&self) {
-        println!("A:        ${:04X}", self.a);
-        println!("X:        ${:04X}", self.x);
-        println!("Y:        ${:04X}", self.y);
-        println!("P:        {:08b}", self.p.get_value());
-        println!("PB:       ${:02X}", self.pb);
-        println!("DB:       ${:02X}", self.db);
-        println!("PC:       ${:04X}", self.pc);
-        println!("S:        ${:04X}", self.s);
-        println!("D:        ${:04X}", self.d);
-        println!("E:        {}", self.e);
-        println!("Stopped:  {}", self.stopped);
-        println!("Waiting:  {}", self.waiting);
-    }
-
-    pub fn print_flags(&self) {
-        if self.p.c { println!("Carry"); }
-        if self.p.z { println!("Zero"); }
-        if self.p.i { println!("Interrupt"); }
-        if self.p.d { println!("Decimal"); }
-        if self.p.x { println!("Index"); }
-        if self.p.m { println!("Memory"); }
-        if self.p.v { println!("Overflow"); }
-        if self.p.n { println!("Negative"); }
-    }
-
-    pub fn get_p_c(&self) -> bool { self.p.c }
-    pub fn get_p_z(&self) -> bool { self.p.z }
-    pub fn get_p_i(&self) -> bool { self.p.i }
-    pub fn get_p_d(&self) -> bool { self.p.d }
-    pub fn get_p_x(&self) -> bool { self.p.x }
-    pub fn get_p_m(&self) -> bool { self.p.m }
-    pub fn get_p_v(&self) -> bool { self.p.v }
-    pub fn get_p_n(&self) -> bool { self.p.n }
 
     fn set_emumode(&mut self) {
         self.e = true;
@@ -1510,7 +1490,7 @@ impl StatusReg {
         }
     }
 
-    pub fn set_flags(&mut self, mask: u8) {
+    fn set_flags(&mut self, mask: u8) {
         if mask & P_N > 0 { self.n = true; }
         if mask & P_V > 0 { self.v = true; }
         if mask & P_M > 0 { self.m = true; }
@@ -1521,7 +1501,7 @@ impl StatusReg {
         if mask & P_C > 0 { self.c = true; }
     }
 
-    pub fn clear_flags(&mut self, mask: u8) {
+    fn clear_flags(&mut self, mask: u8) {
         if mask & P_N > 0 { self.n = false; }
         if mask & P_V > 0 { self.v = false; }
         if mask & P_M > 0 { self.m = false; }
@@ -1532,7 +1512,7 @@ impl StatusReg {
         if mask & P_C > 0 { self.c = false; }
     }
 
-    pub fn get_value(&self) -> u8 {
+    fn value(&self) -> u8 {
         let mut value: u8 = 0b0000_0000;
         if self.n { value |= P_N; }
         if self.v { value |= P_V; }
@@ -1545,7 +1525,7 @@ impl StatusReg {
         value
     }
 
-    pub fn set_value(&mut self, value: u8) {
+    fn set_value(&mut self, value: u8) {
         self.n = value & P_N > 0;
         self.v = value & P_V > 0;
         self.m = value & P_M > 0;

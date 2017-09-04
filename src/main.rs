@@ -22,7 +22,7 @@ fn main() {
         if debugger.active {
             debugger.take_command(&mut cpu, &mut abus);
         } else {
-            while cpu.get_pb_pc() != debugger.breakpoint {
+            while cpu.current_address() != debugger.breakpoint {
                 cpu.step(&mut abus);
             }
             debugger.active = true;

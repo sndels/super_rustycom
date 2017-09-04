@@ -19,7 +19,7 @@ impl Debugger {
 
     pub fn take_command(&mut self, cpu: &mut Cpu, abus: &mut ABus) {
         print!("Cursor at: ");
-        disassemble(cpu.get_pb_pc(), cpu, abus);
+        disassemble(cpu.current_address(), cpu, abus);
         print!("(debug) ");
         io::stdout().flush().unwrap();
         let mut command_str = String::new();
@@ -47,8 +47,17 @@ impl Debugger {
                         }
                     }
                 }
-                "cpu" => cpu.print_registers(),
-                "flags" => cpu.print_flags(),
+                "cpu" => {
+                    println!("A:  ${:04X}", cpu.a());
+                    println!("X:  ${:04X}", cpu.x());
+                    println!("Y:  ${:04X}", cpu.y());
+                    println!("PB: ${:02X}", cpu.pb());
+                    println!("PC: ${:04X}", cpu.pc());
+                    println!("DB: ${:02X}", cpu.db());
+                    println!("D:  ${:04X}", cpu.d());
+                    println!("S:  ${:04X}", cpu.s());
+                    println!("P:  {}",      status_str(cpu));
+                }
                 "run" | "r" => self.active = false,
                 // TODO: quit-comand
                 _            => println!("Unknown command \"{}\"", command_str.trim())
@@ -83,7 +92,7 @@ fn disassemble(addr: u32, cpu: &Cpu, abus: &mut ABus) {
         }
         op::LDX_A2 | op::LDX_AE => {
             print!("LDX");
-            if cpu.get_p_x() {
+            if cpu.p_x() {
                 print_operand_8(addr, abus);
             } else {
                 print_operand_16(addr, abus);
@@ -91,7 +100,7 @@ fn disassemble(addr: u32, cpu: &Cpu, abus: &mut ABus) {
         }
         op::LDA_A9 => {
             print!("LDA");
-            if cpu.get_p_m() {
+            if cpu.p_m() {
                 print_operand_8(addr, abus);
             } else {
                 print_operand_16(addr, abus);
@@ -109,7 +118,7 @@ fn disassemble(addr: u32, cpu: &Cpu, abus: &mut ABus) {
         }
         op::CPX_E0 => {
             print!("CPX");
-            if cpu.get_p_x() {
+            if cpu.p_x() {
                 print_operand_8(addr, abus);
             } else {
                 print_operand_16(addr, abus);
@@ -125,6 +134,20 @@ fn disassemble(addr: u32, cpu: &Cpu, abus: &mut ABus) {
         _ => panic!("Unknown opcode ${0:02X} at ${1:02X}:{2:04X}", opcode, addr >> 16, addr & 0xFFF)
     }
     println!("");
+}
+
+fn status_str(cpu: &Cpu) -> String {
+    let mut status = String::new();
+    status.push(if cpu.e()   { 'E' } else { 'e' });
+    status.push(if cpu.p_n() { 'N' } else { 'n' });
+    status.push(if cpu.p_v() { 'V' } else { 'v' });
+    status.push(if cpu.p_m() { 'M' } else { 'm' });
+    status.push(if cpu.p_x() { 'X' } else { 'x' });
+    status.push(if cpu.p_d() { 'D' } else { 'd' });
+    status.push(if cpu.p_i() { 'I' } else { 'i' });
+    status.push(if cpu.p_z() { 'Z' } else { 'z' });
+    status.push(if cpu.p_c() { 'C' } else { 'c' });
+    status
 }
 
 fn print_addr(addr: u32) {
