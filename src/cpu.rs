@@ -584,41 +584,42 @@ impl Cpu {
 
     // Addressing modes
     // TODO: DRY, mismatch funcs and macros?
-    fn abs(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {// JMP, JSR use PB instead of DB
+    pub fn abs(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
+        // JMP, JSR use PB instead of DB
         (addr_8_16(self.db, abus.fetch_operand_16(addr)), WrappingMode::AddrSpace)
     }
 
-    fn abs_x(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
+    pub fn abs_x(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
         let operand = abus.fetch_operand_16(addr);
         ((addr_8_16(self.db, operand) + self.x as u32) & 0x00FFFFFF, WrappingMode::AddrSpace)
     }
 
-    fn abs_y(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
+    pub fn abs_y(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
         let operand = abus.fetch_operand_16(addr);
         ((addr_8_16(self.db, operand) + self.y as u32) & 0x00FFFFFF, WrappingMode::AddrSpace)
     }
 
-    fn abs_ptr_16(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
+    pub fn abs_ptr_16(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
         let pointer = abus.fetch_operand_16(addr) as u32;
         (addr_8_16(self.pb, abus.bank_wrapping_cpu_read_16(pointer)), WrappingMode::Bank)
     }
 
-    fn abs_ptr_24(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
+    pub fn abs_ptr_24(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
         let pointer = abus.fetch_operand_24(addr) as u32;
         (abus.bank_wrapping_cpu_read_24(pointer), WrappingMode::Bank)
     }
 
-    fn abs_ptr_x(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
+    pub fn abs_ptr_x(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
         let pointer = addr_8_16(self.pb, abus.fetch_operand_16(addr).wrapping_add(self.x));
         (addr_8_16(self.pb, abus.bank_wrapping_cpu_read_16(pointer)), WrappingMode::Bank)
     }
 
-    fn dir(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
+    pub fn dir(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
         // NOTE: Data of "old" instructions with e=1, DL=$00 actually "wrap" page but only access 8bit
         (self.d.wrapping_add(abus.fetch_operand_8(addr) as u16) as u32, WrappingMode::Bank)
     }
 
-    fn dir_x(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
+    pub fn dir_x(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
         if self.e && (self.d & 0xFF) == 0 {
             ((self.d | (abus.fetch_operand_8(addr).wrapping_add(self.x as u8) as u16)) as u32,
              WrappingMode::Page)
@@ -628,7 +629,7 @@ impl Cpu {
         }
     }
 
-    fn dir_y(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
+    pub fn dir_y(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
         if self.e && (self.d & 0xFF) == 0 {
             ((self.d | (abus.fetch_operand_8(addr).wrapping_add(self.y as u8) as u16)) as u32,
              WrappingMode::Page)
@@ -638,7 +639,7 @@ impl Cpu {
         }
     }
 
-    fn dir_ptr_16(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
+    pub fn dir_ptr_16(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
         let pointer = self.dir(addr, abus).0;
         if self.e && (self.d & 0xFF) == 0 {
             let ll = abus.cpu_read_8(pointer);
@@ -649,12 +650,12 @@ impl Cpu {
         }
     }
 
-    fn dir_ptr_24(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
+    pub fn dir_ptr_24(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
         let pointer = self.dir(addr, abus).0;
         (abus.bank_wrapping_cpu_read_24(pointer), WrappingMode::AddrSpace)
     }
 
-    fn dir_ptr_16_x(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
+    pub fn dir_ptr_16_x(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
         let pointer = self.dir_x(addr, abus).0;
         if self.e && (self.d & 0xFF) == 0 {
             let ll = abus.cpu_read_8(pointer);
@@ -665,27 +666,27 @@ impl Cpu {
         }
     }
 
-    fn dir_ptr_16_y(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
+    pub fn dir_ptr_16_y(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
         ((self.dir_ptr_16(addr, abus).0 + self.y as u32) & 0x00FFFFFF, WrappingMode::AddrSpace)
     }
 
-    fn dir_ptr_24_y(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
+    pub fn dir_ptr_24_y(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
         ((self.dir_ptr_24(addr, abus).0 + self.y as u32) & 0x00FFFFFF, WrappingMode::AddrSpace)
     }
 
-    fn imm(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
+    pub fn imm(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
         (addr_8_16(self.pb, self.pc.wrapping_add(1)), WrappingMode::Bank)
     }
 
-    fn long(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
+    pub fn long(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
         (abus.fetch_operand_24(addr), WrappingMode::AddrSpace)
     }
 
-    fn long_x(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
+    pub fn long_x(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
         ((abus.fetch_operand_24(addr) + self.x as u32) & 0x00FFFFFF, WrappingMode::AddrSpace)
     }
 
-    fn rel_8(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
+    pub fn rel_8(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
         let offset = abus.fetch_operand_8(addr);
         if offset < 0x80 {
             (addr_8_16(self.pb, self.pc.wrapping_add(2 + (offset as u16))), WrappingMode::Bank)
@@ -695,21 +696,21 @@ impl Cpu {
         }
     }
 
-    fn rel_16(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
+    pub fn rel_16(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
         let offset = abus.fetch_operand_16(addr);
         (addr_8_16(self.pb, self.pc.wrapping_add(3).wrapping_add(offset)), WrappingMode::Bank)
     }
 
-    fn src_dest(&self, addr: u32, abus: &mut ABus) -> (u32, u32) {
+    pub fn src_dest(&self, addr: u32, abus: &mut ABus) -> (u32, u32) {
         let operand = abus.fetch_operand_16(addr);
         (addr_8_16(operand as u8, self.x), addr_8_16((operand >> 8) as u8, self.y))
     }
 
-    fn stack(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
+    pub fn stack(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
         (self.s.wrapping_add(abus.fetch_operand_8(addr) as u16) as u32, WrappingMode::Bank)
     }
 
-    fn stack_ptr_y(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
+    pub fn stack_ptr_y(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
         let pointer = self.s.wrapping_add(abus.fetch_operand_8(addr) as u16) as u32;
         ((addr_8_16(self.db, abus.bank_wrapping_cpu_read_16(pointer)) + self.y as u32) & 0x00FFFFFF,
          WrappingMode::AddrSpace)
