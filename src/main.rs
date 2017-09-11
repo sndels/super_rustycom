@@ -18,6 +18,9 @@ fn main() {
     let mut abus = ABus::new(&rom_path);
     let mut cpu = Cpu::new(&mut abus);
     let mut debugger = Debugger::new();
+    // Hack past the apu check in elix_nu
+    abus.apu_write8(0xAA, 0x00);
+    abus.apu_write8(0xBB, 0x01);
     loop {
         if debugger.active {
             debugger.take_command(&mut cpu, &mut abus);
