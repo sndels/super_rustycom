@@ -200,6 +200,16 @@ impl ABus {
         }
     }
 
+    pub fn apu_read8(&mut self, reg: u8) -> u8 {
+        match reg {
+            0x00 => self.apu_io0,
+            0x01 => self.apu_io1,
+            0x02 => self.apu_io2,
+            0x03 => self.apu_io3,
+            _    => panic!("APU read from invalid IO register!")
+        }
+    }
+
     pub fn addr_wrapping_cpu_read16(&mut self, addr: u32) -> u16 {
         self.cpu_read8(addr) as u16 |
         ((self.cpu_read8(addr_wrapping_add(addr, 1)) as u16) << 8)
@@ -337,6 +347,16 @@ impl ABus {
                 self.rom.write_ws2_hi_rom8(value, bank, bank_addr);
             }
             _ => unreachable!()
+        }
+    }
+
+    pub fn apu_write8(&mut self, value: u8, reg: u8) {
+        match reg {
+            0x00 => self.apu_io0 = value,
+            0x01 => self.apu_io1 = value,
+            0x02 => self.apu_io2 = value,
+            0x03 => self.apu_io3 = value,
+            _    => panic!("APU write to invalid IO register!")
         }
     }
 
