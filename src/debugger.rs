@@ -6,6 +6,7 @@ use abus::ABus;
 pub struct Debugger {
     pub breakpoint: u32,
     pub active: bool,
+    pub quit: bool,
 }
 
 impl Debugger {
@@ -13,6 +14,7 @@ impl Debugger {
         Debugger {
             breakpoint: 0x0,
             active: true,
+            quit: false,
         }
     }
 
@@ -58,6 +60,7 @@ impl Debugger {
                     println!("P:  {}", status_str(cpu));
                 }
                 "run" | "r" => self.active = false,
+                "exit" => self.quit = true,
                 _ => println!("Unknown command \"{}\"", command_str.trim()),
             }
         }
