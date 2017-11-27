@@ -175,8 +175,8 @@ pub fn cpu_read_sys(abus: &mut ABus, addr: usize) -> u8 {
                 | (abus.wm_add_l as usize);
             abus.wram[wram_addr]
         }
-        JOYA => abus.joy_io.joy_a,
-        JOYB => abus.joy_io.joy_b,
+        JOYA => abus.joy_io.joy_a(),
+        JOYB => abus.joy_io.joy_b(),
         RDNMI => {
             let val = abus.rd_nmi;
             abus.rd_nmi &= 0b0111_1111;
@@ -188,19 +188,19 @@ pub fn cpu_read_sys(abus: &mut ABus, addr: usize) -> u8 {
             val
         }
         HVBJOY => abus.hvb_joy,
-        RDIO => abus.joy_io.rd_io,
+        RDIO => abus.joy_io.rd_io(),
         RDDIVL => abus.mpy_div.get_div_res_low(),
         RDDIVH => abus.mpy_div.get_div_res_high(),
         RDMPYL => abus.mpy_div.get_mpy_res_low(),
         RDMPYH => abus.mpy_div.get_mpy_res_high(),
-        JOY1L => abus.joy_io.joy_1l,
-        JOY1H => abus.joy_io.joy_1h,
-        JOY2L => abus.joy_io.joy_2l,
-        JOY2H => abus.joy_io.joy_2h,
-        JOY3L => abus.joy_io.joy_3l,
-        JOY3H => abus.joy_io.joy_3h,
-        JOY4L => abus.joy_io.joy_4l,
-        JOY4H => abus.joy_io.joy_4h,
+        JOY1L => abus.joy_io.joy_1l(),
+        JOY1H => abus.joy_io.joy_1h(),
+        JOY2L => abus.joy_io.joy_2l(),
+        JOY2H => abus.joy_io.joy_2h(),
+        JOY3L => abus.joy_io.joy_3l(),
+        JOY3H => abus.joy_io.joy_3h(),
+        JOY4L => abus.joy_io.joy_4l(),
+        JOY4H => abus.joy_io.joy_4h(),
         DMA_FIRST...DMA_LAST => {
             // DMA
             abus.dma.read(addr)
@@ -323,9 +323,9 @@ fn cpu_write_sys(abus: &mut ABus, value: u8, addr: usize) {
         WMADDL => abus.wm_add_l = value,
         WMADDM => abus.wm_add_m = value,
         WMADDH => abus.wm_add_h = value,
-        JOYWR => abus.joy_io.joy_wr = value,
+        JOYWR => abus.joy_io.set_joy_wr(value),
         NMITIMEN => abus.nmitimen = value,
-        WRIO => abus.joy_io.wr_io = value,
+        WRIO => abus.joy_io.set_wr_io(value),
         WRMPYA => abus.mpy_div.set_mpy_a(value),
         WRMPYB => abus.mpy_div.set_mpy_b(value),
         WRDIVL => abus.mpy_div.set_dividend_low(value),
