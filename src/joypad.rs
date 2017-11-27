@@ -1,17 +1,17 @@
 pub struct JoyIo {
-    pub joy_wr: u8,
-    pub joy_a: u8,
-    pub joy_b: u8,
-    pub wr_io: u8,
-    pub rd_io: u8,
-    pub joy_1l: u8,
-    pub joy_1h: u8,
-    pub joy_2l: u8,
-    pub joy_2h: u8,
-    pub joy_3l: u8,
-    pub joy_3h: u8,
-    pub joy_4l: u8,
-    pub joy_4h: u8,
+    joy_wr: u8,
+    joy_a: u8,
+    joy_b: u8,
+    wr_io: u8,
+    rd_io: u8,
+    joy_1l: u8,
+    joy_1h: u8,
+    joy_2l: u8,
+    joy_2h: u8,
+    joy_3l: u8,
+    joy_3h: u8,
+    joy_4l: u8,
+    joy_4h: u8,
 }
 
 impl JoyIo {
@@ -32,4 +32,19 @@ impl JoyIo {
             joy_4h: 0x00,
         }
     }
+
+    pub fn joy_a(&self) -> u8 { self.joy_a }
+    pub fn joy_b(&self) -> u8 { self.joy_b }
+    pub fn rd_io(&self) -> u8 { self.rd_io }
+    pub fn joy_1l(&self) -> u8 { self.joy_1l }
+    pub fn joy_1h(&self) -> u8 { self.joy_1h }
+    pub fn joy_2l(&self) -> u8 { self.joy_2l }
+    pub fn joy_2h(&self) -> u8 { self.joy_2h }
+    pub fn joy_3l(&self) -> u8 { self.joy_3l }
+    pub fn joy_3h(&self) -> u8 { self.joy_3h }
+    pub fn joy_4l(&self) -> u8 { self.joy_4l }
+    pub fn joy_4h(&self) -> u8 { self.joy_4h }
+
+    pub fn set_joy_wr(&mut self, value: u8) { self.joy_wr = value; }
+    pub fn set_wr_io(&mut self, value: u8) { self.wr_io = value; }
 }

@@ -126,8 +126,8 @@ impl ABus {
                     | (self.wm_add_l as usize);
                 self.wram[wram_addr]
             }
-            mmap::JOYA => self.joy_io.joy_a,
-            mmap::JOYB => self.joy_io.joy_b,
+            mmap::JOYA => self.joy_io.joy_a(),
+            mmap::JOYB => self.joy_io.joy_b(),
             mmap::RDNMI => {
                 let val = self.rd_nmi;
                 self.rd_nmi &= 0b0111_1111;
@@ -139,19 +139,19 @@ impl ABus {
                 val
             }
             mmap::HVBJOY => self.hvb_joy,
-            mmap::RDIO => self.joy_io.rd_io,
+            mmap::RDIO => self.joy_io.rd_io(),
             mmap::RDDIVL => self.mpy_div.get_div_res_low(),
             mmap::RDDIVH => self.mpy_div.get_div_res_high(),
             mmap::RDMPYL => self.mpy_div.get_mpy_res_low(),
             mmap::RDMPYH => self.mpy_div.get_mpy_res_high(),
-            mmap::JOY1L => self.joy_io.joy_1l,
-            mmap::JOY1H => self.joy_io.joy_1h,
-            mmap::JOY2L => self.joy_io.joy_2l,
-            mmap::JOY2H => self.joy_io.joy_2h,
-            mmap::JOY3L => self.joy_io.joy_3l,
-            mmap::JOY3H => self.joy_io.joy_3h,
-            mmap::JOY4L => self.joy_io.joy_4l,
-            mmap::JOY4H => self.joy_io.joy_4h,
+            mmap::JOY1L => self.joy_io.joy_1l(),
+            mmap::JOY1H => self.joy_io.joy_1h(),
+            mmap::JOY2L => self.joy_io.joy_2l(),
+            mmap::JOY2H => self.joy_io.joy_2h(),
+            mmap::JOY3L => self.joy_io.joy_3l(),
+            mmap::JOY3H => self.joy_io.joy_3h(),
+            mmap::JOY4L => self.joy_io.joy_4l(),
+            mmap::JOY4H => self.joy_io.joy_4h(),
             mmap::DMA_FIRST...mmap::DMA_LAST => {
                 // DMA
                 self.dma.read(addr)
@@ -276,9 +276,9 @@ impl ABus {
             mmap::WMADDL => self.wm_add_l = value,
             mmap::WMADDM => self.wm_add_m = value,
             mmap::WMADDH => self.wm_add_h = value,
-            mmap::JOYWR => self.joy_io.joy_wr = value,
+            mmap::JOYWR => self.joy_io.set_joy_wr(value),
             mmap::NMITIMEN => self.nmitimen = value,
-            mmap::WRIO => self.joy_io.wr_io = value,
+            mmap::WRIO => self.joy_io.set_wr_io(value),
             mmap::WRMPYA => self.mpy_div.set_mpy_a(value),
             mmap::WRMPYB => self.mpy_div.set_mpy_b(value),
             mmap::WRDIVL => self.mpy_div.set_dividend_low(value),
