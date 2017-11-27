@@ -1,7 +1,8 @@
 use dma::Dma;
-use rom::Rom;
+use joypad::JoyIo;
 use mmap;
 use ppu_io::PpuIo;
+use rom::Rom;
 
 pub struct ABus {
     wram: [u8; 131072],
@@ -455,42 +456,6 @@ impl MpyDiv {
     pub fn get_div_res_low(&self) -> u8 { self.div_res as u8 }
 
     pub fn get_div_res_high(&self) -> u8 { (self.div_res >> 8) as u8 }
-}
-
-struct JoyIo {
-    joy_wr: u8,
-    joy_a: u8,
-    joy_b: u8,
-    wr_io: u8,
-    rd_io: u8,
-    joy_1l: u8,
-    joy_1h: u8,
-    joy_2l: u8,
-    joy_2h: u8,
-    joy_3l: u8,
-    joy_3h: u8,
-    joy_4l: u8,
-    joy_4h: u8,
-}
-
-impl JoyIo {
-    pub fn new() -> JoyIo {
-        JoyIo {
-            joy_wr: 0x00,
-            joy_a: 0x00,
-            joy_b: 0x00,
-            wr_io: 0xFF,
-            rd_io: 0x00,
-            joy_1l: 0x00,
-            joy_1h: 0x00,
-            joy_2l: 0x00,
-            joy_2h: 0x00,
-            joy_3l: 0x00,
-            joy_3h: 0x00,
-            joy_4l: 0x00,
-            joy_4h: 0x00,
-        }
-    }
 }
 
 #[cfg(test)]
