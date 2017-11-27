@@ -192,6 +192,7 @@ impl ABus {
         }
     }
 
+    #[allow(dead_code)]
     pub fn apu_read8(&mut self, reg: u8) -> u8 {
         match reg {
             0x00 => self.apu_io0,
@@ -206,6 +207,7 @@ impl ABus {
         self.cpu_read8(addr) as u16 | ((self.cpu_read8(addr_wrapping_add(addr, 1)) as u16) << 8)
     }
 
+    #[allow(dead_code)]
     pub fn addr_wrapping_cpu_read24(&mut self, addr: u32) -> u32 {
         self.cpu_read8(addr) as u32 | ((self.cpu_read8(addr_wrapping_add(addr, 1)) as u32) << 8)
             | ((self.cpu_read8(addr_wrapping_add(addr, 2)) as u32) << 16)
@@ -348,6 +350,7 @@ impl ABus {
         self.cpu_write8((value >> 8) as u8, addr_wrapping_add(addr, 1));
     }
 
+    #[allow(dead_code)]
     pub fn addr_wrapping_cpu_write24(&mut self, value: u32, addr: u32) {
         self.cpu_write8(value as u8, addr);
         self.cpu_write8((value >> 8) as u8, addr_wrapping_add(addr, 1));
@@ -387,10 +390,12 @@ pub fn page_wrapping_add(addr: u32, offset: u8) -> u32 {
     (addr & 0xFFFF00) | ((addr as u8).wrapping_add(offset) as u32)
 }
 
+#[allow(dead_code)]
 pub fn bank_wrapping_sub(addr: u32, offset: u16) -> u32 {
     (addr & 0xFF0000) | ((addr as u16).wrapping_sub(offset) as u32)
 }
 
+#[allow(dead_code)]
 pub fn page_wrapping_sub(addr: u32, offset: u8) -> u32 {
     (addr & 0xFFFF00) | ((addr as u8).wrapping_sub(offset) as u32)
 }

@@ -732,6 +732,7 @@ impl Cpu {
         )
     }
 
+    #[allow(unused_variables)]
     pub fn imm(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
         (
             addr_8_16(self.pb, self.pc.wrapping_add(1)),
@@ -816,6 +817,7 @@ impl Cpu {
         self.decrement_s(1);
     }
 
+    #[allow(dead_code)]
     fn push24(&mut self, value: u32, abus: &mut ABus) {
         self.decrement_s(2);
         if self.e {
@@ -843,6 +845,7 @@ impl Cpu {
         value
     }
 
+    #[allow(dead_code)]
     fn pull24(&mut self, abus: &mut ABus) -> u32 {
         self.increment_s(1);
         let value: u32;

@@ -253,7 +253,6 @@ fn disassemble(addr: u32, cpu: &Cpu, abus: &mut ABus) {
             format!("{0} (${1:02X},S),Y", opname, operand8),
             str_full_addr!(cpu.stack_ptr16_y(addr, abus).0),
         ),
-        _ => unreachable!(),
     };
     print!(
         " {0:<8} {1:<13} {2:<10}",
