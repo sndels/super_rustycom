@@ -1,7 +1,8 @@
 use std::io::{self, Write};
 use std::u32;
-use cpu::Cpu;
 use abus::ABus;
+use cpu::Cpu;
+use mmap;
 
 pub struct Debugger {
     pub breakpoint: u32,
@@ -68,10 +69,10 @@ impl Debugger {
 }
 
 fn disassemble(addr: u32, cpu: &Cpu, abus: &mut ABus) {
-    let opcode = abus.cpu_read8(addr);
+    let opcode = mmap::cpu_read8(abus, addr);
     let opname = OPNAMES[opcode as usize];
     let opmode = ADDR_MODES[opcode as usize];
-    let operand24 = abus.fetch_operand24(addr);
+    let operand24 = mmap::fetch_operand24(abus, addr);
     let operand16 = operand24 as u16;
     let operand8 = operand24 as u8;
 

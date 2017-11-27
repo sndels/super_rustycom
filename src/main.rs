@@ -19,8 +19,8 @@ fn main() {
     let mut cpu = Cpu::new(&mut abus);
     let mut debugger = Debugger::new();
     // Hack past the apu check in elix_nu
-    abus.apu_write8(0xAA, 0x00);
-    abus.apu_write8(0xBB, 0x01);
+    mmap::apu_write8(&mut abus, 0xAA, 0x00);
+    mmap::apu_write8(&mut abus, 0xBB, 0x01);
     loop {
         if debugger.quit {
             break;

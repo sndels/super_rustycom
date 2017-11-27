@@ -1,3 +1,5 @@
+use abus::ABus;
+
 // Memory map
 pub const WS1_SYSLR_FIRST_BANK: usize = 0x00;
 pub const WS1_SYSLR_LAST_BANK: usize = 0x3F;
@@ -146,3 +148,394 @@ pub const APUI00: usize = 0x2140;
 pub const APUI01: usize = 0x2141;
 pub const APUI02: usize = 0x2142;
 pub const APUI03: usize = 0x2143;
+
+pub fn cpu_read_sys(abus: &mut ABus, addr: usize) -> u8 {
+    match addr {
+        WRAM_MIRR_FIRST...WRAM_MIRR_LAST => abus.wram[addr],
+        PPU_IO_FIRST...PPU_IO_LAST => {
+            // PPU IO
+            if addr < MPYL {
+                panic!("Read ${:06X}: PPU IO write-only for cpu", addr);
+            }
+            abus.ppu_io.read(addr)
+        }
+        APU_IO_FIRST...APU_IO_LAST => {
+            // APU IO
+            let apu_port = if addr < 0x2144 { addr } else { addr - 4 };
+            match apu_port {
+                APUI00 => abus.apu_io0,
+                APUI01 => abus.apu_io1,
+                APUI02 => abus.apu_io2,
+                APUI03 => abus.apu_io3,
+                _ => unreachable!(),
+            }
+        }
+        WMDATA => {
+            let wram_addr = ((abus.wm_add_h as usize) << 16) | ((abus.wm_add_m as usize) << 8)
+                | (abus.wm_add_l as usize);
+            abus.wram[wram_addr]
+        }
+        JOYA => abus.joy_io.joy_a,
+        JOYB => abus.joy_io.joy_b,
+        RDNMI => {
+            let val = abus.rd_nmi;
+            abus.rd_nmi &= 0b0111_1111;
+            val
+        }
+        TIMEUP => {
+            let val = abus.time_up;
+            abus.time_up &= 0b0111_1111;
+            val
+        }
+        HVBJOY => abus.hvb_joy,
+        RDIO => abus.joy_io.rd_io,
+        RDDIVL => abus.mpy_div.get_div_res_low(),
+        RDDIVH => abus.mpy_div.get_div_res_high(),
+        RDMPYL => abus.mpy_div.get_mpy_res_low(),
+        RDMPYH => abus.mpy_div.get_mpy_res_high(),
+        JOY1L => abus.joy_io.joy_1l,
+        JOY1H => abus.joy_io.joy_1h,
+        JOY2L => abus.joy_io.joy_2l,
+        JOY2H => abus.joy_io.joy_2h,
+        JOY3L => abus.joy_io.joy_3l,
+        JOY3H => abus.joy_io.joy_3h,
+        JOY4L => abus.joy_io.joy_4l,
+        JOY4H => abus.joy_io.joy_4h,
+        DMA_FIRST...DMA_LAST => {
+            // DMA
+            abus.dma.read(addr)
+        }
+        EXP_FIRST...EXP_LAST => {
+            // Expansion
+            panic!("Read ${:06X}: Expansion not implemented", addr)
+        }
+        _ => panic!(
+            "System area read ${:04X}: Address unused or write-only",
+            addr
+        ),
+    }
+}
+
+pub fn cpu_read8(abus: &mut ABus, addr: u32) -> u8 {
+    let bank = (addr >> 16) as usize;
+    let bank_addr = (addr & 0x00FFFF) as usize;
+    match bank {
+        WS1_SYSLR_FIRST_BANK...WS1_SYSLR_LAST_BANK => match bank_addr {
+            SYS_FIRST...SYS_LAST => cpu_read_sys(abus, bank_addr),
+            LOROM_FIRST...LOROM_LAST => abus.rom.read_ws1_lo_rom8(bank, bank_addr),
+            _ => unreachable!(),
+        },
+        WS1_HIROM_FIRST_BANK...WS1_HIROM_LAST_BANK => abus.rom.read_ws1_hi_rom8(bank, bank_addr),
+        WRAM_FIRST_BANK...WRAM_LAST_BANK => {
+            abus.wram[(bank - WRAM_FIRST_BANK) * 0x10000 + bank_addr]
+        }
+        WS2_SYSLR_FIRST_BANK...WS2_SYSLR_LAST_BANK => match bank_addr {
+            SYS_FIRST...SYS_LAST => cpu_read_sys(abus, bank_addr),
+            LOROM_FIRST...LOROM_LAST => abus.rom.read_ws2_lo_rom8(bank, bank_addr),
+            _ => unreachable!(),
+        },
+        WS2_HIROM_FIRST_BANK...WS2_HIROM_LAST_BANK => abus.rom.read_ws2_hi_rom8(bank, bank_addr),
+        _ => unreachable!(),
+    }
+}
+
+#[allow(dead_code)]
+pub fn apu_read8(abus: &mut ABus, reg: u8) -> u8 {
+    match reg {
+        0x00 => abus.apu_io0,
+        0x01 => abus.apu_io1,
+        0x02 => abus.apu_io2,
+        0x03 => abus.apu_io3,
+        _ => panic!("APU read from invalid IO register!"),
+    }
+}
+
+pub fn addr_wrapping_cpu_read16(abus: &mut ABus, addr: u32) -> u16 {
+    cpu_read8(abus, addr) as u16 | ((cpu_read8(abus, addr_wrapping_add(addr, 1)) as u16) << 8)
+}
+
+#[allow(dead_code)]
+pub fn addr_wrapping_cpu_read24(abus: &mut ABus, addr: u32) -> u32 {
+    cpu_read8(abus, addr) as u32 | ((cpu_read8(abus, addr_wrapping_add(addr, 1)) as u32) << 8)
+        | ((cpu_read8(abus, addr_wrapping_add(addr, 2)) as u32) << 16)
+}
+
+pub fn bank_wrapping_cpu_read16(abus: &mut ABus, addr: u32) -> u16 {
+    cpu_read8(abus, addr) as u16 | ((cpu_read8(abus, bank_wrapping_add(addr, 1)) as u16) << 8)
+}
+
+pub fn bank_wrapping_cpu_read24(abus: &mut ABus, addr: u32) -> u32 {
+    cpu_read8(abus, addr) as u32 | ((cpu_read8(abus, bank_wrapping_add(addr, 1)) as u32) << 8)
+        | ((cpu_read8(abus, bank_wrapping_add(addr, 2)) as u32) << 16)
+}
+
+pub fn page_wrapping_cpu_read16(abus: &mut ABus, addr: u32) -> u16 {
+    cpu_read8(abus, addr) as u16 | ((cpu_read8(abus, page_wrapping_add(addr, 1)) as u16) << 8)
+}
+
+#[allow(dead_code)]
+pub fn page_wrapping_cpu_read24(abus: &mut ABus, addr: u32) -> u32 {
+    cpu_read8(abus, addr) as u32 | ((cpu_read8(abus, page_wrapping_add(addr, 1)) as u32) << 8)
+        | ((cpu_read8(abus, page_wrapping_add(addr, 2)) as u32) << 16)
+}
+
+pub fn fetch_operand8(abus: &mut ABus, addr: u32) -> u8 {
+    cpu_read8(abus, bank_wrapping_add(addr, 1))
+}
+
+pub fn fetch_operand16(abus: &mut ABus, addr: u32) -> u16 {
+    bank_wrapping_cpu_read16(abus, bank_wrapping_add(addr, 1))
+}
+
+pub fn fetch_operand24(abus: &mut ABus, addr: u32) -> u32 {
+    bank_wrapping_cpu_read24(abus, bank_wrapping_add(addr, 1))
+}
+
+fn cpu_write_sys(abus: &mut ABus, value: u8, addr: usize) {
+    match addr {
+        WRAM_MIRR_FIRST...WRAM_MIRR_LAST => {
+            // WRAM
+            abus.wram[addr] = value
+        }
+        PPU_IO_FIRST...PPU_IO_LAST => {
+            // PPU IO
+            if addr > SETINI {
+                panic!("Write ${:06X}: PPU IO read-only for cpu", addr);
+            }
+            abus.ppu_io.write(value, addr);
+        }
+        APU_IO_FIRST...APU_IO_LAST => {
+            // APU IO
+            let apu_port = if addr < 0x2144 { addr } else { addr - 4 };
+            match apu_port {
+                APUI00 => abus.apu_io0 = value,
+                APUI01 => abus.apu_io1 = value,
+                APUI02 => abus.apu_io2 = value,
+                APUI03 => abus.apu_io3 = value,
+                _ => unreachable!(),
+            }
+        }
+        WMDATA => {
+            let wram_addr = ((abus.wm_add_h as usize) << 16) | ((abus.wm_add_m as usize) << 8)
+                | (abus.wm_add_l as usize);
+            abus.wram[wram_addr] = value;
+        }
+        WMADDL => abus.wm_add_l = value,
+        WMADDM => abus.wm_add_m = value,
+        WMADDH => abus.wm_add_h = value,
+        JOYWR => abus.joy_io.joy_wr = value,
+        NMITIMEN => abus.nmitimen = value,
+        WRIO => abus.joy_io.wr_io = value,
+        WRMPYA => abus.mpy_div.set_mpy_a(value),
+        WRMPYB => abus.mpy_div.set_mpy_b(value),
+        WRDIVL => abus.mpy_div.set_dividend_low(value),
+        WRDIVH => abus.mpy_div.set_dividend_high(value),
+        WRDIVB => abus.mpy_div.set_divisor(value),
+        HTIMEL => abus.htime = (abus.htime & 0xFF00) | value as u16,
+        HTIMEH => abus.htime = ((value as u16) << 8) | (abus.htime & 0x00FF),
+        VTIMEL => abus.vtime = (abus.vtime & 0xFF00) | value as u16,
+        VTIMEH => abus.vtime = ((value as u16) << 8) | (abus.vtime & 0x00FF),
+        MDMAEN => abus.dma.write_mdma_en(value),
+        HDMAEN => abus.dma.write_hdma_en(value),
+        MEMSEL => abus.memsel = value,
+        DMA_FIRST...DMA_LAST => {
+            // DMA
+            abus.dma.write(value, addr);
+        }
+        EXP_FIRST...EXP_LAST => {
+            // Expansion
+            panic!("Write ${:06X}: Expansion not implemented", addr)
+        }
+        _ => panic!(
+            "System area write ${:04X}: Address unused or read-only",
+            addr
+        ),
+    }
+}
+
+pub fn cpu_write8(abus: &mut ABus, value: u8, addr: u32) {
+    let bank = (addr >> 16) as usize;
+    let bank_addr = (addr & 0x00FFFF) as usize;
+    match bank {
+        WS1_SYSLR_FIRST_BANK...WS1_SYSLR_LAST_BANK => match bank_addr {
+            SYS_FIRST...SYS_LAST => cpu_write_sys(abus, value, bank_addr),
+            LOROM_FIRST...LOROM_LAST => {
+                abus.rom.write_ws1_lo_rom8(value, bank, bank_addr);
+            }
+            _ => unreachable!(),
+        },
+        WS1_HIROM_FIRST_BANK...WS1_HIROM_LAST_BANK => {
+            abus.rom.write_ws1_hi_rom8(value, bank, bank_addr);
+        }
+        WRAM_FIRST_BANK...WRAM_LAST_BANK => {
+            abus.wram[(bank - WRAM_FIRST_BANK) * 0x10000 + bank_addr] = value;
+        }
+        WS2_SYSLR_FIRST_BANK...WS2_SYSLR_LAST_BANK => match bank_addr {
+            SYS_FIRST...SYS_LAST => cpu_write_sys(abus, value, bank_addr),
+            LOROM_FIRST...LOROM_LAST => {
+                abus.rom.write_ws2_lo_rom8(value, bank, bank_addr);
+            }
+            _ => unreachable!(),
+        },
+        WS2_HIROM_FIRST_BANK...WS2_HIROM_LAST_BANK => {
+            abus.rom.write_ws2_hi_rom8(value, bank, bank_addr);
+        }
+        _ => unreachable!(),
+    }
+}
+
+pub fn apu_write8(abus: &mut ABus, value: u8, reg: u8) {
+    match reg {
+        0x00 => abus.apu_io0 = value,
+        0x01 => abus.apu_io1 = value,
+        0x02 => abus.apu_io2 = value,
+        0x03 => abus.apu_io3 = value,
+        _ => panic!("APU write to invalid IO register!"),
+    }
+}
+
+pub fn addr_wrapping_cpu_write16(abus: &mut ABus, value: u16, addr: u32) {
+    cpu_write8(abus, value as u8, addr);
+    cpu_write8(abus, (value >> 8) as u8, addr_wrapping_add(addr, 1));
+}
+
+#[allow(dead_code)]
+pub fn addr_wrapping_cpu_write24(abus: &mut ABus, value: u32, addr: u32) {
+    cpu_write8(abus, value as u8, addr);
+    cpu_write8(abus, (value >> 8) as u8, addr_wrapping_add(addr, 1));
+    cpu_write8(abus, (value >> 16) as u8, addr_wrapping_add(addr, 2));
+}
+
+pub fn bank_wrapping_cpu_write16(abus: &mut ABus, value: u16, addr: u32) {
+    cpu_write8(abus, value as u8, addr);
+    cpu_write8(abus, (value >> 8) as u8, bank_wrapping_add(addr, 1));
+}
+
+#[allow(dead_code)]
+pub fn bank_wrapping_cpu_write24(abus: &mut ABus, value: u32, addr: u32) {
+    cpu_write8(abus, value as u8, addr);
+    cpu_write8(abus, (value >> 8) as u8, bank_wrapping_add(addr, 1));
+    cpu_write8(abus, (value >> 16) as u8, bank_wrapping_add(addr, 2));
+}
+
+pub fn page_wrapping_cpu_write16(abus: &mut ABus, value: u16, addr: u32) {
+    cpu_write8(abus, value as u8, addr);
+    cpu_write8(abus, (value >> 8) as u8, page_wrapping_add(addr, 1));
+}
+
+#[allow(dead_code)]
+pub fn page_wrapping_cpu_write24(abus: &mut ABus, value: u32, addr: u32) {
+    cpu_write8(abus, value as u8, addr);
+    cpu_write8(abus, (value >> 8) as u8, page_wrapping_add(addr, 1));
+    cpu_write8(abus, (value >> 16) as u8, page_wrapping_add(addr, 2));
+}
+
+pub fn addr_wrapping_add(addr: u32, offset: u32) -> u32 { (addr + offset) & 0x00FFFFFF }
+
+pub fn bank_wrapping_add(addr: u32, offset: u16) -> u32 {
+    (addr & 0xFF0000) | ((addr as u16).wrapping_add(offset) as u32)
+}
+
+pub fn page_wrapping_add(addr: u32, offset: u8) -> u32 {
+    (addr & 0xFFFF00) | ((addr as u8).wrapping_add(offset) as u32)
+}
+
+#[allow(dead_code)]
+pub fn bank_wrapping_sub(addr: u32, offset: u16) -> u32 {
+    (addr & 0xFF0000) | ((addr as u16).wrapping_sub(offset) as u32)
+}
+
+#[allow(dead_code)]
+pub fn page_wrapping_sub(addr: u32, offset: u8) -> u32 {
+    (addr & 0xFFFF00) | ((addr as u8).wrapping_sub(offset) as u32)
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn wrapping_adds() {
+        assert_eq!(0xAAABA9, bank_wrapping_add(0xAAAAAA, 0xFF));
+        assert_eq!(0xAA2AA9, bank_wrapping_add(0xAAAAAA, 0x7FFF));
+        assert_eq!(0xAAAAB9, page_wrapping_add(0xAAAAAA, 0xF));
+        assert_eq!(0xAAAA29, page_wrapping_add(0xAAAAAA, 0x7F));
+    }
+
+    #[test]
+    fn wrapping_subs() {
+        assert_eq!(0xAAA9AB, bank_wrapping_sub(0xAAAAAA, 0xFF));
+        assert_eq!(0xAA2AAB, bank_wrapping_sub(0xAAAAAA, 0x7FFF));
+        assert_eq!(0xAAAA9B, page_wrapping_sub(0xAAAAAA, 0xF));
+        assert_eq!(0xAAAA2B, page_wrapping_sub(0xAAAAAA, 0x7F));
+    }
+
+    #[test]
+    fn cpu_wrapping_reads() {
+        let mut abus = ABus::new_empty_rom();
+        abus.wram[0x100FF] = 0xEF;
+        abus.wram[0x10000] = 0xCD;
+        abus.wram[0x10001] = 0xAB;
+        assert_eq!(0xCDEF, page_wrapping_cpu_read16(&mut abus, 0x7F00FF));
+        assert_eq!(0xABCDEF, page_wrapping_cpu_read24(&mut abus, 0x7F00FF));
+        abus.wram[0x100FF] = 0x0;
+        abus.wram[0x1FFFF] = 0xEF;
+        assert_eq!(0xCDEF, bank_wrapping_cpu_read16(&mut abus, 0x7FFFFF));
+        assert_eq!(0xABCDEF, bank_wrapping_cpu_read24(&mut abus, 0x7FFFFF));
+    }
+
+    #[test]
+    fn cpu_wrapping_writes() {
+        let mut abus = ABus::new_empty_rom();
+        bank_wrapping_cpu_write16(&mut abus, 0xABCD, 0x7FFFFF);
+        assert_eq!(0xCD, abus.wram[0x1FFFF]);
+        assert_eq!(0xAB, abus.wram[0x10000]);
+        abus.wram[0x1FFFF] = 0x0;
+        abus.wram[0x10000] = 0x0;
+        bank_wrapping_cpu_write24(&mut abus, 0xABCDEF, 0x7FFFFF);
+        assert_eq!(0xEF, abus.wram[0x1FFFF]);
+        assert_eq!(0xCD, abus.wram[0x10000]);
+        assert_eq!(0xAB, abus.wram[0x10001]);
+        abus.wram[0x1FFFF] = 0x0;
+        abus.wram[0x10000] = 0x0;
+        abus.wram[0x10001] = 0x0;
+        page_wrapping_cpu_write16(&mut abus, 0xABCD, 0x7F00FF);
+        assert_eq!(0xCD, abus.wram[0x100FF]);
+        assert_eq!(0xAB, abus.wram[0x10000]);
+        abus.wram[0x100FF] = 0x0;
+        abus.wram[0x10000] = 0x0;
+        page_wrapping_cpu_write24(&mut abus, 0xABCDEF, 0x7F00FF);
+        assert_eq!(0xEF, abus.wram[0x100FF]);
+        assert_eq!(0xCD, abus.wram[0x10000]);
+        assert_eq!(0xAB, abus.wram[0x10001]);
+    }
+
+    #[test]
+    fn fetch_operand() {
+        let mut abus = ABus::new_empty_rom();
+        abus.wram[0x1FFFD] = 0x9A;
+        abus.wram[0x1FFFE] = 0x78;
+        abus.wram[0x1FFFF] = 0x56;
+        abus.wram[0x10000] = 0x34;
+        abus.wram[0x10001] = 0x12;
+        assert_eq!(0x56, fetch_operand8(&mut abus, 0x7FFFFE));
+        assert_eq!(0x34, fetch_operand8(&mut abus, 0x7FFFFF));
+        assert_eq!(0x5678, fetch_operand16(&mut abus, 0x7FFFFD));
+        assert_eq!(0x3456, fetch_operand16(&mut abus, 0x7FFFFE));
+        assert_eq!(0x56789A, fetch_operand24(&mut abus, 0x7FFFFC));
+        assert_eq!(0x123456, fetch_operand24(&mut abus, 0x7FFFFE));
+    }
+
+    #[test]
+    fn cpu_read_system_area() {
+        let mut abus = ABus::new_empty_rom();
+        // WRAM
+        for i in 0..0x2000 {
+            abus.wram[i] = 0xAA;
+        }
+        for i in 0..0x2000 {
+            assert_eq!(0xAA, cpu_read8(&mut abus, i));
+        }
+    }
+}
