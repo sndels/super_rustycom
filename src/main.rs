@@ -4,6 +4,7 @@ mod debugger;
 mod dma;
 mod joypad;
 mod mmap;
+mod mpydiv;
 mod op;
 mod ppu_io;
 mod rom;
