@@ -2,10 +2,11 @@ mod abus;
 mod cpu;
 mod debugger;
 mod dma;
+mod joypad;
 mod mmap;
+mod op;
 mod ppu_io;
 mod rom;
-mod op;
 
 use std::env;
 
