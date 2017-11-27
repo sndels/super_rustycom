@@ -1,5 +1,3 @@
-use std::env;
-
 mod abus;
 mod cpu;
 mod debugger;
@@ -8,6 +6,8 @@ mod mmap;
 mod ppu_io;
 mod rom;
 mod op;
+
+use std::env;
 
 use abus::ABus;
 use cpu::Cpu;

@@ -13,7 +13,7 @@ enum RomChipset {
     // TODO: Support more types
 }
 
-enum RomRamsize{
+enum RomRamsize {
     Zero = 0x0,
     // TODO: Support more types
 }
@@ -28,11 +28,13 @@ impl Rom {
         // Load rom from file
         let mut rom_file = File::open(&rom_path).expect("Opening rom failed");
         let mut rom_bytes = Vec::new();
-        let read_bytes = rom_file.read_to_end(&mut rom_bytes).expect("Reading rom to bytes failed");
+        let read_bytes = rom_file
+            .read_to_end(&mut rom_bytes)
+            .expect("Reading rom to bytes failed");
         println!("Read {} bytes from {}", read_bytes, rom_path);
 
         // Check that the rom-type is supported
-        assert!((rom_bytes[0x7FD5] | 0b0010_0000) == RomMakeup::SlowLoRom as u8); // Homebrews might have this as 0x00
+        assert!((rom_bytes[0x7FD5] | 0b0010_0000) == RomMakeup::SlowLoRom as u8);
         assert!(rom_bytes[0x7FD6] == RomChipset::Rom as u8);
         assert!(rom_bytes[0x7FD8] == RomRamsize::Zero as u8);
 
@@ -53,13 +55,9 @@ impl Rom {
         self.rom[bank * mmap::LOROM_FIRST + offset]
     }
 
-    pub fn read_ws1_hi_rom8(&self, bank: usize, bank_addr: usize) -> u8 {
-        unimplemented!()
-    }
+    pub fn read_ws1_hi_rom8(&self, bank: usize, bank_addr: usize) -> u8 { unimplemented!() }
 
-    pub fn read_ws2_lo_rom8(&self, bank: usize, bank_addr: usize) -> u8 {
-        unimplemented!()
-    }
+    pub fn read_ws2_lo_rom8(&self, bank: usize, bank_addr: usize) -> u8 { unimplemented!() }
 
     pub fn read_ws2_hi_rom8(&self, bank: usize, bank_addr: usize) -> u8 {
         self.rom[((bank - mmap::WS2_HIROM_FIRST_BANK) << 16) | bank_addr]
