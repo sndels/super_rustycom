@@ -4,11 +4,16 @@ use mpydiv::MpyDiv;
 use ppu_io::PpuIo;
 use rom::Rom;
 
+const WRAM_SIZE: usize = 128 * 1024;
+const VRAM_SIZE: usize = 64 * 1024;
+const OAM_SIZE: usize = 544;
+const CGRAM_SIZE: usize = 512;
+
 pub struct ABus {
-    pub wram: [u8; 131072],
-    pub vram: [u8; 65536],
-    pub oam: [u8; 544],
-    pub cgram: [u8; 512],
+    pub wram: Box<[u8]>,
+    pub vram: Box<[u8]>,
+    pub oam: Box<[u8]>,
+    pub cgram: Box<[u8]>,
     pub rom: Rom,
     pub mpy_div: MpyDiv,
     pub ppu_io: PpuIo,
@@ -44,10 +49,10 @@ impl ABus {
     // TODO: Randomize values?
     pub fn new(rom_path: &String) -> ABus {
         ABus {
-            wram: [0; 131072],
-            vram: [0; 65536],
-            oam: [0; 544],
-            cgram: [0; 512],
+            wram: Box::new([0; WRAM_SIZE]),
+            vram: Box::new([0; VRAM_SIZE]),
+            oam: Box::new([0; OAM_SIZE]),
+            cgram: Box::new([0; CGRAM_SIZE]),
             rom: Rom::new(rom_path),
             mpy_div: MpyDiv::new(),
             ppu_io: PpuIo::new(),
@@ -73,10 +78,10 @@ impl ABus {
     #[cfg(test)]
     pub fn new_empty_rom() -> ABus {
         ABus {
-            wram: [0; 131072],
-            vram: [0; 65536],
-            oam: [0; 544],
-            cgram: [0; 512],
+            wram: Box::new([0; WRAM_SIZE]),
+            vram: Box::new([0; VRAM_SIZE]),
+            oam: Box::new([0; OAM_SIZE]),
+            cgram: Box::new([0; CGRAM_SIZE]),
             rom: Rom::new_empty(),
             mpy_div: MpyDiv::new(),
             ppu_io: PpuIo::new(),
