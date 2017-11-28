@@ -1,8 +1,8 @@
 use std::io::{self, Write};
 use std::u32;
-use abus::ABus;
-use cpu::W65C816S;
-use mmap;
+use super_rustycom_core::abus::ABus;
+use super_rustycom_core::cpu::W65C816S;
+use super_rustycom_core::mmap;
 
 pub struct Debugger {
     pub breakpoint: u32,
