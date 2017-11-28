@@ -8,7 +8,7 @@ use super_rustycom_core::abus::ABus;
 use super_rustycom_core::cpu::W65C816S;
 use super_rustycom_core::mmap;
 use debugger::Debugger;
-use debugger::disassemble;
+use debugger::disassemble_current;
 
 fn main() {
     let rom_path = env::args().nth(1).expect("No rom defined");
@@ -28,7 +28,7 @@ fn main() {
                 cpu.step(&mut abus); // Step before loop to skip redundant disassembly
                 while cpu.current_address() != debugger.breakpoint {
                     if debugger.disassemble {
-                        disassemble(cpu.current_address(), &cpu, &mut abus)
+                        disassemble_current(&cpu, &mut abus)
                     }
                     cpu.step(&mut abus);
                 }
