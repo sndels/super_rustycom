@@ -68,7 +68,7 @@ impl Dma {
         }
     }
 
-    pub fn write(&mut self, value: u8, addr: usize) {
+    pub fn write(&mut self, addr: usize, value: u8) {
         let port = addr & 0x000F;
         let channel = (addr & 0x00F0) >> 4;
         match port {

@@ -219,7 +219,7 @@ impl PpuIo {
         }
     }
 
-    pub fn write(&mut self, value: u8, addr: usize) {
+    pub fn write(&mut self, addr: usize, value: u8) {
         match addr {
             mmap::INIDISP => self.ini_disp = value,
             mmap::OBSEL => self.ob_sel = value,
