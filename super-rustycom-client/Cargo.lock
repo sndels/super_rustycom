@@ -1,0 +1,11 @@
+[[package]]
+name = "super-rustycom-core"
+version = "0.1.0"
+
+[[package]]
+name = "super_rustycom_client"
+version = "0.1.0"
+dependencies = [
+ "super-rustycom-core 0.1.0",
+]
+

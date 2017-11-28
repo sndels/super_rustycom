@@ -1,18 +1,12 @@
-mod abus;
-mod cpu;
+extern crate super_rustycom_core;
+
 mod debugger;
-mod dma;
-mod joypad;
-mod mmap;
-mod mpydiv;
-mod op;
-mod ppu_io;
-mod rom;
 
 use std::env;
 
-use abus::ABus;
-use cpu::W65C816S;
+use super_rustycom_core::abus::ABus;
+use super_rustycom_core::cpu::W65C816S;
+use super_rustycom_core::mmap;
 use debugger::Debugger;
 use debugger::disassemble;
 

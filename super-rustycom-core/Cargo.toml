@@ -1,5 +1,5 @@
 [package]
-name = "super_rustycom"
+name = "super-rustycom-core"
 version = "0.1.0"
 authors = ["Santeri Salmijärvi <santeri.salmijarvi@aalto.fi>"]
 
