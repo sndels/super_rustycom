@@ -22,7 +22,7 @@ impl Debugger {
     }
 
     pub fn take_command(&mut self, cpu: &mut W65C816S, abus: &mut ABus) {
-        disassemble(cpu.current_address(), cpu, abus);
+        disassemble_current(cpu, abus);
         print!("(debug) ");
         io::stdout().flush().unwrap();
         let mut command_str = String::new();
@@ -50,7 +50,7 @@ impl Debugger {
                                 cpu.step(abus); // Step before loop to skip redundant disassembly
                                 for step in 1..s {
                                     if self.disassemble && step > 0 {
-                                        disassemble(cpu.current_address(), cpu, abus);
+                                        disassemble_current(cpu, abus);
                                     }
                                     cpu.step(abus);
                                 }
@@ -85,7 +85,11 @@ impl Debugger {
     }
 }
 
-pub fn disassemble(addr: u32, cpu: &W65C816S, abus: &mut ABus) {
+pub fn disassemble_current(cpu: &W65C816S, abus: &mut ABus) {
+    disassemble(cpu.current_address(), cpu, abus);
+}
+
+fn disassemble(addr: u32, cpu: &W65C816S, abus: &mut ABus) {
     let opcode = mmap::cpu_read8(abus, addr);
     let opname = OPNAMES[opcode as usize];
     let opmode = ADDR_MODES[opcode as usize];
