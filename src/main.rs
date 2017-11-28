@@ -14,6 +14,7 @@ use std::env;
 use abus::ABus;
 use cpu::W65C816S;
 use debugger::Debugger;
+use debugger::disassemble;
 
 fn main() {
     let rom_path = env::args().nth(1).expect("No rom defined");
@@ -29,8 +30,14 @@ fn main() {
         } else if debugger.active {
             debugger.take_command(&mut cpu, &mut abus);
         } else {
-            while cpu.current_address() != debugger.breakpoint {
-                cpu.step(&mut abus);
+            if cpu.current_address() != debugger.breakpoint {
+                cpu.step(&mut abus); // Step before loop to skip redundant disassembly
+                while cpu.current_address() != debugger.breakpoint {
+                    if debugger.disassemble {
+                        disassemble(cpu.current_address(), &cpu, &mut abus)
+                    }
+                    cpu.step(&mut abus);
+                }
             }
             debugger.active = true;
         }

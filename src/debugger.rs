@@ -7,6 +7,7 @@ use mmap;
 pub struct Debugger {
     pub breakpoint: u32,
     pub active: bool,
+    pub disassemble: bool,
     pub quit: bool,
 }
 
@@ -15,6 +16,7 @@ impl Debugger {
         Debugger {
             breakpoint: 0x0,
             active: true,
+            disassemble: true,
             quit: false,
         }
     }
@@ -30,15 +32,30 @@ impl Debugger {
         let arg_vec = command_str.trim().split_whitespace().collect::<Vec<&str>>();
         if arg_vec.len() > 0 {
             match arg_vec[0] {
+                "disassemble" | "da" => {
+                    self.disassemble = !self.disassemble;
+                    if self.disassemble {
+                        println!("Toggled continious disassembly on");
+                    } else {
+                        println!("Toggled continious disassembly off");
+                    }
+                }
                 "step" | "s" => if arg_vec.len() == 1 {
                     cpu.step(abus);
                 } else {
                     let steps = arg_vec[1].parse::<usize>();
                     match steps {
-                        Ok(s) => for _ in 0..s {
-                            disassemble(cpu.current_address(), cpu, abus);
-                            cpu.step(abus);
-                        },
+                        Ok(s) => {
+                            if s > 0 {
+                                cpu.step(abus); // Step before loop to skip redundant disassembly
+                                for step in 1..s {
+                                    if self.disassemble && step > 0 {
+                                        disassemble(cpu.current_address(), cpu, abus);
+                                    }
+                                    cpu.step(abus);
+                                }
+                            }
+                        }
                         Err(e) => println!("Error parsing step: {}", e),
                     }
                 },
@@ -68,7 +85,7 @@ impl Debugger {
     }
 }
 
-fn disassemble(addr: u32, cpu: &W65C816S, abus: &mut ABus) {
+pub fn disassemble(addr: u32, cpu: &W65C816S, abus: &mut ABus) {
     let opcode = mmap::cpu_read8(abus, addr);
     let opname = OPNAMES[opcode as usize];
     let opmode = ADDR_MODES[opcode as usize];
