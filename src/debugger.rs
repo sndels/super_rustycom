@@ -1,7 +1,7 @@
 use std::io::{self, Write};
 use std::u32;
 use abus::ABus;
-use cpu::Cpu;
+use cpu::W65C816S;
 use mmap;
 
 pub struct Debugger {
@@ -19,7 +19,7 @@ impl Debugger {
         }
     }
 
-    pub fn take_command(&mut self, cpu: &mut Cpu, abus: &mut ABus) {
+    pub fn take_command(&mut self, cpu: &mut W65C816S, abus: &mut ABus) {
         disassemble(cpu.current_address(), cpu, abus);
         print!("(debug) ");
         io::stdout().flush().unwrap();
@@ -68,7 +68,7 @@ impl Debugger {
     }
 }
 
-fn disassemble(addr: u32, cpu: &Cpu, abus: &mut ABus) {
+fn disassemble(addr: u32, cpu: &W65C816S, abus: &mut ABus) {
     let opcode = mmap::cpu_read8(abus, addr);
     let opname = OPNAMES[opcode as usize];
     let opmode = ADDR_MODES[opcode as usize];
@@ -273,7 +273,7 @@ fn disassemble(addr: u32, cpu: &Cpu, abus: &mut ABus) {
     );
 }
 
-fn status_str(cpu: &Cpu) -> String {
+fn status_str(cpu: &W65C816S) -> String {
     let mut status = String::new();
     status.push(if cpu.e() { 'E' } else { 'e' });
     status.push(if cpu.p_n() { 'N' } else { 'n' });

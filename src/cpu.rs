@@ -2,7 +2,7 @@ use abus::ABus;
 use mmap;
 use op;
 
-pub struct Cpu {
+pub struct W65C816S {
     a: u16,        // Accumulator
     x: u16,        // Index register
     y: u16,        // Index register
@@ -17,9 +17,9 @@ pub struct Cpu {
     waiting: bool, // Waiting for an interrupt
 }
 
-impl Cpu {
-    pub fn new(abus: &mut ABus) -> Cpu {
-        Cpu {
+impl W65C816S {
+    pub fn new(abus: &mut ABus) -> W65C816S {
+        W65C816S {
             a: 0x00,
             x: 0x00,
             y: 0x00,
@@ -1792,7 +1792,7 @@ mod tests {
     #[test]
     fn stack_push() {
         let mut abus = ABus::new_empty_rom();
-        let mut cpu = Cpu::new(&mut abus);
+        let mut cpu = W65C816S::new(&mut abus);
         cpu.s = 0x01FF;
         cpu.set_emumode();
         // Regular emumode pushes
@@ -1865,7 +1865,7 @@ mod tests {
     #[test]
     fn stack_pull() {
         let mut abus = ABus::new_empty_rom();
-        let mut cpu = Cpu::new(&mut abus);
+        let mut cpu = W65C816S::new(&mut abus);
         cpu.s = 0x01FC;
         cpu.set_emumode();
         // Regular emumode pulls
@@ -1920,7 +1920,7 @@ mod tests {
     #[test]
     fn addr_abs() {
         let mut abus = ABus::new_empty_rom();
-        let mut cpu = Cpu::new(&mut abus);
+        let mut cpu = W65C816S::new(&mut abus);
         cpu.pb = 0x1A;
         cpu.db = 0x1B;
         cpu.pc = 0x0010;
@@ -2012,7 +2012,7 @@ mod tests {
     #[test]
     fn addr_dir() {
         let mut abus = ABus::new_empty_rom();
-        let mut cpu = Cpu::new(&mut abus);
+        let mut cpu = W65C816S::new(&mut abus);
         cpu.pb = 0x7E;
         cpu.db = 0x7F;
         cpu.pc = 0x0010;
@@ -2208,7 +2208,7 @@ mod tests {
     #[test]
     fn addr_imm() {
         let mut abus = ABus::new_empty_rom();
-        let mut cpu = Cpu::new(&mut abus);
+        let mut cpu = W65C816S::new(&mut abus);
         cpu.pb = 0x12;
         cpu.pc = 0x3456;
         assert_eq!(0x123457, cpu.imm(0x123456, &mut abus).0);
@@ -2220,7 +2220,7 @@ mod tests {
     #[test]
     fn addr_long() {
         let mut abus = ABus::new_empty_rom();
-        let mut cpu = Cpu::new(&mut abus);
+        let mut cpu = W65C816S::new(&mut abus);
         cpu.pb = 0x00;
         cpu.pc = 0x0000;
         // Long
@@ -2249,7 +2249,7 @@ mod tests {
     #[test]
     fn addr_rel() {
         let mut abus = ABus::new_empty_rom();
-        let mut cpu = Cpu::new(&mut abus);
+        let mut cpu = W65C816S::new(&mut abus);
         cpu.pb = 0x45;
         cpu.pc = 0x0123;
         // Relative8
@@ -2310,7 +2310,7 @@ mod tests {
     #[test]
     fn addr_src_dest() {
         let mut abus = ABus::new_empty_rom();
-        let mut cpu = Cpu::new(&mut abus);
+        let mut cpu = W65C816S::new(&mut abus);
         cpu.pc = 0x0123;
         cpu.x = 0xABCD;
         cpu.y = 0xBCDE;
@@ -2333,7 +2333,7 @@ mod tests {
     #[test]
     fn addr_stack() {
         let mut abus = ABus::new_empty_rom();
-        let mut cpu = Cpu::new(&mut abus);
+        let mut cpu = W65C816S::new(&mut abus);
         // Stack,S
         cpu.s = 0x0123;
         mmap::cpu_write8(&mut abus, 0x45, 0x000001);
@@ -2387,7 +2387,7 @@ mod tests {
     #[test]
     fn add_8() {
         let mut abus = ABus::new_empty_rom();
-        let mut cpu = Cpu::new(&mut abus);
+        let mut cpu = W65C816S::new(&mut abus);
         cpu.e = false;
 
         // Binary arithmetic
@@ -2478,7 +2478,7 @@ mod tests {
     #[test]
     fn add_16() {
         let mut abus = ABus::new_empty_rom();
-        let mut cpu = Cpu::new(&mut abus);
+        let mut cpu = W65C816S::new(&mut abus);
         cpu.e = false;
 
         // Binary arithmetic
@@ -2568,7 +2568,7 @@ mod tests {
     #[test]
     fn sub_8() {
         let mut abus = ABus::new_empty_rom();
-        let mut cpu = Cpu::new(&mut abus);
+        let mut cpu = W65C816S::new(&mut abus);
         cpu.e = false;
 
         // Binary arithmetic, C set as lhs >= rhs
@@ -2648,7 +2648,7 @@ mod tests {
     #[test]
     fn sub_16() {
         let mut abus = ABus::new_empty_rom();
-        let mut cpu = Cpu::new(&mut abus);
+        let mut cpu = W65C816S::new(&mut abus);
         cpu.e = false;
 
         // Binary arithmetic, C set as lhs >= rhs
@@ -2728,7 +2728,7 @@ mod tests {
     #[test]
     fn compare8() {
         let mut abus = ABus::new_empty_rom();
-        let mut cpu = Cpu::new(&mut abus);
+        let mut cpu = W65C816S::new(&mut abus);
         cpu.compare8(0x12, 0x12);
         assert_eq!(false, cpu.p.n);
         assert_eq!(true, cpu.p.z);
@@ -2746,7 +2746,7 @@ mod tests {
     #[test]
     fn compare16() {
         let mut abus = ABus::new_empty_rom();
-        let mut cpu = Cpu::new(&mut abus);
+        let mut cpu = W65C816S::new(&mut abus);
         cpu.compare16(0x1234, 0x1234);
         assert_eq!(false, cpu.p.n);
         assert_eq!(true, cpu.p.z);
@@ -2764,7 +2764,7 @@ mod tests {
     #[test]
     fn arithmetic_shift_left8() {
         let mut abus = ABus::new_empty_rom();
-        let mut cpu = Cpu::new(&mut abus);
+        let mut cpu = W65C816S::new(&mut abus);
         assert_eq!(0xFE, cpu.arithmetic_shift_left8(0xFF));
         assert_eq!(true, cpu.p.c);
         assert_eq!(true, cpu.p.n);
@@ -2782,7 +2782,7 @@ mod tests {
     #[test]
     fn arithmetic_shift_left16() {
         let mut abus = ABus::new_empty_rom();
-        let mut cpu = Cpu::new(&mut abus);
+        let mut cpu = W65C816S::new(&mut abus);
         assert_eq!(0xFFFE, cpu.arithmetic_shift_left16(0xFFFF));
         assert_eq!(true, cpu.p.c);
         assert_eq!(true, cpu.p.n);
@@ -2800,7 +2800,7 @@ mod tests {
     #[test]
     fn logical_shift_right8() {
         let mut abus = ABus::new_empty_rom();
-        let mut cpu = Cpu::new(&mut abus);
+        let mut cpu = W65C816S::new(&mut abus);
         assert_eq!(0x7F, cpu.logical_shift_right8(0xFF));
         assert_eq!(true, cpu.p.c);
         assert_eq!(false, cpu.p.n);
@@ -2818,7 +2818,7 @@ mod tests {
     #[test]
     fn logical_shift_right16() {
         let mut abus = ABus::new_empty_rom();
-        let mut cpu = Cpu::new(&mut abus);
+        let mut cpu = W65C816S::new(&mut abus);
         assert_eq!(0x7FFF, cpu.logical_shift_right16(0xFFFF));
         assert_eq!(true, cpu.p.c);
         assert_eq!(false, cpu.p.n);
@@ -2836,7 +2836,7 @@ mod tests {
     #[test]
     fn rotate_left8() {
         let mut abus = ABus::new_empty_rom();
-        let mut cpu = Cpu::new(&mut abus);
+        let mut cpu = W65C816S::new(&mut abus);
         assert_eq!(0xFE, cpu.rotate_left8(0xFF));
         assert_eq!(true, cpu.p.c);
         assert_eq!(true, cpu.p.n);
@@ -2854,7 +2854,7 @@ mod tests {
     #[test]
     fn rotate_left16() {
         let mut abus = ABus::new_empty_rom();
-        let mut cpu = Cpu::new(&mut abus);
+        let mut cpu = W65C816S::new(&mut abus);
         assert_eq!(0xFFFE, cpu.rotate_left16(0xFFFF));
         assert_eq!(true, cpu.p.c);
         assert_eq!(true, cpu.p.n);
@@ -2872,7 +2872,7 @@ mod tests {
     #[test]
     fn rotate_right8() {
         let mut abus = ABus::new_empty_rom();
-        let mut cpu = Cpu::new(&mut abus);
+        let mut cpu = W65C816S::new(&mut abus);
         assert_eq!(0x7F, cpu.rotate_right8(0xFF));
         assert_eq!(true, cpu.p.c);
         assert_eq!(false, cpu.p.n);
@@ -2890,7 +2890,7 @@ mod tests {
     #[test]
     fn rotate_right16() {
         let mut abus = ABus::new_empty_rom();
-        let mut cpu = Cpu::new(&mut abus);
+        let mut cpu = W65C816S::new(&mut abus);
         assert_eq!(0x7FFF, cpu.rotate_right16(0xFFFF));
         assert_eq!(true, cpu.p.c);
         assert_eq!(false, cpu.p.n);
@@ -2908,7 +2908,7 @@ mod tests {
     #[test]
     fn op_adc() {
         let mut abus = ABus::new_empty_rom();
-        let mut cpu = Cpu::new(&mut abus);
+        let mut cpu = W65C816S::new(&mut abus);
 
         // 8bit binary arithmetic
         cpu.a = 0x2345;
@@ -2978,7 +2978,7 @@ mod tests {
     #[test]
     fn op_sbc() {
         let mut abus = ABus::new_empty_rom();
-        let mut cpu = Cpu::new(&mut abus);
+        let mut cpu = W65C816S::new(&mut abus);
 
         // 8bit binary arithmetic
         cpu.a = 0x23CE;
@@ -3052,7 +3052,7 @@ mod tests {
     #[test]
     fn op_cmp() {
         let mut abus = ABus::new_empty_rom();
-        let mut cpu = Cpu::new(&mut abus);
+        let mut cpu = W65C816S::new(&mut abus);
         // 8-bit
         cpu.a = 0x1234;
         let data_addr = (0x00FFFF, WrappingMode::Bank);
@@ -3083,7 +3083,7 @@ mod tests {
     #[test]
     fn op_cpx() {
         let mut abus = ABus::new_empty_rom();
-        let mut cpu = Cpu::new(&mut abus);
+        let mut cpu = W65C816S::new(&mut abus);
         // 8-bit
         cpu.x = 0x1234;
         let data_addr = (0x00FFFF, WrappingMode::Bank);
@@ -3113,7 +3113,7 @@ mod tests {
     #[test]
     fn op_cpy() {
         let mut abus = ABus::new_empty_rom();
-        let mut cpu = Cpu::new(&mut abus);
+        let mut cpu = W65C816S::new(&mut abus);
         // 8-bit
         cpu.y = 0x1234;
         let data_addr = (0x00FFFF, WrappingMode::Bank);
@@ -3143,7 +3143,7 @@ mod tests {
     #[test]
     fn op_dec() {
         let mut abus = ABus::new_empty_rom();
-        let mut cpu = Cpu::new(&mut abus);
+        let mut cpu = W65C816S::new(&mut abus);
         // 8bit
         let data_addr = (0x00FFFF, WrappingMode::Page);
         mmap::cpu_write8(&mut abus, 0x02, data_addr.0);
@@ -3218,7 +3218,7 @@ mod tests {
     #[test]
     fn op_inc() {
         let mut abus = ABus::new_empty_rom();
-        let mut cpu = Cpu::new(&mut abus);
+        let mut cpu = W65C816S::new(&mut abus);
         // 8bit
         let data_addr = (0x00FFFF, WrappingMode::Page);
         mmap::cpu_write8(&mut abus, 0xFE, data_addr.0);
@@ -3293,7 +3293,7 @@ mod tests {
     #[test]
     fn op_and() {
         let mut abus = ABus::new_empty_rom();
-        let mut cpu = Cpu::new(&mut abus);
+        let mut cpu = W65C816S::new(&mut abus);
         // 8bit
         cpu.a = 0x4567;
         let data_addr = (0x00FFFF, WrappingMode::Bank);
@@ -3345,7 +3345,7 @@ mod tests {
     #[test]
     fn op_eor() {
         let mut abus = ABus::new_empty_rom();
-        let mut cpu = Cpu::new(&mut abus);
+        let mut cpu = W65C816S::new(&mut abus);
         // 8bit
         cpu.a = 0xBA98;
         let data_addr = (0x00FFFF, WrappingMode::Bank);
@@ -3397,7 +3397,7 @@ mod tests {
     #[test]
     fn op_ora() {
         let mut abus = ABus::new_empty_rom();
-        let mut cpu = Cpu::new(&mut abus);
+        let mut cpu = W65C816S::new(&mut abus);
         // 8bit
         cpu.a = 0x1234;
         let data_addr = (0x00FFFF, WrappingMode::Bank);
@@ -3450,7 +3450,7 @@ mod tests {
     #[test]
     fn op_bit() {
         let mut abus = ABus::new_empty_rom();
-        let mut cpu = Cpu::new(&mut abus);
+        let mut cpu = W65C816S::new(&mut abus);
         // 8bit
         cpu.a = 0x1234;
         let data_addr = (0x00FFFF, WrappingMode::Bank);
@@ -3520,7 +3520,7 @@ mod tests {
     #[test]
     fn op_trb() {
         let mut abus = ABus::new_empty_rom();
-        let mut cpu = Cpu::new(&mut abus);
+        let mut cpu = W65C816S::new(&mut abus);
         // 8bit
         cpu.a = 0x1234;
         cpu.p.z = true;
@@ -3579,7 +3579,7 @@ mod tests {
     #[test]
     fn op_tsb() {
         let mut abus = ABus::new_empty_rom();
-        let mut cpu = Cpu::new(&mut abus);
+        let mut cpu = W65C816S::new(&mut abus);
         // 8bit
         cpu.a = 0x1234;
         let data_addr = (0x00FFFF, WrappingMode::Bank);
@@ -3636,7 +3636,7 @@ mod tests {
     #[test]
     fn op_asl() {
         let mut abus = ABus::new_empty_rom();
-        let mut cpu = Cpu::new(&mut abus);
+        let mut cpu = W65C816S::new(&mut abus);
         // 8bit
         cpu.p.c = true;
         let data_addr = (0x00FFFF, WrappingMode::Bank);
@@ -3678,7 +3678,7 @@ mod tests {
     #[test]
     fn op_lsr() {
         let mut abus = ABus::new_empty_rom();
-        let mut cpu = Cpu::new(&mut abus);
+        let mut cpu = W65C816S::new(&mut abus);
         // 8bit
         cpu.p.c = true;
         let data_addr = (0x00FFFF, WrappingMode::Bank);
@@ -3720,7 +3720,7 @@ mod tests {
     #[test]
     fn op_rol() {
         let mut abus = ABus::new_empty_rom();
-        let mut cpu = Cpu::new(&mut abus);
+        let mut cpu = W65C816S::new(&mut abus);
         // 8bit
         cpu.p.c = true;
         let data_addr = (0x00FFFF, WrappingMode::Bank);
@@ -3762,7 +3762,7 @@ mod tests {
     #[test]
     fn op_ror() {
         let mut abus = ABus::new_empty_rom();
-        let mut cpu = Cpu::new(&mut abus);
+        let mut cpu = W65C816S::new(&mut abus);
         // 8bit
         cpu.p.c = true;
         let data_addr = (0x00FFFF, WrappingMode::Bank);
@@ -3804,7 +3804,7 @@ mod tests {
     #[test]
     fn op_lda() {
         let mut abus = ABus::new_empty_rom();
-        let mut cpu = Cpu::new(&mut abus);
+        let mut cpu = W65C816S::new(&mut abus);
         // 8bit
         cpu.a = 0x1234;
         let data_addr = (0x000000, WrappingMode::Bank);
@@ -3858,7 +3858,7 @@ mod tests {
     #[test]
     fn op_ldx() {
         let mut abus = ABus::new_empty_rom();
-        let mut cpu = Cpu::new(&mut abus);
+        let mut cpu = W65C816S::new(&mut abus);
         // 8bit
         cpu.x = 0x0000;
         let data_addr = (0x000000, WrappingMode::Bank);
@@ -3912,7 +3912,7 @@ mod tests {
     #[test]
     fn op_ldy() {
         let mut abus = ABus::new_empty_rom();
-        let mut cpu = Cpu::new(&mut abus);
+        let mut cpu = W65C816S::new(&mut abus);
         // 8bit
         cpu.y = 0x0000;
         let data_addr = (0x000000, WrappingMode::Bank);
@@ -3966,7 +3966,7 @@ mod tests {
     #[test]
     fn op_sta() {
         let mut abus = ABus::new_empty_rom();
-        let mut cpu = Cpu::new(&mut abus);
+        let mut cpu = W65C816S::new(&mut abus);
         // 8bit
         cpu.a = 0x1234;
         let data_addr = (0x000000, WrappingMode::Bank);
@@ -4008,7 +4008,7 @@ mod tests {
     #[test]
     fn op_stx() {
         let mut abus = ABus::new_empty_rom();
-        let mut cpu = Cpu::new(&mut abus);
+        let mut cpu = W65C816S::new(&mut abus);
         // 8bit
         cpu.x = 0x0034;
         let data_addr = (0x000000, WrappingMode::Bank);
@@ -4051,7 +4051,7 @@ mod tests {
     #[test]
     fn op_sty() {
         let mut abus = ABus::new_empty_rom();
-        let mut cpu = Cpu::new(&mut abus);
+        let mut cpu = W65C816S::new(&mut abus);
         // 8bit
         cpu.y = 0x0034;
         let data_addr = (0x000000, WrappingMode::Bank);
@@ -4094,7 +4094,7 @@ mod tests {
     #[test]
     fn op_stz() {
         let mut abus = ABus::new_empty_rom();
-        let mut cpu = Cpu::new(&mut abus);
+        let mut cpu = W65C816S::new(&mut abus);
         // 8bit
         let data_addr = (0x000000, WrappingMode::Bank);
         mmap::bank_wrapping_cpu_write16(&mut abus, 0xFF7F, data_addr.0);
@@ -4133,7 +4133,7 @@ mod tests {
     #[test]
     fn op_mvn() {
         let mut abus = ABus::new_empty_rom();
-        let mut cpu = Cpu::new(&mut abus);
+        let mut cpu = W65C816S::new(&mut abus);
         cpu.p.x = false;
         cpu.pc = 0x0000;
         cpu.db = 0x0000;
@@ -4169,7 +4169,7 @@ mod tests {
     #[test]
     fn op_mvp() {
         let mut abus = ABus::new_empty_rom();
-        let mut cpu = Cpu::new(&mut abus);
+        let mut cpu = W65C816S::new(&mut abus);
         cpu.p.x = false;
         cpu.pc = 0x0000;
         cpu.db = 0x0000;
