@@ -795,8 +795,8 @@ impl W65C816S {
     pub fn src_dest(&self, addr: u32, abus: &mut ABus) -> (u32, u32) {
         let operand = mmap::fetch_operand16(abus, addr);
         (
-            addr_8_16(operand as u8, self.x),
-            addr_8_16((operand >> 8) as u8, self.y),
+            addr_8_16((operand >> 8) as u8, self.x),
+            addr_8_16(operand as u8, self.y),
         )
     }
 
@@ -2316,7 +2316,7 @@ mod tests {
         cpu.y = 0xBCDE;
         mmap::bank_wrapping_cpu_write16(&mut abus, 0x000124, 0x4567);
         assert_eq!(
-            (0x67ABCD, 0x45BCDE),
+            (0x45ABCD, 0x67BCDE),
             cpu.src_dest(addr_8_16(0x00, cpu.pc), &mut abus)
         );
         mmap::bank_wrapping_cpu_write16(&mut abus, 0x000124, 0x0000);
@@ -2324,7 +2324,7 @@ mod tests {
         cpu.pc = 0xFFFE;
         mmap::bank_wrapping_cpu_write16(&mut abus, 0x00FFFF, 0x4567);
         assert_eq!(
-            (0x67ABCD, 0x45BCDE),
+            (0x45ABCD, 0x67BCDE),
             cpu.src_dest(addr_8_16(0x00, cpu.pc), &mut abus)
         );
         mmap::bank_wrapping_cpu_write16(&mut abus, 0x00FFFF, 0x0000);
