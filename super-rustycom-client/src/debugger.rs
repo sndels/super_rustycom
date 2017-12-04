@@ -1,5 +1,8 @@
+use std::error::Error;
+use std::fs::File;
 use std::io::{self, Write};
 use std::u32;
+
 use super_rustycom_core::abus::ABus;
 use super_rustycom_core::cpu::W65C816S;
 
@@ -39,6 +42,45 @@ impl Debugger {
                         println!("Toggled continious disassembly off");
                     }
                 }
+                "dump" => if arg_vec.len() > 1 {
+                    match arg_vec[1] {
+                        "rom" => unimplemented!(),
+                        "wram" => match dump_memory("wramdump.bin", &abus.wram()) {
+                            Ok(_) => println!("WRAM dumped"),
+                            Err(err) => println!("Dumping WRAM failed!\n{}", err),
+                        },
+                        "vram" => match dump_memory("vramdump.bin", &abus.vram()) {
+                            Ok(_) => println!("VRAM dumped"),
+                            Err(err) => println!("Dumping VRAM failed!\n{}", err),
+                        },
+                        "oam" => match dump_memory("oamdump.bin", &abus.oam()) {
+                            Ok(_) => println!("OAM dumped"),
+                            Err(err) => println!("Dumping OAM failed!\n{}", err),
+                        },
+                        "cgram" => match dump_memory("cgramdump.bin", &abus.cgram()) {
+                            Ok(_) => println!("CGRAM dumped"),
+                            Err(err) => println!("Dumping CGRAM failed!\n{}", err),
+                        },
+                        &_ => println!("Invalid parameter \"{}\"", arg_vec[1]),
+                    }
+                } else {
+                    match dump_memory("wramdump.bin", &abus.wram()) {
+                        Ok(_) => println!("WRAM dumped"),
+                        Err(err) => println!("Dumping WRAM failed!\n{}", err),
+                    };
+                    match dump_memory("vramdump.bin", &abus.vram()) {
+                        Ok(_) => println!("VRAM dumped"),
+                        Err(err) => println!("Dumping VRAM failed!\n{}", err),
+                    };
+                    match dump_memory("oamdump.bin", &abus.oam()) {
+                        Ok(_) => println!("OAM dumped"),
+                        Err(err) => println!("Dumping OAM failed!\n{}", err),
+                    };
+                    match dump_memory("cgramdump.bin", &abus.cgram()) {
+                        Ok(_) => println!("CGRAM dumped"),
+                        Err(err) => println!("Dumping CGRAM failed!\n{}", err),
+                    };
+                },
                 "step" | "s" => if arg_vec.len() == 1 {
                     cpu.step(abus);
                 } else {
@@ -46,7 +88,7 @@ impl Debugger {
                     match steps {
                         Ok(s) => {
                             if s > 0 {
-                                cpu.step(abus); // Step before loop to skip redundant disassembly
+                                cpu.step(abus); // Step before loop to skip disassembly
                                 for step in 1..s {
                                     if self.disassemble && step > 0 {
                                         disassemble_current(cpu, abus);
@@ -82,6 +124,20 @@ impl Debugger {
             }
         }
     }
+}
+
+fn dump_memory(file_path: &str, buf: &[u8]) -> Result<(), String> {
+    let mut f = match File::create(file_path) {
+        Ok(file) => file,
+        Err(err) => return Err(String::from("Creating file failed:\n") + err.description()),
+    };
+    if let Err(err) = f.write_all(buf) {
+        return Err(String::from("Write failed:\n") + err.description());
+    };
+    if let Err(err) = f.sync_all() {
+        return Err(String::from("Sync failed:\n") + err.description());
+    };
+    Ok(())
 }
 
 pub fn disassemble_current(cpu: &W65C816S, abus: &mut ABus) {

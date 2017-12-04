@@ -105,6 +105,11 @@ impl ABus {
         }
     }
 
+    pub fn wram(&self) -> Box<[u8]> { self.wram.clone() }
+    pub fn vram(&self) -> Box<[u8]> { self.vram.clone() }
+    pub fn oam(&self) -> Box<[u8]> { self.oam.clone() }
+    pub fn cgram(&self) -> Box<[u8]> { self.cgram.clone() }
+
     fn cpu_read_sys(&mut self, addr: usize) -> u8 {
         match addr {
             mmap::WRAM_MIRR_FIRST...mmap::WRAM_MIRR_LAST => self.wram[addr],
