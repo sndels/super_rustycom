@@ -280,7 +280,7 @@ impl W65C816S {
             op::ASL_0A => {
                 if self.p.m {
                     let old_a = self.a as u8;
-                    self.a = (self.a & 0xFF) | self.arithmetic_shift_left8(old_a) as u16;
+                    self.a = (self.a & 0xFF00) | self.arithmetic_shift_left8(old_a) as u16;
                 } else {
                     let old_a = self.a;
                     self.a = self.arithmetic_shift_left16(old_a);
@@ -294,7 +294,7 @@ impl W65C816S {
             op::LSR_4A => {
                 if self.p.m {
                     let old_a = self.a as u8;
-                    self.a = (self.a & 0xFF) | self.logical_shift_right8(old_a) as u16;
+                    self.a = (self.a & 0xFF00) | self.logical_shift_right8(old_a) as u16;
                 } else {
                     let old_a = self.a;
                     self.a = self.logical_shift_right16(old_a);
@@ -308,7 +308,7 @@ impl W65C816S {
             op::ROL_2A => {
                 if self.p.m {
                     let old_a = self.a as u8;
-                    self.a = (self.a & 0xFF) | self.rotate_left8(old_a) as u16;
+                    self.a = (self.a & 0xFF00) | self.rotate_left8(old_a) as u16;
                 } else {
                     let old_a = self.a;
                     self.a = self.rotate_left16(old_a);
@@ -322,7 +322,7 @@ impl W65C816S {
             op::ROR_6A => {
                 if self.p.m {
                     let old_a = self.a as u8;
-                    self.a = (self.a & 0xFF) | self.rotate_right8(old_a) as u16;
+                    self.a = (self.a & 0xFF00) | self.rotate_right8(old_a) as u16;
                 } else {
                     let old_a = self.a;
                     self.a = self.rotate_right16(old_a);
