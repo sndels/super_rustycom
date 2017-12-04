@@ -571,6 +571,7 @@ impl W65C816S {
                 self.a = (self.a << 8) | (self.a >> 8);
                 self.p.n = self.a as u8 > 0x7F;
                 self.p.z = self.a as u8 > 0;
+                self.pc = self.pc.wrapping_add(1);
             }
             op::XCE => {
                 let tmp = self.e;
