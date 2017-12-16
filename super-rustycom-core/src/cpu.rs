@@ -1,22 +1,71 @@
 use abus::ABus;
 use op;
 
+/// The cpu core in Ricoh 5A22 powering the Super Nintendo
 pub struct W65C816S {
-    a: u16,        // Accumulator
-    x: u16,        // Index register
-    y: u16,        // Index register
-    pc: u16,       // Program counter
-    s: u16,        // Stack pointer
-    p: StatusReg,  // Processor status register
-    d: u16,        // Zeropage offset
-    pb: u8,        // Program counter bank
-    db: u8,        // Data bank
-    e: bool,       // Emulation mode
-    stopped: bool, // Stopped until an interrupt
-    waiting: bool, // Waiting for an interrupt
+    /// Accumulator
+    ///
+    /// Whole register denoted with `A`, high byte with `AH` and low byte with `AL`
+    a: u16,
+    /// Index register X
+    ///
+    /// Whole register denoted with `X`, high byte `XH` and low byte with `XL`
+    x: u16,
+    /// Index register Y
+    ///
+    /// Whole register denoted with `Y`, high byte `YH` and low byte with `YL`
+    y: u16,
+    /// Program counter
+    ///
+    /// Whole register denoted with `PC`, high byte `PCH` and low byte with `PCL`
+    pc: u16,
+    /// Stack pointer
+    ///
+    /// Whole register denoted with `S`, high byte `SH` and low byte with `SL`
+    s: u16,
+    /// Processor status register
+    ///
+    /// Denoted with `P` and contains flags
+    /// `N`egative
+    ///
+    /// O`V`erflow
+    ///
+    /// `M`emory and accumulator width
+    ///
+    /// Inde`X` register width
+    ///
+    /// `D`ecimal mode
+    ///
+    /// `I`nterrupt
+    ///
+    /// `Z`ero
+    ///
+    /// `C`arry
+    p: StatusReg,
+    /// Direct page register
+    ///
+    /// Whole register denoted with `D`, high byte `DH` and low byte with `DL`
+    d: u16,
+    /// Program bank register
+    ///
+    /// Denoted with `PB`
+    pb: u8,
+    /// Data bank register
+    db: u8,
+    /// Emulation flag
+    e: bool,
+    /// `true` if stopped until interrupted
+    stopped: bool,
+    /// `true` if waiting until interrupted
+    waiting: bool,
 }
 
 impl W65C816S {
+    /// Initializes a new instance with default values
+    ///
+    /// The processor starts in emulation mode, `PC` is set to the reset vector,
+    /// `S` is set to `$01FF`, `A`, `X` and `Y` are 8bits wide
+    /// and interrupts are disabled. Other values are zeroed.
     pub fn new(abus: &mut ABus) -> W65C816S {
         W65C816S {
             a: 0x00,
@@ -34,33 +83,55 @@ impl W65C816S {
         }
     }
 
+    /// Executes the instruction at `[$PBPCHPCL]`
     pub fn step(&mut self, abus: &mut ABus) {
         let addr = self.current_address();
-        let opcode = abus.cpu_read8(addr);
+        let opcode = abus.cpu_read8(addr); // TODO: move to execute?
         self.execute(opcode, addr, abus);
     }
 
+    /// Returns the value of `C`
     pub fn a(&self) -> u16 { self.a }
+    /// Returns the value of `X`
     pub fn x(&self) -> u16 { self.x }
+    /// Returns the value of `Y`
     pub fn y(&self) -> u16 { self.y }
+    /// Returns the value of `PB`
     pub fn pb(&self) -> u8 { self.pb }
-    pub fn db(&self) -> u8 { self.db }
+    /// Returns the value of `DB`
+    pub fn db(&self) -> u8 { self.db}
+    /// Returns the value of `PC`
     pub fn pc(&self) -> u16 { self.pc }
+    /// Returns the value of `S`
     pub fn s(&self) -> u16 { self.s }
+    /// Returns the value of `D`
     pub fn d(&self) -> u16 { self.d }
+    /// Returns the value of `E`
     pub fn e(&self) -> bool { self.e }
+    /// Returns the value of the carry flag
     pub fn p_c(&self) -> bool { self.p.c }
+    /// Returns the value of the zero flag
     pub fn p_z(&self) -> bool { self.p.z }
+    /// Returns the value of the interrupt flag
     pub fn p_i(&self) -> bool { self.p.i }
+    /// Returns the value of the decimal mode flag
     pub fn p_d(&self) -> bool { self.p.d }
+    /// Returns the value of the X, Y register width flag
     pub fn p_x(&self) -> bool { self.p.x }
+    /// Returns the value of the accumulator width flag
     pub fn p_m(&self) -> bool { self.p.m }
+    /// Returns the value of the overflow flag
     pub fn p_v(&self) -> bool { self.p.v }
+    /// Returns the value of the negative flag
     pub fn p_n(&self) -> bool { self.p.n }
+    /// Returns the address of the next instruction
     pub fn current_address(&self) -> u32 { ((self.pb as u32) << 16) + self.pc as u32 }
 
+    /// Executes instruction defined by `opcode` at address `addr`
+    ///
+    /// `abus` is used for memory addressing as needed
     fn execute(&mut self, opcode: u8, addr: u32, abus: &mut ABus) {
-        // DRY macros
+        // Executes op_func with data pointed by addressing and increments pc by op_length
         macro_rules! op {
             ($addressing:ident, $op_func:ident, $op_length:expr) => ({
                 let data_addr = self.$addressing(addr, abus);
@@ -69,6 +140,10 @@ impl W65C816S {
             });
         }
 
+        // Used in place of INC and DEC that operate on cpu registers. Applies op (used with
+        // wrapping_add or wrapping_sub) to given register at 8/16bits wide based on cond and
+        // increments pc by one
+        // N indicates the high bit of the result and Z if it's 0
         macro_rules! inc_dec {
             ($cond:expr, $reg_ref:expr, $op:ident) => ({
                 if $cond {
@@ -84,9 +159,10 @@ impl W65C816S {
             })
         }
 
+        // Branches to relative8 address if cond is true and increments pc by 2
         macro_rules! branch {
             ($condition:expr) => ({
-               if $condition {
+                if $condition {
                     self.pc = self.rel8(addr, abus).0 as u16;
                 } else {
                     self.pc = self.pc.wrapping_add(2);
@@ -94,6 +170,7 @@ impl W65C816S {
             })
         }
 
+        // Sets flag to value and increments pc by 1
         macro_rules! cl_se {
             ($flag:expr, $value:expr) => ({
                 $flag = $value;
@@ -101,6 +178,7 @@ impl W65C816S {
             })
         }
 
+        // Pushes the 16bit value pointed by addressing to stack and increments pc by op_length
         macro_rules! push_eff {
             ($addressing:ident, $op_length:expr) => ({
                 let data_addr = self.$addressing(addr, abus);
@@ -110,6 +188,7 @@ impl W65C816S {
             })
         }
 
+        // Pushes register to stack at 8/16bits wide based on cond and increments pc by 1
         macro_rules! push_reg {
             ($cond:expr, $reg_ref:expr) => ({
                 if $cond {
@@ -123,6 +202,8 @@ impl W65C816S {
             })
         }
 
+        // Pulls 8/16bits from stack to given register based on cond and increments pc by 1
+        // N indicates the high bit of the result and Z if it's 0
         macro_rules! pull_reg {
             ($cond:expr, $reg_ref:expr) => ({
                 if $cond {
@@ -140,6 +221,8 @@ impl W65C816S {
             })
         }
 
+        // Sets 8/16bits in dst_reg to those of src_reg based on cond
+        // N indicates the high bit of the result and Z if it's 0
         macro_rules! transfer {
             ($cond:expr, $src_reg:expr, $dst_reg:expr) => ({
                 if $cond {
@@ -155,6 +238,7 @@ impl W65C816S {
             })
         }
 
+        // Execute opcodes, utilize macros and op_funcs in common cases
         match opcode {
             op::ADC_61 => op!(dir_x_ptr16, op_adc, 2),
             op::ADC_63 => op!(stack, op_adc, 2),
@@ -270,7 +354,7 @@ impl W65C816S {
             op::BIT_2C => op!(abs, op_bit, 3),
             op::BIT_34 => op!(dir_x, op_bit, 2),
             op::BIT_3C => op!(abs_x, op_bit, 3),
-            op::BIT_89 => op!(imm, op_bit, 3 - self.p.m as u16),
+            op::BIT_89 => op!(imm, op_bit, 3 - self.p.m as u16), // TODO: Only affects Z
             op::TRB_14 => op!(dir, op_trb, 2),
             op::TRB_1C => op!(abs, op_trb, 3),
             op::TSB_04 => op!(dir, op_tsb, 2),
@@ -341,7 +425,7 @@ impl W65C816S {
             op::BVC => branch!(!self.p.v),
             op::BVS => branch!(self.p.v),
             op::BRL => self.pc = self.rel16(addr, abus).0 as u16,
-            op::JMP_4C => self.pc = self.abs(addr, abus).0 as u16,
+            op::JMP_4C => self.pc = self.abs(addr, abus).0 as u16, // TODO: See JSR_20
             op::JMP_5C => {
                 let jump_addr = self.long(addr, abus).0;
                 self.pb = (jump_addr >> 16) as u8;
@@ -364,7 +448,7 @@ impl W65C816S {
                 self.pc = jump_addr as u16;
             }
             op::JSR_20 => {
-                let jump_addr = self.abs(addr, abus).0;
+                let jump_addr = self.abs(addr, abus).0; // TODO: This shoud use db instead of pb!!
                 let return_addr = self.pc.wrapping_add(2);
                 self.push16(return_addr, abus);
                 self.pc = jump_addr as u16;
@@ -598,15 +682,25 @@ impl W65C816S {
 
     // Addressing modes
     // TODO: DRY, mismatch funcs and macros?
+
+    /// Returns the address and wrapping of data the instruction at `addr` points to using absolute
+    /// mode
+    ///
+    /// Data is at lo`[$DBHHLL]` hi`[$DBHHLL+1]`. Note that JMP and JSR should use
+    /// `PB` instead of `DB`!
     pub fn abs(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
-        // JMP, JSR use PB instead of DB
         (
             addr_8_16(self.db, abus.fetch_operand16(addr)),
             WrappingMode::AddrSpace,
         )
     }
 
+    /// Returns the address and wrapping of data the instruction at `addr` points to using
+    /// absolute,X mode
+    ///
+    /// Data is at lo`[$DBHHLL+X]` hi`[$DBHHLL+X+1]`
     pub fn abs_x(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
+        // TODO: Combine with abs_y
         let operand = abus.fetch_operand16(addr);
         (
             (addr_8_16(self.db, operand) + self.x as u32) & 0x00FFFFFF,
@@ -614,7 +708,12 @@ impl W65C816S {
         )
     }
 
+    /// Returns the address and wrapping of data the instruction at `addr` points to using
+    /// absolute,Y mode
+    ///
+    /// Data is at lo`[$DBHHLL+Y]` hi`[$DBHHLL+Y+1]`
     pub fn abs_y(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
+        // TODO: Combine with abs_x
         let operand = abus.fetch_operand16(addr);
         (
             (addr_8_16(self.db, operand) + self.y as u32) & 0x00FFFFFF,
@@ -622,6 +721,10 @@ impl W65C816S {
         )
     }
 
+    /// Returns the address and wrapping of data the instruction at `addr` points to using
+    /// (absolute) mode
+    ///
+    /// 16bit pointer at lo`[$00][$HHLL]` hi`[$00][$HHLL+1]` with actual data at `[$PBhilo]`
     pub fn abs_ptr16(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
         let pointer = abus.fetch_operand16(addr) as u32;
         (
@@ -630,11 +733,20 @@ impl W65C816S {
         )
     }
 
+    /// Returns the address and wrapping of data the instruction at `addr` points to using
+    /// [absolute] mode
+    ///
+    /// 24bit pointer at lo`[$00][$HHLL]` mid`[$00][$HHLL+1]` hi`[$00][$HHLL+2]` with actual data at
+    /// `[$himidlo]`
     pub fn abs_ptr24(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
         let pointer = abus.fetch_operand24(addr) as u32;
         (abus.bank_wrapping_cpu_read24(pointer), WrappingMode::Bank)
     }
 
+    /// Returns the address and wrapping of data the instruction at `addr` points to using
+    /// (absolute,X) mode
+    ///
+    /// 16bit pointer at lo`[$00][$HHLL+X]` hi`[$00][$HHLL+X+1]` with actual data at `[$PBhilo]`
     pub fn abs_x_ptr16(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
         let pointer = addr_8_16(self.pb, abus.fetch_operand16(addr).wrapping_add(self.x));
         (
@@ -643,15 +755,25 @@ impl W65C816S {
         )
     }
 
+    /// Returns the address and wrapping of data the instruction at `addr` points to using
+    /// direct mode
+    ///
+    /// Data at `[$00][$DL][$LL]` for "old" instructions if in emulation mode and `DL` is `$00`,
+    /// otherwise lo`[$00][$D+LL]` hi`[$00][$D+LL+1]`. Math turns out to be the same for both.
     pub fn dir(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
-        // NOTE: Data of "old" instructions with e=1, DL=$00 "wrap" page but only access 8bit
         (
             self.d.wrapping_add(abus.fetch_operand8(addr) as u16) as u32,
             WrappingMode::Bank,
         )
     }
 
+    /// Returns the address and wrapping of data the instruction at `addr` points to using
+    /// direct,X mode
+    ///
+    /// Data at `[$00][$DL][$LL+X]` if in emulation mode and `DL` is `$00`, lo`[$00][$D+LL+X]`
+    /// otherwise hi`[$00][$D+LL+X+1]`.
     pub fn dir_x(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
+        // TODO: Combine with dir_y
         if self.e && (self.d & 0xFF) == 0 {
             (
                 (self.d | (abus.fetch_operand8(addr).wrapping_add(self.x as u8) as u16)) as u32,
@@ -667,7 +789,13 @@ impl W65C816S {
         }
     }
 
+    /// Returns the address and wrapping of data the instruction at `addr` points to using
+    /// direct,Y mode
+    ///
+    /// Data at `[$00][$DL][$LL+Y]` if in emulation mode and `DL` is `$00`, lo`[$00][$D+LL+Y]`
+    /// otherwise hi`[$00][$D+LL+Y+1]`
     pub fn dir_y(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
+        // TODO: Combine with dir_x
         if self.e && (self.d & 0xFF) == 0 {
             (
                 (self.d | (abus.fetch_operand8(addr).wrapping_add(self.y as u8) as u16)) as u32,
@@ -683,6 +811,11 @@ impl W65C816S {
         }
     }
 
+    /// Returns the address and wrapping of data the instruction at `addr` points to using
+    /// (direct) mode
+    ///
+    /// 16bit pointer at lo`[$00][$DH][$LL]` hi`[$00][$DH][$LL+1]` if in emulation mode and `DL` is
+    /// `$00`, otherwise lo`[$00][$D+LL]` hi`[$00][$D+LL+1]`. Data at lo`[$DBhilo]` hi`[$DBhilo+1]`.
     pub fn dir_ptr16(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
         let pointer = self.dir(addr, abus).0;
         if self.e && (self.d & 0xFF) == 0 {
@@ -697,6 +830,12 @@ impl W65C816S {
         }
     }
 
+    /// Returns the address and wrapping of data the instruction at `addr` points to using
+    /// [direct] mode
+    ///
+    /// 16bit pointer at lo`[$00][$DH][$LL]` mid`[$00][$DH][$LL+1]` hi`[$00][$DH][$LL+2]` if in
+    /// emulation mode and `DL` is `$00`, otherwise lo`[$00][$D+LL]` mid`[$00][$D+LL+1]`
+    /// hi`[$00][$D+LL+2]`. Data at lo`[$himidlo]` hi`[$himidlo+1]`.
     pub fn dir_ptr24(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
         let pointer = self.dir(addr, abus).0;
         (
@@ -705,6 +844,12 @@ impl W65C816S {
         )
     }
 
+    /// Returns the address and wrapping of data the instruction at `addr` points to using
+    /// (direct,X) mode
+    ///
+    /// 16bit pointer at lo`[$00][$DH][$LL+X]` hi`[$00][$DH][$LL+X+1]` if in emulation mode and
+    /// `DL` is `$00`, otherwise lo`[$00][$D+LL+X]` hi`[$00][$D+LL+X+1]`. Data at lo`[$DBhilo]`
+    /// hi`[$DBhilo+1]`.
     pub fn dir_x_ptr16(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
         let pointer = self.dir_x(addr, abus).0;
         if self.e && (self.d & 0xFF) == 0 {
@@ -719,6 +864,12 @@ impl W65C816S {
         }
     }
 
+    /// Returns the address and wrapping of data the instruction at `addr` points to using
+    /// (direct),Y mode
+    ///
+    /// 16bit pointer at lo`[$00][$DH][$LL]` hi`[$00][$DH][$LL+1]` if in emulation mode and
+    /// `DL` is `$00`, otherwise lo`[$00][$D+LL]` hi`[$00][$D+LL+1]`. Data at lo`[$DBhilo+Y]`
+    /// hi`[$DBhilo+Y+1]`.
     pub fn dir_ptr16_y(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
         (
             (self.dir_ptr16(addr, abus).0 + self.y as u32) & 0x00FFFFFF,
@@ -726,6 +877,11 @@ impl W65C816S {
         )
     }
 
+    /// Returns the address and wrapping of data the instruction at `addr` points to using
+    /// [direct],Y mode
+    ///
+    /// 16bit pointer at lo`[$00][$DH][$LL]` mid`[$00][$DH][$LL+1]` hi`[$00][$DH][$LL+2]`. Data at
+    /// lo`[$himidlo+Y]` hi`[$himidlo+Y+1]`.
     pub fn dir_ptr24_y(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
         (
             (self.dir_ptr24(addr, abus).0 + self.y as u32) & 0x00FFFFFF,
@@ -733,6 +889,10 @@ impl W65C816S {
         )
     }
 
+    /// Returns the address and wrapping of data the instruction at `addr` points to using
+    /// immediate mode
+    ///
+    /// Data is lo`$LL` hi`$HH`
     #[allow(unused_variables)]
     pub fn imm(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
         (
@@ -741,10 +901,18 @@ impl W65C816S {
         )
     }
 
+    /// Returns the address and wrapping of data the instruction at `addr` points to using
+    /// long mode
+    ///
+    /// Data at lo`[$HHMMLL]` hi`[$HHMMLL+1]`
     pub fn long(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
         (abus.fetch_operand24(addr), WrappingMode::AddrSpace)
     }
 
+    /// Returns the address and wrapping of data the instruction at `addr` points to using
+    /// long,X mode
+    ///
+    /// Data at lo`[$HHMMLL+X]` hi`[$HHMMLL+X+1]`
     pub fn long_x(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
         (
             (abus.fetch_operand24(addr) + self.x as u32) & 0x00FFFFFF,
@@ -752,6 +920,10 @@ impl W65C816S {
         )
     }
 
+    /// Returns the address and wrapping of data the instruction at `addr` points to using
+    /// relative8 mode
+    ///
+    /// Data at `[$PB][$PC+2+LL]`, where `LL` is treated as a signed integer
     pub fn rel8(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
         let offset = abus.fetch_operand8(addr);
         if offset < 0x80 {
@@ -770,6 +942,10 @@ impl W65C816S {
         }
     }
 
+    /// Returns the address and wrapping of data the instruction at `addr` points to using
+    /// relative16 mode
+    ///
+    /// Data at `[$PB][$PC+3+HHLL]`
     pub fn rel16(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
         let offset = abus.fetch_operand16(addr);
         (
@@ -778,6 +954,9 @@ impl W65C816S {
         )
     }
 
+    /// Returns the addresses the move instruction at `addr` points to
+    ///
+    /// Source data is at `[$HHX]` and destination at `[$LLY]`
     pub fn src_dest(&self, addr: u32, abus: &mut ABus) -> (u32, u32) {
         let operand = abus.fetch_operand16(addr);
         (
@@ -786,6 +965,10 @@ impl W65C816S {
         )
     }
 
+    /// Returns the address and wrapping of data the instruction at `addr` points to using
+    /// stack,s mode
+    ///
+    /// Data at lo`[$00][$LL+S]` hi`[$00][$LL+S+1]`
     pub fn stack(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
         (
             self.s.wrapping_add(abus.fetch_operand8(addr) as u16) as u32,
@@ -793,6 +976,11 @@ impl W65C816S {
         )
     }
 
+    /// Returns the address and wrapping of data the instruction at `addr` points to using
+    /// (stack,s),Y mode
+    ///
+    /// 16bit pointer at lo`[$00][$LL+S]` hi`[$00][$LL+S+1]`. Data at lo`[$DBhilo+Y]`
+    /// hi`[$DBhilo+Y+1]`.
     pub fn stack_ptr16_y(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
         let pointer = self.s.wrapping_add(abus.fetch_operand8(addr) as u16) as u32;
         (
@@ -802,12 +990,13 @@ impl W65C816S {
         )
     }
 
-    // Stack operations
+    /// Pushes `value` to stack, incrementing the stack pointer accordingly
     fn push8(&mut self, value: u8, abus: &mut ABus) {
         abus.cpu_write8(self.s as u32, value);
         self.decrement_s(1);
     }
 
+    /// Pushes `value` to stack, incrementing the stack pointer accordingly
     fn push16(&mut self, value: u16, abus: &mut ABus) {
         self.decrement_s(1);
         if self.e {
@@ -818,6 +1007,7 @@ impl W65C816S {
         self.decrement_s(1);
     }
 
+    /// Pushes lowest three bytes of `value` to stack, incrementing the stack pointer accordingly
     #[allow(dead_code)]
     fn push24(&mut self, value: u32, abus: &mut ABus) {
         self.decrement_s(2);
@@ -829,11 +1019,13 @@ impl W65C816S {
         self.decrement_s(1);
     }
 
+    /// Pulls a byte from stack, decrementing the stack pointer accordingly
     fn pull8(&mut self, abus: &mut ABus) -> u8 {
         self.increment_s(1);
         abus.cpu_read8(self.s as u32)
     }
 
+    /// Pulls two bytes from stack, decrementing the stack pointer accordingly
     fn pull16(&mut self, abus: &mut ABus) -> u16 {
         self.increment_s(1);
         let value: u16;
@@ -846,6 +1038,7 @@ impl W65C816S {
         value
     }
 
+    /// Pulls three bytes from stack, decrementing the stack pointer accordingly
     #[allow(dead_code)]
     fn pull24(&mut self, abus: &mut ABus) -> u32 {
         self.increment_s(1);
@@ -859,6 +1052,7 @@ impl W65C816S {
         value
     }
 
+    /// Decrements the stack pointer, wrapping controlled by emulation flag
     fn decrement_s(&mut self, offset: u8) {
         if self.e {
             self.s = 0x0100 | (self.s as u8).wrapping_sub(offset) as u16;
@@ -867,6 +1061,7 @@ impl W65C816S {
         }
     }
 
+    /// Increments the stack pointer, wrapping controlled by emulation flag
     fn increment_s(&mut self, offset: u8) {
         if self.e {
             self.s = 0x0100 | (self.s as u8).wrapping_add(offset) as u16;
@@ -875,6 +1070,9 @@ impl W65C816S {
         }
     }
 
+    /// Sets emulation mode on
+    ///
+    /// Accumulator and index registers are forced 8bit wide and stack to page `$01`
     fn set_emumode(&mut self) {
         self.e = true;
         self.p.m = true;
@@ -885,6 +1083,13 @@ impl W65C816S {
     }
 
     // Algorithms
+
+    /// Returns the result of `lhs + rhs + P.C` or `lhs - rhs - 1 + P.C` depending on
+    /// `subtraction`
+    ///
+    /// `P.D` determines if BCD arithmetic should be used. `P.C` indicates an unsigned carry,
+    /// `P.V` indicates a signed (binary mode) overflow, `P.N` reflects the high bit of the result
+    /// and `P.Z` is set if the result is zero.
     fn add_sub8(&mut self, lhs: u8, mut rhs: u8, subtraction: bool) -> u8 {
         let result8: u8;
         if self.p.d {
@@ -922,6 +1127,12 @@ impl W65C816S {
         result8
     }
 
+    /// Returns the result of `lhs + rhs + P.C` or `lhs - rhs - 1 + P.C` depending on
+    /// `subtraction`
+    ///
+    /// `P.D` determines if BCD arithmetic should be used. `P.C` indicates an unsigned carry,
+    /// `P.V` indicates a signed (binary mode) overflow, `P.N` reflects the high bit of the result
+    /// and `P.Z` is set if the result is zero.
     fn add_sub16(&mut self, lhs: u16, mut rhs: u16, subtraction: bool) -> u16 {
         let result16: u16;
         if self.p.d {
@@ -959,6 +1170,10 @@ impl W65C816S {
         result16
     }
 
+    /// Compares the parameters with result reflected in status flags
+    ///
+    /// Performs binary subtraction without carry. `P.C` indicates carry, `P.N` reflects the high bit
+    /// of the result and `P.C` wheter or not the result is zero.
     fn compare8(&mut self, lhs: u8, rhs: u8) {
         let result: u16 = lhs as u16 + !rhs as u16 + 1;
         self.p.n = result as u8 > 0x7F;
@@ -966,6 +1181,10 @@ impl W65C816S {
         self.p.c = result > 0xFF;
     }
 
+    /// Compares the parameters with result reflected in status flags
+    ///
+    /// Performs binary subtraction without carry. `P.C` indicates carry, `P.N` reflects the high bit
+    /// of the result and `P.C` wheter or not the result is zero.
     fn compare16(&mut self, lhs: u16, rhs: u16) {
         let result: u32 = lhs as u32 + !rhs as u32 + 1;
         self.p.n = result as u16 > 0x7FFF;
@@ -973,6 +1192,10 @@ impl W65C816S {
         self.p.c = result > 0xFFFF;
     }
 
+    /// Returns the data shifted left by one
+    ///
+    /// High bit is shifted to `P.C`, `P.N` reflects the high bit of the result and `P.Z` whether or not
+    /// the result is zero
     fn arithmetic_shift_left8(&mut self, data: u8) -> u8 {
         self.p.c = data & 0x80 > 0;
         let result = data << 1;
@@ -981,6 +1204,10 @@ impl W65C816S {
         result
     }
 
+    /// Returns the data shifted left by one
+    ///
+    /// High bit is shifted to `P.C`, `P.N` reflects the high bit of the result and `P.Z` whether or not
+    /// the result is zero
     fn arithmetic_shift_left16(&mut self, data: u16) -> u16 {
         self.p.c = data & 0x8000 > 0;
         let result = data << 1;
@@ -989,6 +1216,10 @@ impl W65C816S {
         result
     }
 
+    /// Returns the data shifted right by one
+    ///
+    /// Low bit is shifted to `P.C`, `P.N` reflects the high bit of the result and `P.Z` whether or not
+    /// the result is zero
     fn logical_shift_right8(&mut self, data: u8) -> u8 {
         self.p.c = data & 0x01 > 0;
         let result = data >> 1;
@@ -997,6 +1228,10 @@ impl W65C816S {
         result
     }
 
+    /// Returns the data shifted right by one
+    ///
+    /// Low bit is shifted to `P.C`, `P.N` reflects the high bit of the result and `P.Z` whether or not
+    /// the result is zero
     fn logical_shift_right16(&mut self, data: u16) -> u16 {
         self.p.c = data & 0x0001 > 0;
         let result = data >> 1;
@@ -1005,6 +1240,10 @@ impl W65C816S {
         result
     }
 
+    /// Returns the data rotated left by one with `P.C` shifted to the low bit
+    ///
+    /// High bit is shifted to `P.C`, `P.N` reflects the high bit of the result and `P.Z` whether or not
+    /// the result is zero
     fn rotate_left8(&mut self, data: u8) -> u8 {
         let c = data & 0x80 > 0;
         let result = (data << 1) | self.p.c as u8;
@@ -1014,6 +1253,10 @@ impl W65C816S {
         result
     }
 
+    /// Returns the data rotated left by one with `P.C` shifted to the low bit
+    ///
+    /// High bit is shifted to `P.C`, `P.N` reflects the high bit of the result and `P.Z` whether or not
+    /// the result is zero
     fn rotate_left16(&mut self, data: u16) -> u16 {
         let c = data & 0x8000 > 0;
         let result = (data << 1) | self.p.c as u16;
@@ -1023,6 +1266,10 @@ impl W65C816S {
         result
     }
 
+    /// Returns the data rotated right by one with `P.C` shifted to the high bit
+    ///
+    /// Low bit is shifted to `P.C`, `P.N` reflects the high bit of the result and `P.Z` whether or not
+    /// the result is zero
     fn rotate_right8(&mut self, data: u8) -> u8 {
         let c = data & 0x01 > 0;
         let result = (data >> 1) | ((self.p.c as u8) << 7);
@@ -1032,6 +1279,10 @@ impl W65C816S {
         result
     }
 
+    /// Returns the data rotated right by one with `P.C` shifted to the high bit
+    ///
+    /// Low bit is shifted to `P.C`, `P.N` reflects the high bit of the result and `P.Z` whether or not
+    /// the result is zero
     fn rotate_right16(&mut self, data: u16) -> u16 {
         let c = data & 0x0001 > 0;
         let result = (data >> 1) | ((self.p.c as u16) << 15);
@@ -1042,6 +1293,14 @@ impl W65C816S {
     }
 
     // Instructions
+
+    /// Adds the given data to `A`
+    ///
+    /// 8bit if `P.M` is `1` and 16bit if `0`. Data is accessed according to WrappingMode.
+    /// See [`add_sub8`] and [`add_sub16`] for further details.
+    ///
+    /// [`add_sub8`]: #method.add_sub8
+    /// [`add_sub16`]: #method.add_sub16
     fn op_adc(&mut self, data_addr: &(u32, WrappingMode), abus: &mut ABus) {
         if self.p.m {
             // 8-bit accumulator
@@ -1061,6 +1320,13 @@ impl W65C816S {
         }
     }
 
+    /// Subtracts the given data from `A`
+    ///
+    /// 8bit if `P.M` is `1` and 16bit if `0`. Data is accessed according to WrappingMode.
+    /// See [`add_sub8`] and [`add_sub16`] for further details.
+    ///
+    /// [`add_sub8`]: #method.add_sub8
+    /// [`add_sub16`]: #method.add_sub16
     fn op_sbc(&mut self, data_addr: &(u32, WrappingMode), abus: &mut ABus) {
         if self.p.m {
             // 8-bit accumulator
@@ -1080,6 +1346,13 @@ impl W65C816S {
         }
     }
 
+    /// Compares `A` to the given data
+    ///
+    /// 8bit if `P.M` is `1` and 16bit if `0`, data is accessed according to WrappingMode.
+    /// See [`compare8`] and [`compare16`] for further details.
+    ///
+    /// [`compare8`]: #method.compare8
+    /// [`compare16`]: #method.compare16
     fn op_cmp(&mut self, data_addr: &(u32, WrappingMode), abus: &mut ABus) {
         if self.p.m {
             // 8-bit accumulator
@@ -1099,14 +1372,21 @@ impl W65C816S {
         }
     }
 
+    /// Compares `X` to the given data
+    ///
+    /// 8bit if `P.X` is `1` and 16bit if `0`, data is accessed according to WrappingMode.
+    /// See [`compare8`] and [`compare16`] for further details.
+    ///
+    /// [`compare8`]: #method.compare8
+    /// [`compare16`]: #method.compare16
     fn op_cpx(&mut self, data_addr: &(u32, WrappingMode), abus: &mut ABus) {
         if self.p.x {
-            // 8-bit accumulator
+            // 8-bit X register
             let x8 = self.x as u8;
             let data = abus.cpu_read8(data_addr.0);
             self.compare8(x8, data);
         } else {
-            // 16-bit accumulator
+            // 16-bit X register
             let x16 = self.x;
             let data: u16;
             match data_addr.1 {
@@ -1118,14 +1398,21 @@ impl W65C816S {
         }
     }
 
+    /// Compares `Y` to the given data
+    ///
+    /// 8bit if `P.X` is `1` and 16bit if `0`, data is accessed according to WrappingMode.
+    /// See [`compare8`] and [`compare16`] for further details.
+    ///
+    /// [`compare8`]: #method.compare8
+    /// [`compare16`]: #method.compare16
     fn op_cpy(&mut self, data_addr: &(u32, WrappingMode), abus: &mut ABus) {
         if self.p.x {
-            // 8-bit accumulator
+            // 8-bit Y register
             let y8 = self.y as u8;
             let data = abus.cpu_read8(data_addr.0);
             self.compare8(y8, data);
         } else {
-            // 16-bit accumulator
+            // 16-bit Y register
             let y16 = self.y;
             let data: u16;
             match data_addr.1 {
@@ -1137,6 +1424,10 @@ impl W65C816S {
         }
     }
 
+    /// Decrements the data at given address
+    ///
+    /// 8bit if `P.M` is `1` and 16bit if `0`, data is accessed according to WrappingMode.
+    /// `P.N` reflects the high bit of the result and `P.Z` whether or not it is zero.
     fn op_dec(&mut self, data_addr: &(u32, WrappingMode), abus: &mut ABus) {
         if self.p.m {
             // 8-bit accumulator
@@ -1163,6 +1454,10 @@ impl W65C816S {
         }
     }
 
+    /// Increments the data at given address
+    ///
+    /// 8bit if `P.M` is `1` and 16bit if `0`, data is accessed according to WrappingMode.
+    /// `P.N` reflects the high bit of the result and `P.Z` whether or not it is zero.
     fn op_inc(&mut self, data_addr: &(u32, WrappingMode), abus: &mut ABus) {
         if self.p.m {
             // 8-bit accumulator
@@ -1189,6 +1484,10 @@ impl W65C816S {
         }
     }
 
+    /// Performs bitwise AND of `A` and the data, storing the result in `A`
+    ///
+    /// 8bit if `P.M` is `1` and 16bit if `0`, data is accessed according to WrappingMode.
+    /// `P.N` reflects the high bit of the result and `P.Z` whether or not it is zero.
     fn op_and(&mut self, data_addr: &(u32, WrappingMode), abus: &mut ABus) {
         if self.p.m {
             // 8-bit accumulator
@@ -1210,6 +1509,10 @@ impl W65C816S {
         }
     }
 
+    /// Performs bitwise XOR of `A` and the data, storing the result in `A`
+    ///
+    /// 8bit if `P.M` is `1` and 16bit if `0`, data is accessed according to WrappingMode.
+    /// `P.N` reflects the high bit of the result and `P.Z` whether or not it is zero.
     fn op_eor(&mut self, data_addr: &(u32, WrappingMode), abus: &mut ABus) {
         if self.p.m {
             // 8-bit accumulator
@@ -1231,6 +1534,10 @@ impl W65C816S {
         }
     }
 
+    /// Performs bitwise OR of `A` and the data, storing the result in `A`
+    ///
+    /// 8bit if `P.M` is `1` and 16bit if `0`, data is accessed according to WrappingMode.
+    /// `P.N` reflects the high bit of the result and `P.Z` whether or not it is zero.
     fn op_ora(&mut self, data_addr: &(u32, WrappingMode), abus: &mut ABus) {
         if self.p.m {
             // 8-bit accumulator
@@ -1252,6 +1559,11 @@ impl W65C816S {
         }
     }
 
+    /// Performs bitwise AND of `A` and the data only affecting flags
+    ///
+    /// 8bit if `P.M` is `1` and 16bit if `0`, data is accessed according to WrappingMode.
+    /// `P.N` reflects the high bit of the result, `P.V` the second highest bit and `P.Z`
+    /// whether or not the result is zero.
     fn op_bit(&mut self, data_addr: &(u32, WrappingMode), abus: &mut ABus) {
         if self.p.m {
             // 8-bit accumulator
@@ -1275,6 +1587,10 @@ impl W65C816S {
         }
     }
 
+    /// Clears the bits in data that are ones in `A`
+    ///
+    /// 8bit if `P.M` is `1` and 16bit if `0`, data is accessed according to WrappingMode.
+    /// `P.Z` indicates whether or not the result is zero.
     fn op_trb(&mut self, data_addr: &(u32, WrappingMode), abus: &mut ABus) {
         if self.p.m {
             // 8-bit accumulator
@@ -1299,6 +1615,10 @@ impl W65C816S {
         }
     }
 
+    /// Sets the bits in data that are ones in `A`
+    ///
+    /// 8bit if `P.M` is `1` and 16bit if `0`, data is accessed according to WrappingMode.
+    /// `P.Z` indicates whether or not the result is zero.
     fn op_tsb(&mut self, data_addr: &(u32, WrappingMode), abus: &mut ABus) {
         if self.p.m {
             // 8-bit accumulator
@@ -1323,6 +1643,13 @@ impl W65C816S {
         }
     }
 
+    /// Shifts the data left by 1
+    ///
+    /// 8bit if `P.M` is `1` and 16bit if `0`. Data is accessed according to WrappingMode.
+    /// See [`arithmetic_shift_left8`] and [`arithmetic_shift_left16`] for further details.
+    ///
+    /// [`arithmetic_shift_left8`]: #method.arithmetic_shift_left8
+    /// [`arithmetic_shift_left16`]: #method.arithmetic_shift_left16
     fn op_asl(&mut self, data_addr: &(u32, WrappingMode), abus: &mut ABus) {
         if self.p.m {
             // 8-bit accumulator
@@ -1350,6 +1677,13 @@ impl W65C816S {
         }
     }
 
+    /// Shifts the data right by 1
+    ///
+    /// 8bit if `P.M` is `1` and 16bit if `0`. Data is accessed according to WrappingMode.
+    /// See [`logical_shift_right8`] and [`logical_shift_right16`] for further details.
+    ///
+    /// [`logical_shift_right8`]: #method.logical_shift_right8
+    /// [`logical_shift_right16`]: #method.logical_shift_right16
     fn op_lsr(&mut self, data_addr: &(u32, WrappingMode), abus: &mut ABus) {
         if self.p.m {
             // 8-bit accumulator
@@ -1377,6 +1711,13 @@ impl W65C816S {
         }
     }
 
+    /// Rotates the data left by 1
+    ///
+    /// 8bit if `P.M` is `1` and 16bit if `0`. Data is accessed according to WrappingMode.
+    /// See [`rotate_left8`] and [`rotate_left16`] for further details.
+    ///
+    /// [`rotate_left8`]: #method.rotate_left8
+    /// [`rotate_left16`]: #method.rotate_left16
     fn op_rol(&mut self, data_addr: &(u32, WrappingMode), abus: &mut ABus) {
         if self.p.m {
             // 8-bit accumulator
@@ -1398,6 +1739,13 @@ impl W65C816S {
         }
     }
 
+    /// Rotates the data right by 1
+    ///
+    /// 8bit if `P.M` is `1` and 16bit if `0`. Data is accessed according to WrappingMode.
+    /// See [`rotate_right8`] and [`rotate_right16`] for further details.
+    ///
+    /// [`rotate_right8`]: #method.rotate_right8
+    /// [`rotate_right16`]: #method.rotate_right16
     fn op_ror(&mut self, data_addr: &(u32, WrappingMode), abus: &mut ABus) {
         if self.p.m {
             // 8-bit accumulator
@@ -1419,6 +1767,10 @@ impl W65C816S {
         }
     }
 
+    /// Loads the data to `A`
+    ///
+    /// 8bit if `P.M` is `1` and 16bit if `0`. Data is accessed according to WrappingMode.
+    /// `P.N` reflects the high bit of the result and `P.Z` whether or not it is zero.
     fn op_lda(&mut self, data_addr: &(u32, WrappingMode), abus: &mut ABus) {
         if self.p.m {
             let data = abus.cpu_read8(data_addr.0) as u16;
@@ -1438,6 +1790,10 @@ impl W65C816S {
         }
     }
 
+    /// Loads the data to `X`
+    ///
+    /// 8bit if `P.X` is `1` and 16bit if `0`. Data is accessed according to WrappingMode.
+    /// `P.N` reflects the high bit of the result and `P.Z` whether or not it is zero.
     fn op_ldx(&mut self, data_addr: &(u32, WrappingMode), abus: &mut ABus) {
         if self.p.x {
             let data = abus.cpu_read8(data_addr.0) as u16;
@@ -1457,6 +1813,10 @@ impl W65C816S {
         }
     }
 
+    /// Loads the data to `Y`
+    ///
+    /// 8bit if `P.X` is `1` and 16bit if `0`. Data is accessed according to WrappingMode.
+    /// `P.N` reflects the high bit of the result and `P.Z` whether or not it is zero.
     fn op_ldy(&mut self, data_addr: &(u32, WrappingMode), abus: &mut ABus) {
         if self.p.x {
             let data = abus.cpu_read8(data_addr.0) as u16;
@@ -1476,6 +1836,9 @@ impl W65C816S {
         }
     }
 
+    /// Stores `A` to memory `data_addr` points to
+    ///
+    /// 8bit if `P.M` is `1` and 16bit if `0`. Data is accessed according to WrappingMode.
     fn op_sta(&mut self, data_addr: &(u32, WrappingMode), abus: &mut ABus) {
         if self.p.m {
             abus.cpu_write8(data_addr.0, self.a as u8);
@@ -1490,6 +1853,9 @@ impl W65C816S {
         }
     }
 
+    /// Stores `X` to memory `data_addr` points to
+    ///
+    /// 8bit if `P.X` is `1` and 16bit if `0`. Data is accessed according to WrappingMode.
     fn op_stx(&mut self, data_addr: &(u32, WrappingMode), abus: &mut ABus) {
         if self.p.x {
             abus.cpu_write8(data_addr.0, self.x as u8);
@@ -1504,6 +1870,9 @@ impl W65C816S {
         }
     }
 
+    /// Stores `Y` to memory `data_addr` points to
+    ///
+    /// 8bit if `P.X` is `1` and 16bit if `0`. Data is accessed according to WrappingMode.
     fn op_sty(&mut self, data_addr: &(u32, WrappingMode), abus: &mut ABus) {
         if self.p.x {
             abus.cpu_write8(data_addr.0, self.y as u8);
@@ -1518,6 +1887,9 @@ impl W65C816S {
         }
     }
 
+    /// Zeroes the memory `data_addr` points to
+    ///
+    /// 8bit if `P.X` is `1` and 16bit if `0`. Data is accessed according to WrappingMode.
     fn op_stz(&mut self, data_addr: &(u32, WrappingMode), abus: &mut ABus) {
         if self.p.m {
             abus.cpu_write8(data_addr.0, 0x00);
@@ -1532,6 +1904,11 @@ impl W65C816S {
         }
     }
 
+    /// Moves data from `data_addrs.0` to `data_addrs.1`, decrements `A` and increments both
+    /// `X` and `Y`
+    ///
+    /// DB is set to the destination bank and instruction "loops" until `A` holds `$FFFF`.
+    /// PC` is incremented by 3 afterward.
     fn op_mvn(&mut self, data_addrs: &(u32, u32), abus: &mut ABus) {
         let data = abus.cpu_read8(data_addrs.0);
         abus.cpu_write8(data_addrs.1, data);
@@ -1552,6 +1929,10 @@ impl W65C816S {
         }
     }
 
+    /// Moves data from `data_addrs.0` to `data_addrs.1`, decrements `A`, `X` and `Y`
+    ///
+    /// DB is set to the destination bank and instruction "loops" until `A` holds `$FFFF`.
+    /// PC` is incremented by 3 afterward.
     fn op_mvp(&mut self, data_addrs: &(u32, u32), abus: &mut ABus) {
         let data = abus.cpu_read8(data_addrs.0);
         abus.cpu_write8(data_addrs.1, data);
@@ -1573,14 +1954,17 @@ impl W65C816S {
     }
 }
 
+/// Concats bank and 16bit address to 24bit address
 #[inline(always)]
 fn addr_8_16(bank: u8, byte: u16) -> u32 { ((bank as u32) << 16) | byte as u32 }
 
+/// Concats bank, page and byte to 24bit address
 #[inline(always)]
 fn addr_8_8_8(bank: u8, page: u8, byte: u8) -> u32 {
     ((bank as u32) << 16) | ((page as u32) << 8) | byte as u32
 }
 
+/// Converts normal u8 to 8bit binary-coded decimal
 fn dec_to_bcd8(value: u8) -> u8 {
     if value > 99 {
         panic!("{} too large for 8bit BCD", value);
@@ -1588,6 +1972,7 @@ fn dec_to_bcd8(value: u8) -> u8 {
     ((value / 10) << 4) | (value % 10)
 }
 
+/// Converts normal u16 to 16bit binary-coded decimal
 fn dec_to_bcd16(value: u16) -> u16 {
     if value > 9999 {
         panic!("{} too large for 16bit BCD", value);
@@ -1596,6 +1981,7 @@ fn dec_to_bcd16(value: u16) -> u16 {
         | (value % 10)
 }
 
+/// Convert 8bit binary-coded decimal to normal u8
 fn bcd_to_dec8(value: u8) -> u8 {
     let ll = value & 0x000F;
     let hh = (value >> 4) & 0x000F;
@@ -1605,6 +1991,7 @@ fn bcd_to_dec8(value: u8) -> u8 {
     hh * 10 + ll
 }
 
+/// Converts 16bit binary-coded decimal to normal u16
 fn bcd_to_dec16(value: u16) -> u16 {
     let ll = value & 0x000F;
     let ml = (value >> 4) & 0x000F;
@@ -1616,48 +2003,80 @@ fn bcd_to_dec16(value: u16) -> u16 {
     hh * 1000 + mh * 100 + ml * 10 + ll
 }
 
-// Interrupt vectors
+// TODO: Move inside W65C816S
+/// Native mode co-processor vector (unused in SNES?)
 const COP16: u32 = 0x00FFE4;
+/// Native mode BRK vector
 const BRK16: u32 = 0x00FFE6;
+/// Native mode ABORT vector
 const ABORT16: u32 = 0x00FFE8;
+/// Native mode non-maskable interrupt vector. Called on vblank
 const NMI16: u32 = 0x00FFEA;
+/// Native mode interrupt request
 const IRQ16: u32 = 0x00FFEE;
+/// Emulation mode co-processor vector (unused in SNES?)
 const COP8: u32 = 0x00FFF4;
+/// Emulation mode ABORT vector
 const ABORT8: u32 = 0x00FFF8;
+/// Emulation mode non-maskable interrupt vector. Called on vblank
 const NMI8: u32 = 0x00FFFA;
+/// Reset vector, execution begins from this
 const RESET8: u32 = 0x00FFFC;
+/// Emulation mode interrupt request / BRK vector
 const IRQBRK8: u32 = 0x00FFFE;
 
-// P flags
+// TODO: Move inside StatusReg?
+/// Carry mask
 const P_C: u8 = 0b0000_0001;
+/// Zero mask
 const P_Z: u8 = 0b0000_0010;
+/// Interrupt mask
 const P_I: u8 = 0b0000_0100;
+/// Decimal mode mask
 const P_D: u8 = 0b0000_1000;
+/// Index register width mask
 const P_X: u8 = 0b0001_0000;
+/// Accumulator width mask
 const P_M: u8 = 0b0010_0000;
+/// Overflow mask
 const P_V: u8 = 0b0100_0000;
+/// Negative mask
 const P_N: u8 = 0b1000_0000;
 
+/// Indicates the wrapping mode of the data an address is pointing to
 #[derive(PartialEq, Debug)]
 pub enum WrappingMode {
+    /// Data wraps at page boundary
     Page,
+    /// Data wraps at bank boundary
     Bank,
+    /// Data wraps at address space boundary
     AddrSpace,
 }
 
+/// The status register in 65C816
 #[derive(Clone)]
 struct StatusReg {
+    /// Negative (0 = positive, 1 = negative)
     n: bool,
+    /// Overflow (0 = no overflow, 1 = overflow)
     v: bool,
+    /// Memory and accumulator width (0 = 16bit, 1 = 8bit)
     m: bool,
+    /// Index register width (0 = 16bit, 1 = 8bit)
     x: bool,
+    /// Decimal mode for ADC/SBC (0 = binary, 1 = binary-coded decimal)
     d: bool,
+    /// Interrupt flag (0 = IRQ enable, 1 = IRQ disable)
     i: bool,
+    /// Zero flag (0 = non-zero, 1 = zero)
     z: bool,
+    /// Carry flag (0 = no carry, 1 = carry)
     c: bool,
 }
 
 impl StatusReg {
+    /// Initializes a new instance with default values (`m`, `x` and `i` are set)
     pub fn new() -> StatusReg {
         StatusReg {
             n: false,
@@ -1671,6 +2090,7 @@ impl StatusReg {
         }
     }
 
+    /// Sets the flags that are set in `mask`
     fn set_flags(&mut self, mask: u8) {
         if mask & P_N > 0 {
             self.n = true;
@@ -1698,6 +2118,7 @@ impl StatusReg {
         }
     }
 
+    /// Clears the flags that are set in `mask`
     fn clear_flags(&mut self, mask: u8) {
         if mask & P_N > 0 {
             self.n = false;
@@ -1725,6 +2146,7 @@ impl StatusReg {
         }
     }
 
+    /// Returns the u8 value of the register as it would be in hardware
     fn value(&self) -> u8 {
         let mut value: u8 = 0b0000_0000;
         if self.n {
@@ -1754,6 +2176,7 @@ impl StatusReg {
         value
     }
 
+    /// Sets the register to `value`
     fn set_value(&mut self, value: u8) {
         self.n = value & P_N > 0;
         self.v = value & P_V > 0;
