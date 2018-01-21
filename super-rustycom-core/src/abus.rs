@@ -74,14 +74,14 @@ pub struct ABus {
 
 impl ABus {
     /// Initializes a new instance with default values and loads the given ROM
-    pub fn new(rom_path: &String) -> ABus {
+    pub fn new(rom_bytes: Vec<u8>) -> ABus {
         // TODO: Randomize values?
         ABus {
             wram: Box::new([0; WRAM_SIZE]),
             vram: Box::new([0; VRAM_SIZE]),
             oam: Box::new([0; OAM_SIZE]),
             cgram: Box::new([0; CGRAM_SIZE]),
-            rom: Rom::new(rom_path),
+            rom: Rom::new(rom_bytes),
             mpy_div: MpyDiv::new(),
             ppu_io: PpuIo::new(),
             joy_io: JoyIo::new(),
