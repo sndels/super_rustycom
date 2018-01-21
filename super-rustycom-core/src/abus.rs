@@ -26,10 +26,10 @@ pub struct ABus {
     vtime: u16,
     memsel: u8,
     // APU IO
-    apu_io0: u8,
-    apu_io1: u8,
-    apu_io2: u8,
-    apu_io3: u8,
+    apu_io0: u16,
+    apu_io1: u16,
+    apu_io2: u16,
+    apu_io3: u16,
     // WRAM access
     wm_add_l: u8,
     wm_add_m: u8,
@@ -63,10 +63,10 @@ impl ABus {
             htime: 0x01FF,
             vtime: 0x01FF,
             memsel: 0x00,
-            apu_io0: 0x00,
-            apu_io1: 0x00,
-            apu_io2: 0x00,
-            apu_io3: 0x00,
+            apu_io0: 0x0000,
+            apu_io1: 0x0000,
+            apu_io2: 0x0000,
+            apu_io3: 0x0000,
             wm_add_l: 0x00,
             wm_add_m: 0x00,
             wm_add_h: 0x00,
@@ -92,10 +92,10 @@ impl ABus {
             htime: 0x01FF,
             vtime: 0x01FF,
             memsel: 0x00,
-            apu_io0: 0x00,
-            apu_io1: 0x00,
-            apu_io2: 0x00,
-            apu_io3: 0x00,
+            apu_io0: 0x0000,
+            apu_io1: 0x0000,
+            apu_io2: 0x0000,
+            apu_io3: 0x0000,
             wm_add_l: 0x00,
             wm_add_m: 0x00,
             wm_add_h: 0x00,
@@ -124,10 +124,10 @@ impl ABus {
                 // APU IO
                 let apu_port = if addr < 0x2144 { addr } else { addr - 4 };
                 match apu_port {
-                    mmap::APUI00 => self.apu_io0,
-                    mmap::APUI01 => self.apu_io1,
-                    mmap::APUI02 => self.apu_io2,
-                    mmap::APUI03 => self.apu_io3,
+                        mmap::APUI00 => (self.apu_io0 >> 8) as u8,
+                        mmap::APUI01 => (self.apu_io1 >> 8) as u8,
+                        mmap::APUI02 => (self.apu_io2 >> 8) as u8,
+                        mmap::APUI03 => (self.apu_io3 >> 8) as u8,
                     _ => unreachable!(),
                 }
             }
@@ -204,17 +204,6 @@ impl ABus {
         }
     }
 
-    #[allow(dead_code)]
-    pub fn apu_read8(&mut self, reg: u8) -> u8 {
-        match reg {
-            0x00 => self.apu_io0,
-            0x01 => self.apu_io1,
-            0x02 => self.apu_io2,
-            0x03 => self.apu_io3,
-            _ => panic!("APU read from invalid IO register!"),
-        }
-    }
-
     pub fn addr_wrapping_cpu_read16(&mut self, addr: u32) -> u16 {
         self.cpu_read8(addr) as u16 | ((self.cpu_read8(addr_wrapping_add(addr, 1)) as u16) << 8)
     }
@@ -271,10 +260,11 @@ impl ABus {
                 // APU IO
                 let apu_port = if addr < 0x2144 { addr } else { addr - 4 };
                 match apu_port {
-                    mmap::APUI00 => self.apu_io0 = value,
-                    mmap::APUI01 => self.apu_io1 = value,
-                    mmap::APUI02 => self.apu_io2 = value,
-                    mmap::APUI03 => self.apu_io3 = value,
+
+                    mmap::APUI00 => self.apu_io0 = (self.apu_io0 & 0xFF00) | value as u16,
+                    mmap::APUI01 => self.apu_io1 = (self.apu_io1 & 0xFF00) | value as u16,
+                    mmap::APUI02 => self.apu_io2 = (self.apu_io2 & 0xFF00) | value as u16,
+                    mmap::APUI03 => self.apu_io3 = (self.apu_io3 & 0xFF00) | value as u16,
                     _ => unreachable!(),
                 }
             }
@@ -349,10 +339,10 @@ impl ABus {
 
     pub fn apu_write8(&mut self, reg: u8, value: u8) {
         match reg {
-            0x00 => self.apu_io0 = value,
-            0x01 => self.apu_io1 = value,
-            0x02 => self.apu_io2 = value,
-            0x03 => self.apu_io3 = value,
+            0x00 => self.apu_io0 = (self.apu_io0 & 0xFF00) | value as u16,
+            0x01 => self.apu_io1 = (self.apu_io1 & 0xFF00) | value as u16,
+            0x02 => self.apu_io2 = (self.apu_io2 & 0xFF00) | value as u16,
+            0x03 => self.apu_io3 = (self.apu_io3 & 0xFF00) | value as u16,
             _ => panic!("APU write to invalid IO register!"),
         }
     }
