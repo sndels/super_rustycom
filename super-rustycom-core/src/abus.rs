@@ -132,8 +132,22 @@ impl ABus {
                 }
             }
             mmap::WMDATA => {
-                let wram_addr = ((self.wm_add_h as usize) << 16) | ((self.wm_add_m as usize) << 8)
+                // Get current address
+                let wram_addr = (((self.wm_add_h & 0x1) as usize) << 16)
+                    | ((self.wm_add_m as usize) << 8)
                     | (self.wm_add_l as usize);
+                // Increment address
+                self.wm_add_l = self.wm_add_l.wrapping_add(1);
+                if self.wm_add_l == 0x00 {
+                    self.wm_add_m = self.wm_add_m.wrapping_add(1);
+                    if self.wm_add_m == 0x00 {
+                        self.wm_add_h = self.wm_add_h.wrapping_add(1);
+                        if self.wm_add_h & 0x01 == 0x00 {
+                            self.wm_add_l = 0x01;
+                        }
+                    }
+                }
+                // Return data at the original address
                 self.wram[wram_addr]
             }
             mmap::JOYA => self.joy_io.joy_a(),
