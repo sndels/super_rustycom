@@ -163,10 +163,10 @@ pub fn cpu_read_sys(abus: &mut ABus, addr: usize) -> u8 {
             // APU IO
             let apu_port = if addr < 0x2144 { addr } else { addr - 4 };
             match apu_port {
-                APUI00 => abus.apu_io0,
-                APUI01 => abus.apu_io1,
-                APUI02 => abus.apu_io2,
-                APUI03 => abus.apu_io3,
+                APUI00 => (abus.apu_io0 >> 8) as u8,
+                APUI01 => (abus.apu_io1 >> 8) as u8,
+                APUI02 => (abus.apu_io2 >> 8) as u8,
+                APUI03 => (abus.apu_io3 >> 8) as u8,
                 _ => unreachable!(),
             }
         }
@@ -242,10 +242,10 @@ pub fn cpu_read8(abus: &mut ABus, addr: u32) -> u8 {
 #[allow(dead_code)]
 pub fn apu_read8(abus: &mut ABus, reg: u8) -> u8 {
     match reg {
-        0x00 => abus.apu_io0,
-        0x01 => abus.apu_io1,
-        0x02 => abus.apu_io2,
-        0x03 => abus.apu_io3,
+        0x00 => abus.apu_io0 as u8,
+        0x01 => abus.apu_io1 as u8,
+        0x02 => abus.apu_io2 as u8,
+        0x03 => abus.apu_io3 as u8,
         _ => panic!("APU read from invalid IO register!"),
     }
 }
@@ -308,10 +308,10 @@ fn cpu_write_sys(abus: &mut ABus, addr: usize, value: u8) {
             // APU IO
             let apu_port = if addr < 0x2144 { addr } else { addr - 4 };
             match apu_port {
-                APUI00 => abus.apu_io0 = value,
-                APUI01 => abus.apu_io1 = value,
-                APUI02 => abus.apu_io2 = value,
-                APUI03 => abus.apu_io3 = value,
+                APUI00 => abus.apu_io0 = (abus.apu_io0 & 0xFF00) | value as u16,
+                APUI01 => abus.apu_io1 = (abus.apu_io1 & 0xFF00) | value as u16,
+                APUI02 => abus.apu_io2 = (abus.apu_io2 & 0xFF00) | value as u16,
+                APUI03 => abus.apu_io3 = (abus.apu_io3 & 0xFF00) | value as u16,
                 _ => unreachable!(),
             }
         }
@@ -386,10 +386,10 @@ pub fn cpu_write8(abus: &mut ABus, addr: u32, value: u8) {
 
 pub fn apu_write8(abus: &mut ABus, reg: u8, value: u8) {
     match reg {
-        0x00 => abus.apu_io0 = value,
-        0x01 => abus.apu_io1 = value,
-        0x02 => abus.apu_io2 = value,
-        0x03 => abus.apu_io3 = value,
+        0x00 => abus.apu_io0 = ((value as u16) << 8) | (abus.apu_io0 & 0xFF),
+        0x01 => abus.apu_io1 = ((value as u16) << 8) | (abus.apu_io1 & 0xFF),
+        0x02 => abus.apu_io2 = ((value as u16) << 8) | (abus.apu_io2 & 0xFF),
+        0x03 => abus.apu_io3 = ((value as u16) << 8) | (abus.apu_io3 & 0xFF),
         _ => panic!("APU write to invalid IO register!"),
     }
 }
