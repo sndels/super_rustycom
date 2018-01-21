@@ -171,8 +171,22 @@ pub fn cpu_read_sys(abus: &mut ABus, addr: usize) -> u8 {
             }
         }
         WMDATA => {
-            let wram_addr = ((abus.wm_add_h as usize) << 16) | ((abus.wm_add_m as usize) << 8)
+            // Get current address
+            let wram_addr = (((abus.wm_add_h & 0x1) as usize) << 16)
+                | ((abus.wm_add_m as usize) << 8)
                 | (abus.wm_add_l as usize);
+            // Increment address
+            abus.wm_add_l = abus.wm_add_l.wrapping_add(1);
+            if abus.wm_add_l == 0x00 {
+                abus.wm_add_m = abus.wm_add_m.wrapping_add(1);
+                if abus.wm_add_m == 0x00 {
+                    abus.wm_add_h = abus.wm_add_h.wrapping_add(1);
+                    if abus.wm_add_h & 0x01 == 0x00 {
+                        abus.wm_add_l = 0x01;
+                    }
+                }
+            }
+            // Return data at the original address
             abus.wram[wram_addr]
         }
         JOYA => abus.joy_io.joy_a(),
