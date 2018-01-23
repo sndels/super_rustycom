@@ -108,15 +108,18 @@ impl Debugger {
                     }
                 },
                 "cpu" => {
-                    println!("A:  ${:04X}", cpu.a());
-                    println!("X:  ${:04X}", cpu.x());
-                    println!("Y:  ${:04X}", cpu.y());
-                    println!("PB: ${:02X}", cpu.pb());
-                    println!("PC: ${:04X}", cpu.pc());
-                    println!("DB: ${:02X}", cpu.db());
-                    println!("D:  ${:04X}", cpu.d());
-                    println!("S:  ${:04X}", cpu.s());
-                    println!("P:  {}", status_str(cpu));
+                    println!("A:       ${:04X}", cpu.a());
+                    println!("X:       ${:04X}", cpu.x());
+                    println!("Y:       ${:04X}", cpu.y());
+                    println!("PB:      ${:02X}", cpu.pb());
+                    println!("PC:      ${:04X}", cpu.pc());
+                    println!("DB:      ${:02X}", cpu.db());
+                    println!("D:       ${:04X}", cpu.d());
+                    println!("S:       ${:04X}", cpu.s());
+                    println!("P:       {}", status_str(cpu));
+                    println!("E:       {}", cpu.e());
+                    println!("Stopped: {}", cpu.stopped());
+                    println!("Waiting: {}", cpu.waiting());
                 }
                 "run" | "r" => self.active = false,
                 "exit" => self.quit = true,
