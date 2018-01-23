@@ -1,6 +1,6 @@
 pub struct MpyDiv {
-    mpy_a: u8,
-    mpy_b: u8,
+    multiplicand: u8,
+    multiplier: u8,
     dividend: u16,
     divisor: u8,
     mpy_res: u16, // Doubles as division reminder
@@ -10,8 +10,8 @@ pub struct MpyDiv {
 impl MpyDiv {
     pub fn new() -> MpyDiv {
         MpyDiv {
-            mpy_a: 0xFF,
-            mpy_b: 0xFF,
+            multiplicand: 0xFF,
+            multiplier: 0xFF,
             dividend: 0xFFFF,
             divisor: 0xFF,
             mpy_res: 0x0000, // TODO: Check result inits
@@ -19,12 +19,12 @@ impl MpyDiv {
         }
     }
 
-    pub fn set_mpy_a(&mut self, value: u8) { self.mpy_a = value; }
+    pub fn set_multiplicand(&mut self, value: u8) { self.multiplicand = value; }
 
-    pub fn set_mpy_b(&mut self, value: u8) {
-        self.mpy_b = value;
-        self.mpy_res = (self.mpy_a as u16) * (self.mpy_b as u16); // TODO: Timing
-        self.div_res = self.mpy_b as u16;
+    pub fn set_multiplier_and_start_multiply(&mut self, value: u8) {
+        self.multiplier = value;
+        self.mpy_res = (self.multiplicand as u16) * (self.multiplier as u16); // TODO: Timing
+        self.div_res = self.multiplier as u16;
     }
 
     pub fn set_dividend_low(&mut self, value: u8) {
@@ -35,7 +35,7 @@ impl MpyDiv {
         self.dividend = ((value as u16) << 8) | (self.dividend & 0x00FF);
     }
 
-    pub fn set_divisor(&mut self, value: u8) {
+    pub fn set_divisor_and_start_division(&mut self, value: u8) {
         self.divisor = value; // TODO: Timing
         if self.divisor == 0 {
             self.div_res = 0xFFFF;
@@ -63,8 +63,8 @@ mod tests {
     fn mpy() {
         let mut mpy_div = MpyDiv::new();
         // Straight multiplication
-        mpy_div.set_mpy_a(0xFA);
-        mpy_div.set_mpy_b(0xFB);
+        mpy_div.set_multiplicand(0xFA);
+        mpy_div.set_multiplier_and_start_multiply(0xFB);
         assert_eq!(0xF51E, mpy_div.mpy_res);
         assert_eq!(0x1E, mpy_div.get_mpy_res_low());
         assert_eq!(0xF5, mpy_div.get_mpy_res_high());
@@ -72,11 +72,11 @@ mod tests {
         assert_eq!(0x00FB, mpy_div.div_res); // According to fullsnes
 
         // Only b triggers mpy
-        mpy_div.set_mpy_a(0xFB);
+        mpy_div.set_multiplicand(0xFB);
         assert_eq!(0xF51E, mpy_div.mpy_res);
 
         // By zero
-        mpy_div.set_mpy_b(0x00);
+        mpy_div.set_multiplier_and_start_multiply(0x00);
         assert_eq!(0x0000, mpy_div.mpy_res);
     }
 
@@ -86,7 +86,7 @@ mod tests {
         // Straight division
         mpy_div.set_dividend_low(0xFB);
         mpy_div.set_dividend_high(0xFA);
-        mpy_div.set_divisor(0x1A);
+        mpy_div.set_divisor_and_start_division(0x1A);
         assert_eq!(0x09A7, mpy_div.div_res);
         assert_eq!(0xA7, mpy_div.get_div_res_low());
         assert_eq!(0x09, mpy_div.get_div_res_high());
@@ -99,21 +99,21 @@ mod tests {
         assert_eq!(0x0005, mpy_div.mpy_res);
 
         // Zero remainder
-        mpy_div.set_divisor(0x01);
+        mpy_div.set_divisor_and_start_division(0x01);
         assert_eq!(0xFCFD, mpy_div.div_res);
         assert_eq!(0x0000, mpy_div.mpy_res);
 
         // Only remainder
         mpy_div.set_dividend_low(0x09);
         mpy_div.set_dividend_high(0x00);
-        mpy_div.set_divisor(0x1A);
+        mpy_div.set_divisor_and_start_division(0x1A);
         assert_eq!(0x0000, mpy_div.div_res);
         assert_eq!(0x0009, mpy_div.mpy_res);
 
         // Division by zero
         mpy_div.set_dividend_low(0xFB);
         mpy_div.set_dividend_high(0xFA);
-        mpy_div.set_divisor(0x00);
+        mpy_div.set_divisor_and_start_division(0x00);
         assert_eq!(0xFFFF, mpy_div.div_res);
         assert_eq!(0xFAFB, mpy_div.mpy_res);
     }
