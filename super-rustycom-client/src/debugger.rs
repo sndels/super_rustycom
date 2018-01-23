@@ -121,6 +121,16 @@ impl Debugger {
                 }
                 "run" | "r" => self.active = false,
                 "exit" => self.quit = true,
+                "help" | "h" => {
+                    println!("disassemble, da        -- toggle on the fly disassembly");
+                    print!("dump ([param])         -- dump wram, vram, oam, cgram to files");
+                    println!(", supports choosing one with parameter");
+                    println!("step, s ([param])      -- step to next instruction or by amount");
+                    println!("breakpoint, bp [param] -- set execution breakpoint at hex address");
+                    println!("cpu                    -- print out cpu state");
+                    println!("run, r                 -- run until breakpoint is hit");
+                    println!("exit                   -- stop emulation");
+                }
                 _ => println!("Unknown command \"{}\"", command_str.trim()),
             }
         }
