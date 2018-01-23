@@ -109,6 +109,10 @@ impl W65C816S {
     pub fn d(&self) -> u16 { self.d }
     /// Returns the value of `E`
     pub fn e(&self) -> bool { self.e }
+    /// Returns the value of `stopped`
+    pub fn stopped(&self) -> bool { self.stopped }
+    /// Returns the value of `waiting`
+    pub fn waiting(&self) -> bool { self.waiting }
     /// Returns the value of the carry flag
     pub fn p_c(&self) -> bool { self.p.c }
     /// Returns the value of the zero flag
