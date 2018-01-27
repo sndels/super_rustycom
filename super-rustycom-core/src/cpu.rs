@@ -99,7 +99,7 @@ impl W65C816S {
     /// Returns the value of `PB`
     pub fn pb(&self) -> u8 { self.pb }
     /// Returns the value of `DB`
-    pub fn db(&self) -> u8 { self.db}
+    pub fn db(&self) -> u8 { self.db }
     /// Returns the value of `PC`
     pub fn pc(&self) -> u16 { self.pc }
     /// Returns the value of `S`
@@ -131,16 +131,30 @@ impl W65C816S {
     /// Returns the address of the next instruction
     pub fn current_address(&self) -> u32 { ((self.pb as u32) << 16) + self.pc as u32 }
 
-    /// Executes instruction defined by `opcode` at address `addr`
+    /// Executes instruction defined by `opcode` at address `addr` and returns the number of cycles
+    /// it took
     ///
     /// `abus` is used for memory addressing as needed
-    fn execute(&mut self, opcode: u8, addr: u32, abus: &mut ABus) {
+    fn execute(&mut self, opcode: u8, addr: u32, abus: &mut ABus) -> u8 {
         // Executes op_func with data pointed by addressing and increments pc by op_length
         macro_rules! op {
-            ($addressing:ident, $op_func:ident, $op_length:expr) => ({
+            ($addressing:ident, $op_func:ident, $op_length:expr, $op_cycles:expr) => ({
                 let data_addr = self.$addressing(addr, abus);
                 self.$op_func(&data_addr, abus);
                 self.pc = self.pc.wrapping_add($op_length);
+                $op_cycles
+            });
+        }
+
+        // Executes op_func with data pointed by addressing and increments pc by op_length
+        // Special version for instructions whose length vary on page boundary crossing
+        macro_rules! op_p {
+            ($addressing:ident, $op_func:ident, $op_length:expr, $op_cycles:expr) => ({
+                let data_addr = self.$addressing(addr, abus);
+                self.$op_func(&data_addr, abus);
+                self.pc = self.pc.wrapping_add($op_length);
+                let page_crossed = if data_addr.0 & 0xFF00 != addr & 0xFF00 { 1 } else { 0 };
+                $op_cycles - self.p.x as u8 + self.p.x as u8 * page_crossed
             });
         }
 
@@ -160,17 +174,25 @@ impl W65C816S {
                     self.p.z = $reg_ref == 0;
                 }
                 self.pc = self.pc.wrapping_add(1);
+                2 // All incs and decs of registers are two cycles
             })
         }
 
         // Branches to relative8 address if cond is true and increments pc by 2
         macro_rules! branch {
             ($condition:expr) => ({
+                let cycles;
                 if $condition {
+                    let old_pc = self.pc;
                     self.pc = self.rel8(addr, abus).0 as u16;
+                    // Add one cycle for branch and another if page boundary is crossed in
+                    // emulation mode
+                    cycles = if self.e && (self.pc & 0xFF00 != old_pc & 0xFF00) { 4 } else { 3 };
                 } else {
                     self.pc = self.pc.wrapping_add(2);
+                    cycles = 2;
                 }
+                cycles
             })
         }
 
@@ -179,22 +201,24 @@ impl W65C816S {
             ($flag:expr, $value:expr) => ({
                 $flag = $value;
                 self.pc = self.pc.wrapping_add(1);
+                2 // All CL*, SE* take two cycles
             })
         }
 
         // Pushes the 16bit value pointed by addressing to stack and increments pc by op_length
         macro_rules! push_eff {
-            ($addressing:ident, $op_length:expr) => ({
+            ($addressing:ident, $op_length:expr, $op_cycles:expr) => ({
                 let data_addr = self.$addressing(addr, abus);
                 let data = abus.bank_wrapping_cpu_read16(data_addr.0);
                 self.push16(data, abus);
                 self.pc = self.pc.wrapping_add($op_length);
+                $op_cycles
             })
         }
 
         // Pushes register to stack at 8/16bits wide based on cond and increments pc by 1
         macro_rules! push_reg {
-            ($cond:expr, $reg_ref:expr) => ({
+            ($cond:expr, $reg_ref:expr, $op_cycles:expr) => ({
                 if $cond {
                     let value = $reg_ref as u8;
                     self.push8(value, abus);
@@ -203,13 +227,14 @@ impl W65C816S {
                     self.push16(value, abus);
                 }
                 self.pc = self.pc.wrapping_add(1);
+                $op_cycles
             })
         }
 
         // Pulls 8/16bits from stack to given register based on cond and increments pc by 1
         // N indicates the high bit of the result and Z if it's 0
         macro_rules! pull_reg {
-            ($cond:expr, $reg_ref:expr) => ({
+            ($cond:expr, $reg_ref:expr, $op_cycles:expr) => ({
                 if $cond {
                     let value = self.pull8(abus);
                     $reg_ref = ($reg_ref & 0xFF00) | value as u16;
@@ -222,6 +247,7 @@ impl W65C816S {
                     self.p.z = value == 0;
                 }
                 self.pc = self.pc.wrapping_add(1);
+                $op_cycles
             })
         }
 
@@ -239,131 +265,139 @@ impl W65C816S {
                     self.p.z = $src_reg == 0;
                 }
                 self.pc = self.pc.wrapping_add(1);
+                2 // All transfers take two cycles
             })
         }
 
+        // Some instructions take a cycle less if `DL` is `00`
+        let dl_zero = if self.d & 0x00FF == 0 { 0 } else { 1 };
+        // Cast flags to uint for use in cycle counts
+        let e = if self.e { 1 } else { 0 };
+        let m = if self.p.m { 1 } else { 0 };
+        let x = if self.p.x { 1 } else { 0 };
+
         // Execute opcodes, utilize macros and op_funcs in common cases
         match opcode {
-            op::ADC_61 => op!(dir_x_ptr16, op_adc, 2),
-            op::ADC_63 => op!(stack, op_adc, 2),
-            op::ADC_65 => op!(dir, op_adc, 2),
-            op::ADC_67 => op!(dir_ptr24, op_adc, 2),
-            op::ADC_69 => op!(imm, op_adc, 3 - self.p.m as u16),
-            op::ADC_6D => op!(abs, op_adc, 3),
-            op::ADC_6F => op!(long, op_adc, 4),
-            op::ADC_71 => op!(dir_ptr16_y, op_adc, 2),
-            op::ADC_72 => op!(dir_ptr16, op_adc, 2),
-            op::ADC_73 => op!(stack_ptr16_y, op_adc, 2),
-            op::ADC_75 => op!(dir_x, op_adc, 2),
-            op::ADC_77 => op!(dir_ptr24_y, op_adc, 2),
-            op::ADC_79 => op!(abs_y, op_adc, 3),
-            op::ADC_7D => op!(abs_x, op_adc, 3),
-            op::ADC_7F => op!(long_x, op_adc, 4),
-            op::SBC_E1 => op!(dir_x_ptr16, op_sbc, 2),
-            op::SBC_E3 => op!(stack, op_sbc, 2),
-            op::SBC_E5 => op!(dir, op_sbc, 2),
-            op::SBC_E7 => op!(dir_ptr24, op_sbc, 2),
-            op::SBC_E9 => op!(imm, op_sbc, 3 - self.p.m as u16),
-            op::SBC_ED => op!(abs, op_sbc, 3),
-            op::SBC_EF => op!(long, op_sbc, 4),
-            op::SBC_F1 => op!(dir_ptr16_y, op_sbc, 2),
-            op::SBC_F2 => op!(dir_ptr16, op_sbc, 2),
-            op::SBC_F3 => op!(stack_ptr16_y, op_sbc, 2),
-            op::SBC_F5 => op!(dir_x, op_sbc, 2),
-            op::SBC_F7 => op!(dir_ptr24_y, op_sbc, 2),
-            op::SBC_F9 => op!(abs_y, op_sbc, 3),
-            op::SBC_FD => op!(abs_x, op_sbc, 3),
-            op::SBC_FF => op!(long_x, op_sbc, 4),
-            op::CMP_C1 => op!(dir_x_ptr16, op_cmp, 2),
-            op::CMP_C3 => op!(stack, op_cmp, 2),
-            op::CMP_C5 => op!(dir, op_cmp, 2),
-            op::CMP_C7 => op!(dir_ptr24, op_cmp, 2),
-            op::CMP_C9 => op!(imm, op_cmp, 3 - self.p.m as u16),
-            op::CMP_CD => op!(abs, op_cmp, 3),
-            op::CMP_CF => op!(long, op_cmp, 4),
-            op::CMP_D1 => op!(dir_ptr16_y, op_cmp, 2),
-            op::CMP_D2 => op!(dir_ptr16, op_cmp, 2),
-            op::CMP_D3 => op!(stack_ptr16_y, op_cmp, 2),
-            op::CMP_D5 => op!(dir_x, op_cmp, 2),
-            op::CMP_D7 => op!(dir_ptr24_y, op_cmp, 2),
-            op::CMP_D9 => op!(abs_y, op_cmp, 3),
-            op::CMP_DD => op!(abs_x, op_cmp, 3),
-            op::CMP_DF => op!(long_x, op_cmp, 4),
-            op::CPX_E0 => op!(imm, op_cpx, 3 - self.p.x as u16),
-            op::CPX_E4 => op!(dir, op_cpx, 2),
-            op::CPX_EC => op!(abs, op_cpx, 3),
-            op::CPY_C0 => op!(imm, op_cpy, 3 - self.p.x as u16),
-            op::CPY_C4 => op!(dir, op_cpy, 2),
-            op::CPY_CC => op!(abs, op_cpy, 3),
+            op::ADC_61 => op!(dir_x_ptr16, op_adc, 2, 7 - m + dl_zero),
+            op::ADC_63 => op!(stack, op_adc, 2, 5 - m),
+            op::ADC_65 => op!(dir, op_adc, 2, 4 - m + dl_zero),
+            op::ADC_67 => op!(dir_ptr24, op_adc, 2, 7 - m + dl_zero),
+            op::ADC_69 => op!(imm, op_adc, 3 - self.p.m as u16, 6 - m),
+            op::ADC_6D => op!(abs, op_adc, 3, 5 - m),
+            op::ADC_6F => op!(long, op_adc, 4, 6 - m),
+            op::ADC_71 => op_p!(dir_ptr16_y, op_adc, 2, 7 - m + dl_zero),
+            op::ADC_72 => op!(dir_ptr16, op_adc, 2, 6 - m + dl_zero),
+            op::ADC_73 => op!(stack_ptr16_y, op_adc, 2, 8 - m),
+            op::ADC_75 => op!(dir_x, op_adc, 2, 5 - m + dl_zero),
+            op::ADC_77 => op!(dir_ptr24_y, op_adc, 2, 7 - m + dl_zero),
+            op::ADC_79 => op_p!(abs_y, op_adc, 3, 6 - m),
+            op::ADC_7D => op_p!(abs_x, op_adc, 3, 6 - m),
+            op::ADC_7F => op!(long_x, op_adc, 4, 6 - m),
+            op::SBC_E1 => op!(dir_x_ptr16, op_sbc, 2, 7 - m + dl_zero),
+            op::SBC_E3 => op!(stack, op_sbc, 2, 5 - m),
+            op::SBC_E5 => op!(dir, op_sbc, 2, 4 - m + dl_zero),
+            op::SBC_E7 => op!(dir_ptr24, op_sbc, 2, 7 - m + dl_zero),
+            op::SBC_E9 => op!(imm, op_sbc, 3 - self.p.m as u16, 3 - m),
+            op::SBC_ED => op!(abs, op_sbc, 3, 5 - m),
+            op::SBC_EF => op!(long, op_sbc, 4, 6 - m),
+            op::SBC_F1 => op_p!(dir_ptr16_y, op_sbc, 2, 7 - m + dl_zero),
+            op::SBC_F2 => op!(dir_ptr16, op_sbc, 2, 6 - m + dl_zero),
+            op::SBC_F3 => op!(stack_ptr16_y, op_sbc, 2, 8 - m),
+            op::SBC_F5 => op!(dir_x, op_sbc, 2, 5 - m + dl_zero),
+            op::SBC_F7 => op!(dir_ptr24_y, op_sbc, 2, 7 - m + dl_zero),
+            op::SBC_F9 => op_p!(abs_y, op_sbc, 3, 6 - m),
+            op::SBC_FD => op_p!(abs_x, op_sbc, 3, 6 - m),
+            op::SBC_FF => op!(long_x, op_sbc, 4, 6 - m),
+            op::CMP_C1 => op!(dir_x_ptr16, op_cmp, 2, 7 - m + dl_zero),
+            op::CMP_C3 => op!(stack, op_cmp, 2, 5 - m),
+            op::CMP_C5 => op!(dir, op_cmp, 2, 4 - m + dl_zero),
+            op::CMP_C7 => op!(dir_ptr24, op_cmp, 2, 7 - m + dl_zero),
+            op::CMP_C9 => op!(imm, op_cmp, 3 - self.p.m as u16, 3 - m),
+            op::CMP_CD => op!(abs, op_cmp, 3, 5 - m),
+            op::CMP_CF => op!(long, op_cmp, 4, 6 - m),
+            op::CMP_D1 => op_p!(dir_ptr16_y, op_cmp, 2, 7 - m + dl_zero),
+            op::CMP_D2 => op!(dir_ptr16, op_cmp, 2, 6 - m + dl_zero),
+            op::CMP_D3 => op!(stack_ptr16_y, op_cmp, 2, 8 - m),
+            op::CMP_D5 => op!(dir_x, op_cmp, 2, 5 - m + dl_zero),
+            op::CMP_D7 => op!(dir_ptr24_y, op_cmp, 2, 7 - m + dl_zero),
+            op::CMP_D9 => op_p!(abs_y, op_cmp, 3, 6 - m),
+            op::CMP_DD => op_p!(abs_x, op_cmp, 3, 6 - m),
+            op::CMP_DF => op!(long_x, op_cmp, 4, 6 - m),
+            op::CPX_E0 => op!(imm, op_cpx, 3 - self.p.x as u16, 3 - x),
+            op::CPX_E4 => op!(dir, op_cpx, 2, 4 - x + dl_zero),
+            op::CPX_EC => op!(abs, op_cpx, 3, 5 - x),
+            op::CPY_C0 => op!(imm, op_cpy, 3 - self.p.x as u16, 3 - x),
+            op::CPY_C4 => op!(dir, op_cpy, 2, 4 + x + dl_zero),
+            op::CPY_CC => op!(abs, op_cpy, 3, 5 - x),
             op::DEC_3A => inc_dec!(self.p.m, *&mut self.a, wrapping_sub),
-            op::DEC_C6 => op!(dir, op_dec, 2),
-            op::DEC_CE => op!(abs, op_dec, 3),
-            op::DEC_D6 => op!(dir_x, op_dec, 2),
-            op::DEC_DE => op!(abs_x, op_dec, 3),
+            op::DEC_C6 => op!(dir, op_dec, 2, 7 - 2 * m + dl_zero),
+            op::DEC_CE => op!(abs, op_dec, 3, 8 - 2 * m),
+            op::DEC_D6 => op!(dir_x, op_dec, 2, 8 - 2 * m + dl_zero),
+            op::DEC_DE => op!(abs_x, op_dec, 3, 9 - 2 * m),
             op::DEX => inc_dec!(self.p.x, *&mut self.x, wrapping_sub),
             op::DEY => inc_dec!(self.p.x, *&mut self.y, wrapping_sub),
             op::INC_1A => inc_dec!(self.p.m, *&mut self.a, wrapping_add),
-            op::INC_E6 => op!(dir, op_inc, 2),
-            op::INC_EE => op!(abs, op_inc, 3),
-            op::INC_F6 => op!(dir_x, op_inc, 2),
-            op::INC_FE => op!(abs_x, op_inc, 3),
+            op::INC_E6 => op!(dir, op_inc, 2, 7 - 2 * m + dl_zero),
+            op::INC_EE => op!(abs, op_inc, 3, 8 - 2 * m),
+            op::INC_F6 => op!(dir_x, op_inc, 2, 8 - 2 * m + dl_zero),
+            op::INC_FE => op!(abs_x, op_inc, 3, 9 - 2 * m),
             op::INX => inc_dec!(self.p.x, *&mut self.x, wrapping_add),
             op::INY => inc_dec!(self.p.x, *&mut self.y, wrapping_add),
-            op::AND_21 => op!(dir_x_ptr16, op_and, 2),
-            op::AND_23 => op!(stack, op_and, 2),
-            op::AND_25 => op!(dir, op_and, 2),
-            op::AND_27 => op!(dir_ptr24, op_and, 2),
-            op::AND_29 => op!(imm, op_and, 3 - self.p.m as u16),
-            op::AND_2D => op!(abs, op_and, 3),
-            op::AND_2F => op!(long, op_and, 4),
-            op::AND_31 => op!(dir_ptr16_y, op_and, 2),
-            op::AND_32 => op!(dir_ptr16, op_and, 2),
-            op::AND_33 => op!(stack_ptr16_y, op_and, 2),
-            op::AND_35 => op!(dir_x, op_and, 2),
-            op::AND_37 => op!(dir_ptr24_y, op_and, 2),
-            op::AND_39 => op!(abs_y, op_and, 3),
-            op::AND_3D => op!(abs_x, op_and, 3),
-            op::AND_3F => op!(long_x, op_and, 4),
-            op::EOR_41 => op!(dir_x_ptr16, op_eor, 2),
-            op::EOR_43 => op!(stack, op_eor, 2),
-            op::EOR_45 => op!(dir, op_eor, 2),
-            op::EOR_47 => op!(dir_ptr24, op_eor, 2),
-            op::EOR_49 => op!(imm, op_eor, 3 - self.p.m as u16),
-            op::EOR_4D => op!(abs, op_eor, 3),
-            op::EOR_4F => op!(long, op_eor, 4),
-            op::EOR_51 => op!(dir_ptr16_y, op_eor, 2),
-            op::EOR_52 => op!(dir_ptr16, op_eor, 2),
-            op::EOR_53 => op!(stack_ptr16_y, op_eor, 2),
-            op::EOR_55 => op!(dir_x, op_eor, 2),
-            op::EOR_57 => op!(dir_ptr24_y, op_eor, 2),
-            op::EOR_59 => op!(abs_y, op_eor, 3),
-            op::EOR_5D => op!(abs_x, op_eor, 3),
-            op::EOR_5F => op!(long_x, op_eor, 4),
-            op::ORA_01 => op!(dir_x_ptr16, op_ora, 2),
-            op::ORA_03 => op!(stack, op_ora, 2),
-            op::ORA_05 => op!(dir, op_ora, 2),
-            op::ORA_07 => op!(dir_ptr24, op_ora, 2),
-            op::ORA_09 => op!(imm, op_ora, 3 - self.p.m as u16),
-            op::ORA_0D => op!(abs, op_ora, 3),
-            op::ORA_0F => op!(long, op_ora, 4),
-            op::ORA_11 => op!(dir_ptr16_y, op_ora, 2),
-            op::ORA_12 => op!(dir_ptr16, op_ora, 2),
-            op::ORA_13 => op!(stack_ptr16_y, op_ora, 2),
-            op::ORA_15 => op!(dir_x, op_ora, 2),
-            op::ORA_17 => op!(dir_ptr24_y, op_ora, 2),
-            op::ORA_19 => op!(abs_y, op_ora, 3),
-            op::ORA_1D => op!(abs_x, op_ora, 3),
-            op::ORA_1F => op!(long_x, op_ora, 4),
-            op::BIT_24 => op!(dir, op_bit, 2),
-            op::BIT_2C => op!(abs, op_bit, 3),
-            op::BIT_34 => op!(dir_x, op_bit, 2),
-            op::BIT_3C => op!(abs_x, op_bit, 3),
-            op::BIT_89 => op!(imm, op_bit, 3 - self.p.m as u16), // TODO: Only affects Z
-            op::TRB_14 => op!(dir, op_trb, 2),
-            op::TRB_1C => op!(abs, op_trb, 3),
-            op::TSB_04 => op!(dir, op_tsb, 2),
-            op::TSB_0C => op!(abs, op_tsb, 3),
-            op::ASL_06 => op!(dir, op_asl, 2),
+            op::AND_21 => op!(dir_x_ptr16, op_and, 2, 7 - m + dl_zero),
+            op::AND_23 => op!(stack, op_and, 2, 5 - m),
+            op::AND_25 => op!(dir, op_and, 2, 4 - m + dl_zero),
+            op::AND_27 => op!(dir_ptr24, op_and, 2, 7 - m + dl_zero),
+            op::AND_29 => op!(imm, op_and, 3 - self.p.m as u16, 3 - m),
+            op::AND_2D => op!(abs, op_and, 3, 5 - m),
+            op::AND_2F => op!(long, op_and, 4, 6 - m),
+            op::AND_31 => op_p!(dir_ptr16_y, op_and, 2, 7 - m + dl_zero),
+            op::AND_32 => op!(dir_ptr16, op_and, 2, 6 - m + dl_zero),
+            op::AND_33 => op!(stack_ptr16_y, op_and, 2, 8 - m),
+            op::AND_35 => op!(dir_x, op_and, 2, 5 - m + dl_zero),
+            op::AND_37 => op!(dir_ptr24_y, op_and, 2, 7 - m + dl_zero),
+            op::AND_39 => op_p!(abs_y, op_and, 3, 6 - m),
+            op::AND_3D => op_p!(abs_x, op_and, 3, 6 - m),
+            op::AND_3F => op!(long_x, op_and, 4, 6 - m),
+            op::EOR_41 => op!(dir_x_ptr16, op_eor, 2, 7 - m + dl_zero),
+            op::EOR_43 => op!(stack, op_eor, 2, 5 - m),
+            op::EOR_45 => op!(dir, op_eor, 2, 4 - m + dl_zero),
+            op::EOR_47 => op!(dir_ptr24, op_eor, 2, 7 - m + dl_zero),
+            op::EOR_49 => op!(imm, op_eor, 3 - self.p.m as u16, 3 - m),
+            op::EOR_4D => op!(abs, op_eor, 3, 5 - m),
+            op::EOR_4F => op!(long, op_eor, 4, 6 - m),
+            op::EOR_51 => op_p!(dir_ptr16_y, op_eor, 2, 7 - m + dl_zero),
+            op::EOR_52 => op!(dir_ptr16, op_eor, 2, 6 - m + dl_zero),
+            op::EOR_53 => op!(stack_ptr16_y, op_eor, 2, 8 - m),
+            op::EOR_55 => op!(dir_x, op_eor, 2, 5 - m + dl_zero),
+            op::EOR_57 => op!(dir_ptr24_y, op_eor, 2, 7 - m + dl_zero),
+            op::EOR_59 => op_p!(abs_y, op_eor, 3, 6 - m),
+            op::EOR_5D => op_p!(abs_x, op_eor, 3, 6 - m),
+            op::EOR_5F => op!(long_x, op_eor, 4, 6 - m),
+            op::ORA_01 => op!(dir_x_ptr16, op_ora, 2, 7 - m + dl_zero),
+            op::ORA_03 => op!(stack, op_ora, 2, 5 - m),
+            op::ORA_05 => op!(dir, op_ora, 2, 4 - m + dl_zero),
+            op::ORA_07 => op!(dir_ptr24, op_ora, 2, 7 - m + dl_zero),
+            op::ORA_09 => op!(imm, op_ora, 3 - self.p.m as u16, 3 - m),
+            op::ORA_0D => op!(abs, op_ora, 3, 5 - m),
+            op::ORA_0F => op!(long, op_ora, 4, 6 - m),
+            op::ORA_11 => op_p!(dir_ptr16_y, op_ora, 2, 7 - m + dl_zero),
+            op::ORA_12 => op!(dir_ptr16, op_ora, 2, 6 - m + dl_zero),
+            op::ORA_13 => op!(stack_ptr16_y, op_ora, 2, 8 - m),
+            op::ORA_15 => op!(dir_x, op_ora, 2, 5 - m + dl_zero),
+            op::ORA_17 => op!(dir_ptr24_y, op_ora, 2, 7 - m + dl_zero),
+            op::ORA_19 => op_p!(abs_y, op_ora, 3, 6 - m),
+            op::ORA_1D => op_p!(abs_x, op_ora, 3, 6 - m),
+            op::ORA_1F => op!(long_x, op_ora, 4, 6 - m),
+            op::BIT_24 => op!(dir, op_bit, 2, 4 - m + dl_zero),
+            op::BIT_2C => op!(abs, op_bit, 3, 5 - m),
+            op::BIT_34 => op!(dir_x, op_bit, 2, 5 - m + dl_zero),
+            op::BIT_3C => op_p!(abs_x, op_bit, 3, 6 - m),
+            op::BIT_89 => op!(imm, op_bit, 3 - self.p.m as u16, 3 - m), // TODO: Only affects Z
+            op::TRB_14 => op!(dir, op_trb, 2, 7 - 2 * m + dl_zero),
+            op::TRB_1C => op!(abs, op_trb, 3, 8 - 2 * m),
+            op::TSB_04 => op!(dir, op_tsb, 2, 7 - 2 * m + dl_zero),
+            op::TSB_0C => op!(abs, op_tsb, 3, 8 - 2 * m),
+            op::ASL_06 => op!(dir, op_asl, 2, 7 - 2 * m + dl_zero),
             op::ASL_0A => {
                 if self.p.m {
                     let old_a = self.a as u8;
@@ -373,11 +407,12 @@ impl W65C816S {
                     self.a = self.arithmetic_shift_left16(old_a);
                 }
                 self.pc = self.pc.wrapping_add(1);
+                2
             }
-            op::ASL_0E => op!(abs, op_asl, 3),
-            op::ASL_16 => op!(dir_x, op_asl, 2),
-            op::ASL_1E => op!(abs_x, op_asl, 3),
-            op::LSR_46 => op!(dir, op_lsr, 2),
+            op::ASL_0E => op!(abs, op_asl, 3, 8 - 2 * m),
+            op::ASL_16 => op!(dir_x, op_asl, 2, 8 - 2 * m + dl_zero),
+            op::ASL_1E => op!(abs_x, op_asl, 3, 9 - 2 * m),
+            op::LSR_46 => op!(dir, op_lsr, 2, 7 - 2 * m + dl_zero),
             op::LSR_4A => {
                 if self.p.m {
                     let old_a = self.a as u8;
@@ -387,11 +422,12 @@ impl W65C816S {
                     self.a = self.logical_shift_right16(old_a);
                 }
                 self.pc = self.pc.wrapping_add(1);
+                2
             }
-            op::LSR_4E => op!(abs, op_lsr, 3),
-            op::LSR_56 => op!(dir_x, op_lsr, 2),
-            op::LSR_5E => op!(abs_x, op_lsr, 3),
-            op::ROL_26 => op!(dir, op_rol, 2),
+            op::LSR_4E => op!(abs, op_lsr, 3, 8 - 2 * m),
+            op::LSR_56 => op!(dir_x, op_lsr, 2, 8 - 2 * m + dl_zero),
+            op::LSR_5E => op!(abs_x, op_lsr, 3, 9 - 2 * m),
+            op::ROL_26 => op!(dir, op_rol, 2, 7 - 2 * m + dl_zero),
             op::ROL_2A => {
                 if self.p.m {
                     let old_a = self.a as u8;
@@ -401,11 +437,12 @@ impl W65C816S {
                     self.a = self.rotate_left16(old_a);
                 }
                 self.pc = self.pc.wrapping_add(1);
+                2
             }
-            op::ROL_2E => op!(abs, op_rol, 3),
-            op::ROL_36 => op!(dir_x, op_rol, 2),
-            op::ROL_3E => op!(abs_x, op_rol, 3),
-            op::ROR_66 => op!(dir, op_ror, 2),
+            op::ROL_2E => op!(abs, op_rol, 3, 8 - 2 * m),
+            op::ROL_36 => op!(dir_x, op_rol, 2, 8 - 2 * m + dl_zero),
+            op::ROL_3E => op!(abs_x, op_rol, 3, 9 - 2 * m),
+            op::ROR_66 => op!(dir, op_ror, 2, 7 - 2 * m + dl_zero),
             op::ROR_6A => {
                 if self.p.m {
                     let old_a = self.a as u8;
@@ -415,32 +452,55 @@ impl W65C816S {
                     self.a = self.rotate_right16(old_a);
                 }
                 self.pc = self.pc.wrapping_add(1);
+                2
             }
-            op::ROR_6E => op!(abs, op_ror, 3),
-            op::ROR_76 => op!(dir_x, op_ror, 2),
-            op::ROR_7E => op!(abs_x, op_ror, 3),
+            op::ROR_6E => op!(abs, op_ror, 3, 8 - 2 * m),
+            op::ROR_76 => op!(dir_x, op_ror, 2, 8 - 2 * m + dl_zero),
+            op::ROR_7E => op!(abs_x, op_ror, 3, 9 - 2 * m),
             op::BCC => branch!(!self.p.c),
             op::BCS => branch!(self.p.c),
             op::BEQ => branch!(self.p.z),
             op::BMI => branch!(self.p.n),
             op::BNE => branch!(!self.p.z),
             op::BPL => branch!(!self.p.n),
-            op::BRA => self.pc = self.rel8(addr, abus).0 as u16,
+            op::BRA => {
+                let old_pc = self.pc;
+                self.pc = self.rel8(addr, abus).0 as u16;
+                if self.e && (self.pc & 0xFF00 != old_pc & 0xFF00) {
+                    4
+                } else {
+                    3
+                }
+            }
             op::BVC => branch!(!self.p.v),
             op::BVS => branch!(self.p.v),
-            op::BRL => self.pc = self.rel16(addr, abus).0 as u16,
-            op::JMP_4C => self.pc = self.abs(addr, abus).0 as u16, // TODO: See JSR_20
+            op::BRL => {
+                self.pc = self.rel16(addr, abus).0 as u16;
+                4
+            }
+            op::JMP_4C => {
+                self.pc = self.abs(addr, abus).0 as u16; // TODO: See JSR_20
+                3
+            }
             op::JMP_5C => {
                 let jump_addr = self.long(addr, abus).0;
                 self.pb = (jump_addr >> 16) as u8;
                 self.pc = jump_addr as u16;
+                4
             }
-            op::JMP_6C => self.pc = self.abs_ptr16(addr, abus).0 as u16,
-            op::JMP_7C => self.pc = self.abs_x_ptr16(addr, abus).0 as u16,
+            op::JMP_6C => {
+                self.pc = self.abs_ptr16(addr, abus).0 as u16;
+                5
+            }
+            op::JMP_7C => {
+                self.pc = self.abs_x_ptr16(addr, abus).0 as u16;
+                6
+            }
             op::JMP_DC => {
                 let jump_addr = self.abs_ptr24(addr, abus).0;
                 self.pb = (jump_addr >> 16) as u8;
                 self.pc = jump_addr as u16;
+                6
             }
             op::JSL => {
                 let jump_addr = self.long(addr, abus).0;
@@ -450,24 +510,31 @@ impl W65C816S {
                 self.push16(pc.wrapping_add(3), abus);
                 self.pb = (jump_addr >> 16) as u8;
                 self.pc = jump_addr as u16;
+                8
             }
             op::JSR_20 => {
                 let jump_addr = self.abs(addr, abus).0; // TODO: This shoud use db instead of pb!!
                 let return_addr = self.pc.wrapping_add(2);
                 self.push16(return_addr, abus);
                 self.pc = jump_addr as u16;
+                6
             }
             op::JSR_FC => {
                 let jump_addr = self.abs_x_ptr16(addr, abus).0;
                 let return_addr = self.pc.wrapping_add(2);
                 self.push16(return_addr, abus);
                 self.pc = jump_addr as u16;
+                8
             }
             op::RTL => {
                 self.pc = self.pull16(abus).wrapping_add(1);
                 self.pb = self.pull8(abus);
+                6
             }
-            op::RTS => self.pc = self.pull16(abus).wrapping_add(1),
+            op::RTS => {
+                self.pc = self.pull16(abus).wrapping_add(1);
+                6
+            }
             op::BRK => {
                 if self.e {
                     let pc = self.pc;
@@ -488,6 +555,7 @@ impl W65C816S {
                 }
                 self.p.i = true;
                 self.p.d = false;
+                8 - e
             }
             op::COP => {
                 if self.e {
@@ -509,6 +577,7 @@ impl W65C816S {
                 }
                 self.p.i = true;
                 self.p.d = false;
+                8 - e
             }
             op::RTI => {
                 let p = self.pull8(abus);
@@ -519,6 +588,7 @@ impl W65C816S {
                     let pb = self.pull8(abus);
                     self.pb = pb;
                 }
+                7 - e
             }
             op::CLC => cl_se!(*&mut self.p.c, false),
             op::CLD => cl_se!(*&mut self.p.d, false),
@@ -537,6 +607,7 @@ impl W65C816S {
                     self.p.x = true;
                 }
                 self.pc = self.pc.wrapping_add(2);
+                3
             }
             op::SEP => {
                 let data_addr = self.imm(addr, abus);
@@ -547,88 +618,103 @@ impl W65C816S {
                     self.y &= 0x00FF;
                 }
                 self.pc = self.pc.wrapping_add(2);
+                3
             }
-            op::LDA_A1 => op!(dir_x_ptr16, op_lda, 2),
-            op::LDA_A3 => op!(stack, op_lda, 2),
-            op::LDA_A5 => op!(dir, op_lda, 2),
-            op::LDA_A7 => op!(dir_ptr24, op_lda, 2),
-            op::LDA_A9 => op!(imm, op_lda, 3 - self.p.m as u16),
-            op::LDA_AD => op!(abs, op_lda, 3),
-            op::LDA_AF => op!(long, op_lda, 4),
-            op::LDA_B1 => op!(dir_ptr16_y, op_lda, 2),
-            op::LDA_B2 => op!(dir_ptr16, op_lda, 2),
-            op::LDA_B3 => op!(stack_ptr16_y, op_lda, 2),
-            op::LDA_B5 => op!(dir_x, op_lda, 2),
-            op::LDA_B7 => op!(dir_ptr24_y, op_lda, 2),
-            op::LDA_B9 => op!(abs_y, op_lda, 3),
-            op::LDA_BD => op!(abs_x, op_lda, 3),
-            op::LDA_BF => op!(long_x, op_lda, 4),
-            op::LDX_A2 => op!(imm, op_ldx, 3 - self.p.x as u16),
-            op::LDX_A6 => op!(dir, op_ldx, 2),
-            op::LDX_AE => op!(abs, op_ldx, 3),
-            op::LDX_B6 => op!(dir_y, op_ldx, 2),
-            op::LDX_BE => op!(abs_y, op_ldx, 3),
-            op::LDY_A0 => op!(imm, op_ldy, 3 - self.p.x as u16),
-            op::LDY_A4 => op!(dir, op_ldy, 2),
-            op::LDY_AC => op!(abs, op_ldy, 3),
-            op::LDY_B4 => op!(dir_x, op_ldy, 2),
-            op::LDY_BC => op!(abs_x, op_ldy, 3),
-            op::STA_81 => op!(dir_x_ptr16, op_sta, 2),
-            op::STA_83 => op!(stack, op_sta, 2),
-            op::STA_85 => op!(dir, op_sta, 2),
-            op::STA_87 => op!(dir_ptr24, op_sta, 2),
-            op::STA_8D => op!(abs, op_sta, 3),
-            op::STA_8F => op!(long, op_sta, 4),
-            op::STA_91 => op!(dir_ptr16_y, op_sta, 2),
-            op::STA_92 => op!(dir_ptr16, op_sta, 2),
-            op::STA_93 => op!(stack_ptr16_y, op_sta, 2),
-            op::STA_95 => op!(dir_x, op_sta, 2),
-            op::STA_97 => op!(dir_ptr24_y, op_sta, 2),
-            op::STA_99 => op!(abs_y, op_sta, 3),
-            op::STA_9D => op!(abs_x, op_sta, 3),
-            op::STA_9F => op!(long_x, op_sta, 4),
-            op::STX_86 => op!(dir, op_stx, 2),
-            op::STX_8E => op!(abs, op_stx, 3),
-            op::STX_96 => op!(dir_y, op_stx, 2),
-            op::STY_84 => op!(dir, op_sty, 2),
-            op::STY_8C => op!(abs, op_sty, 3),
-            op::STY_94 => op!(dir_x, op_sty, 2),
-            op::STZ_64 => op!(dir, op_stz, 2),
-            op::STZ_74 => op!(dir_x, op_stz, 2),
-            op::STZ_9C => op!(abs, op_stz, 3),
-            op::STZ_9E => op!(abs_x, op_stz, 3),
-            op::MVN => op!(src_dest, op_mvn, 0), // Op "loops" until move is complete
-            op::MVP => op!(src_dest, op_mvp, 0), // Op "loops" until move is complete
-            op::NOP => self.pc = self.pc.wrapping_add(1),
-            op::WDM => self.pc = self.pc.wrapping_add(2),
-            op::PEA => push_eff!(imm, 3),
-            op::PEI => push_eff!(dir, 2),
-            op::PER => push_eff!(imm, 3),
-            op::PHA => push_reg!(self.p.m, *&self.a),
-            op::PHX => push_reg!(self.p.x, *&self.x),
-            op::PHY => push_reg!(self.p.x, *&self.y),
-            op::PLA => pull_reg!(self.p.m, *&mut self.a),
-            op::PLX => pull_reg!(self.p.x, *&mut self.x),
-            op::PLY => pull_reg!(self.p.x, *&mut self.y),
-            op::PHB => push_reg!(true, *&self.db),
-            op::PHD => push_reg!(false, *&self.d),
-            op::PHK => push_reg!(true, *&self.pb),
-            op::PHP => push_reg!(true, *&self.p.value()),
+            op::LDA_A1 => op!(dir_x_ptr16, op_lda, 2, 7 - m + dl_zero),
+            op::LDA_A3 => op!(stack, op_lda, 2, 5 - m),
+            op::LDA_A5 => op!(dir, op_lda, 2, 4 - m + dl_zero),
+            op::LDA_A7 => op!(dir_ptr24, op_lda, 2, 7 - m + dl_zero),
+            op::LDA_A9 => op!(imm, op_lda, 3 - self.p.m as u16, 3 - m),
+            op::LDA_AD => op!(abs, op_lda, 3, 5 - m),
+            op::LDA_AF => op!(long, op_lda, 4, 6 - m),
+            op::LDA_B1 => op_p!(dir_ptr16_y, op_lda, 2, 7 - m + dl_zero),
+            op::LDA_B2 => op!(dir_ptr16, op_lda, 2, 6 - m + dl_zero),
+            op::LDA_B3 => op!(stack_ptr16_y, op_lda, 2, 8 - m),
+            op::LDA_B5 => op!(dir_x, op_lda, 2, 5 - m + dl_zero),
+            op::LDA_B7 => op!(dir_ptr24_y, op_lda, 2, 7 - m + dl_zero),
+            op::LDA_B9 => op_p!(abs_y, op_lda, 3, 6 - m),
+            op::LDA_BD => op_p!(abs_x, op_lda, 3, 6 - m),
+            op::LDA_BF => op!(long_x, op_lda, 4, 6 - m),
+            op::LDX_A2 => op!(imm, op_ldx, 3 - self.p.x as u16, 3 - x),
+            op::LDX_A6 => op!(dir, op_ldx, 2, 4 - x + dl_zero),
+            op::LDX_AE => op!(abs, op_ldx, 3, 5 - x),
+            op::LDX_B6 => op!(dir_y, op_ldx, 2, 5 - x + dl_zero),
+            op::LDX_BE => op_p!(abs_y, op_ldx, 3, 6 - x),
+            op::LDY_A0 => op!(imm, op_ldy, 3 - self.p.x as u16, 3 - x),
+            op::LDY_A4 => op!(dir, op_ldy, 2, 4 - x + dl_zero),
+            op::LDY_AC => op!(abs, op_ldy, 3, 5 - x),
+            op::LDY_B4 => op!(dir_x, op_ldy, 2, 5 - x + dl_zero),
+            op::LDY_BC => op_p!(abs_x, op_ldy, 3, 6 - x),
+            op::STA_81 => op!(dir_x_ptr16, op_sta, 2, 7 - m + dl_zero),
+            op::STA_83 => op!(stack, op_sta, 2, 5 - m),
+            op::STA_85 => op!(dir, op_sta, 2, 4 - m + dl_zero),
+            op::STA_87 => op!(dir_ptr24, op_sta, 2, 7 - m + dl_zero),
+            op::STA_8D => op!(abs, op_sta, 3, 5 - m),
+            op::STA_8F => op!(long, op_sta, 4, 6 - m),
+            op::STA_91 => op!(dir_ptr16_y, op_sta, 2, 7 - m + dl_zero),
+            op::STA_92 => op!(dir_ptr16, op_sta, 2, 6 - m + dl_zero),
+            op::STA_93 => op!(stack_ptr16_y, op_sta, 2, 8 - m),
+            op::STA_95 => op!(dir_x, op_sta, 2, 5 - m + dl_zero),
+            op::STA_97 => op!(dir_ptr24_y, op_sta, 2, 7 - m + dl_zero),
+            op::STA_99 => op!(abs_y, op_sta, 3, 6 - m),
+            op::STA_9D => op!(abs_x, op_sta, 3, 6 - m),
+            op::STA_9F => op!(long_x, op_sta, 4, 6 - m),
+            op::STX_86 => op!(dir, op_stx, 2, 4 - x + dl_zero),
+            op::STX_8E => op!(abs, op_stx, 3, 5 - x),
+            op::STX_96 => op!(dir_y, op_stx, 2, 5 - x + dl_zero),
+            op::STY_84 => op!(dir, op_sty, 2, 4 - x + dl_zero),
+            op::STY_8C => op!(abs, op_sty, 3, 5 - x),
+            op::STY_94 => op!(dir_x, op_sty, 2, 5 - x + dl_zero),
+            op::STZ_64 => op!(dir, op_stz, 2, 4 - m + dl_zero),
+            op::STZ_74 => op!(dir_x, op_stz, 2, 5 - m + dl_zero),
+            op::STZ_9C => op!(abs, op_stz, 3, 5 - m),
+            op::STZ_9E => op!(abs_x, op_stz, 3, 6 - m),
+            op::MVN => op!(src_dest, op_mvn, 0, 7), // Op "loops" until move is complete
+            op::MVP => op!(src_dest, op_mvp, 0, 7), // Op "loops" until move is complete
+            op::NOP => {
+                self.pc = self.pc.wrapping_add(1);
+                2
+            }
+            op::WDM => {
+                self.pc = self.pc.wrapping_add(2);
+                2
+            }
+            op::PEA => push_eff!(imm, 3, 5),
+            op::PEI => push_eff!(dir, 2, 6 + dl_zero),
+            op::PER => push_eff!(imm, 3, 6),
+            op::PHA => push_reg!(self.p.m, *&self.a, 4 - m),
+            op::PHX => push_reg!(self.p.x, *&self.x, 4 - x),
+            op::PHY => push_reg!(self.p.x, *&self.y, 4 - x),
+            op::PLA => pull_reg!(self.p.m, *&mut self.a, 5 - m),
+            op::PLX => pull_reg!(self.p.x, *&mut self.x, 5 - x),
+            op::PLY => pull_reg!(self.p.x, *&mut self.y, 5 - x),
+            op::PHB => push_reg!(true, *&self.db, 3),
+            op::PHD => push_reg!(false, *&self.d, 4),
+            op::PHK => push_reg!(true, *&self.pb, 3),
+            op::PHP => push_reg!(true, *&self.p.value(), 3),
             op::PLB => {
                 let value = self.pull8(abus);
                 self.db = value;
                 self.p.n = value > 0x7F;
                 self.p.z = value == 0;
                 self.pc = self.pc.wrapping_add(1);
+                4
             }
-            op::PLD => pull_reg!(false, *&mut self.d),
+            op::PLD => pull_reg!(false, *&mut self.d, 5),
             op::PLP => {
                 let value = self.pull8(abus);
                 self.p.set_value(value);
                 self.pc = self.pc.wrapping_add(1);
+                4
             }
-            op::STP => self.stopped = true,
-            op::WAI => self.waiting = true,
+            op::STP => {
+                self.stopped = true;
+                3
+            }
+            op::WAI => {
+                self.waiting = true;
+                3
+            }
             op::TAX => transfer!(self.p.x, *&self.a, *&mut self.x),
             op::TAY => transfer!(self.p.x, *&self.a, *&mut self.y),
             op::TSX => transfer!(self.p.x, *&self.s, *&mut self.x),
@@ -640,6 +726,7 @@ impl W65C816S {
                     self.x
                 };
                 self.pc = self.pc.wrapping_add(1);
+                2
             }
             op::TXY => transfer!(self.p.x, *&self.x, *&mut self.y),
             op::TYA => transfer!(self.p.m, *&self.y, *&mut self.a),
@@ -652,6 +739,7 @@ impl W65C816S {
                     self.a
                 };
                 self.pc = self.pc.wrapping_add(1);
+                2
             }
             op::TDC => transfer!(false, *&self.d, *&mut self.a),
             op::TSC => transfer!(false, *&self.s, *&mut self.a),
@@ -660,6 +748,7 @@ impl W65C816S {
                 self.p.n = self.a as u8 > 0x7F;
                 self.p.z = self.a as u8 > 0;
                 self.pc = self.pc.wrapping_add(1);
+                3
             }
             op::XCE => {
                 let tmp = self.e;
@@ -674,13 +763,16 @@ impl W65C816S {
                     self.p.c = false;
                 }
                 self.pc = self.pc.wrapping_add(1);
+                2
             }
-            _ => panic!(
-                "Unknown opcode ${0:02X} at ${1:02X}:{2:04X}",
-                opcode,
-                addr >> 16,
-                addr & 0xFFF
-            ),
+            _ => {
+                panic!(
+                    "Unknown opcode ${0:02X} at ${1:02X}:{2:04X}",
+                    opcode,
+                    addr >> 16,
+                    addr & 0xFFF
+                )
+            }
         }
     }
 
@@ -1126,8 +1218,8 @@ impl W65C816S {
         }
         self.p.n = result8 > 0x7F;
         self.p.z = result8 == 0;
-        self.p.v = (lhs < 0x80 && rhs < 0x80 && result8 > 0x7F)
-            || (lhs > 0x7F && rhs > 0x7F && result8 < 0x80);
+        self.p.v = (lhs < 0x80 && rhs < 0x80 && result8 > 0x7F) ||
+            (lhs > 0x7F && rhs > 0x7F && result8 < 0x80);
         result8
     }
 
@@ -1169,8 +1261,8 @@ impl W65C816S {
         }
         self.p.n = result16 > 0x7FFF;
         self.p.z = result16 == 0;
-        self.p.v = (lhs < 0x8000 && rhs < 0x8000 && result16 > 0x7FFF)
-            || (lhs > 0x7FFF && rhs > 0x7FFF && result16 < 0x8000);
+        self.p.v = (lhs < 0x8000 && rhs < 0x8000 && result16 > 0x7FFF) ||
+            (lhs > 0x7FFF && rhs > 0x7FFF && result16 < 0x8000);
         result16
     }
 
@@ -1981,8 +2073,8 @@ fn dec_to_bcd16(value: u16) -> u16 {
     if value > 9999 {
         panic!("{} too large for 16bit BCD", value);
     }
-    ((value / 1000) << 12) | (((value % 1000) / 100) << 8) | (((value % 100) / 10) << 4)
-        | (value % 10)
+    ((value / 1000) << 12) | (((value % 1000) / 100) << 8) | (((value % 100) / 10) << 4) |
+        (value % 10)
 }
 
 /// Convert 8bit binary-coded decimal to normal u8
