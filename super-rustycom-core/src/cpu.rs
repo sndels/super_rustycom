@@ -83,13 +83,6 @@ impl W65C816S {
         }
     }
 
-    /// Executes the instruction at `[$PBPCHPCL]`
-    pub fn step(&mut self, abus: &mut ABus) {
-        let addr = self.current_address();
-        let opcode = abus.cpu_read8(addr); // TODO: move to execute?
-        self.execute(opcode, addr, abus);
-    }
-
     /// Returns the value of `C`
     pub fn a(&self) -> u16 { self.a }
     /// Returns the value of `X`
@@ -131,11 +124,13 @@ impl W65C816S {
     /// Returns the address of the next instruction
     pub fn current_address(&self) -> u32 { ((self.pb as u32) << 16) + self.pc as u32 }
 
-    /// Executes instruction defined by `opcode` at address `addr` and returns the number of cycles
-    /// it took
+    /// Executes the instruction at `[$PBPCHPCL]` and returns the number of cycles it took
     ///
     /// `abus` is used for memory addressing as needed
-    fn execute(&mut self, opcode: u8, addr: u32, abus: &mut ABus) -> u8 {
+    pub fn step(&mut self, abus: &mut ABus) -> u8 {
+        let addr = self.current_address();
+        let opcode = abus.cpu_read8(addr);
+
         // Executes op_func with data pointed by addressing and increments pc by op_length
         macro_rules! op {
             ($addressing:ident, $op_func:ident, $op_length:expr, $op_cycles:expr) => ({
