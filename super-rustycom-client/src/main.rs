@@ -6,11 +6,13 @@ mod time_source;
 use std::env;
 use std::fs::File;
 use std::io::prelude::*;
+use std::thread;
+use std::time;
 
 use super_rustycom_core::abus::ABus;
 use super_rustycom_core::cpu::W65C816S;
 use super_rustycom_core::mmap;
-use debugger::Debugger;
+use debugger::{Debugger, DebugState};
 use debugger::disassemble_current;
 use time_source::TimeSource;
 
@@ -37,31 +39,62 @@ fn main() {
 
     // Init time source
     let time_source = TimeSource::new();
-    let mut elapsed_ns = 0;
+    let mut emulated_cpu_cycles = 0;
 
     // Run
     loop {
-        // Update time and get nanoseconds spent since last update
+        // Update time
+        // TODO: Final timing in executed cpu cycles inside the emu struct (?), so keep unspent
+        // clock cycles in mind
         let current_ns = time_source.elapsed_ns();
-        let time_diff = current_ns - elapsed_ns;
-        elapsed_ns = current_ns;
+
+        // Calculate clock pulses, cpu cycles that should have passed
+        let mut cpu_cycles = get_num_cpu_cycles(current_ns);
+        let mut diff_cycles = (cpu_cycles - emulated_cpu_cycles) as i64;
 
         // Handle debugger state
-        if debugger.quit {
-            break;
-        } else if debugger.active {
-            debugger.take_command(&mut cpu, &mut abus);
-        } else {
-            if cpu.current_address() != debugger.breakpoint {
-                cpu.step(&mut abus); // Step before loop to skip redundant disassembly
-                while cpu.current_address() != debugger.breakpoint {
+        match debugger.state {
+            DebugState::Active => {
+                debugger.take_command(&mut cpu, &mut abus);
+                // Update cycle count to prevent warping
+                cpu_cycles = get_num_cpu_cycles(time_source.elapsed_ns());
+                diff_cycles = 0;
+            }
+            DebugState::Step => {
+                // Go through steps
+                for _ in 0..debugger.steps {
                     if debugger.disassemble {
                         disassemble_current(&cpu, &mut abus)
                     }
                     cpu.step(&mut abus);
                 }
+                // Reset debugger state
+                debugger.steps = 0;
+                debugger.state = DebugState::Active;
+                // Update cycle count to prevent warping
+                cpu_cycles = get_num_cpu_cycles(time_source.elapsed_ns());
+                diff_cycles = 0;
             }
-            debugger.active = true;
+            DebugState::Run => while diff_cycles > 0 {
+                if cpu.current_address() != debugger.breakpoint {
+                    if debugger.disassemble {
+                        disassemble_current(&cpu, &mut abus)
+                    }
+                    diff_cycles -= cpu.step(&mut abus) as i64;
+                } else {
+                    debugger.state = DebugState::Active;
+                    break;
+                }
+            },
+            DebugState::Quit => break,
         }
+        // Update emulated cycles and take overshoot into account
+        emulated_cpu_cycles = cpu_cycles + diff_cycles.abs() as u64;
+        thread::sleep(time::Duration::from_millis(2));
     }
+}
+
+fn get_num_cpu_cycles(elapsed_ns: u64) -> u64 {
+    let pulses = elapsed_ns / 47;
+    pulses / 8 // SlowROM(?)
 }
