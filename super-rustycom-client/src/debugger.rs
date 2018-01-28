@@ -8,16 +8,25 @@ use super_rustycom_core::cpu::W65C816S;
 
 pub struct Debugger {
     pub breakpoint: u32,
-    pub active: bool,
+    pub steps: u32,
+    pub state: DebugState,
     pub disassemble: bool,
     pub quit: bool,
+}
+
+pub enum DebugState {
+    Active,
+    Step,
+    Run,
+    Quit,
 }
 
 impl Debugger {
     pub fn new() -> Debugger {
         Debugger {
             breakpoint: 0x0,
-            active: true,
+            steps: 0,
+            state: DebugState::Active,
             disassemble: true,
             quit: false,
         }
@@ -81,25 +90,18 @@ impl Debugger {
                         Err(err) => println!("Dumping CGRAM failed!\n{}", err),
                     };
                 },
-                "step" | "s" => if arg_vec.len() == 1 {
-                    cpu.step(abus);
-                } else {
-                    let steps = arg_vec[1].parse::<usize>();
-                    match steps {
-                        Ok(s) => {
-                            if s > 0 {
-                                cpu.step(abus); // Step before loop to skip disassembly
-                                for step in 1..s {
-                                    if self.disassemble && step > 0 {
-                                        disassemble_current(cpu, abus);
-                                    }
-                                    cpu.step(abus);
-                                }
-                            }
+                "step" | "s" => {
+                    self.state = DebugState::Step;
+                    if arg_vec.len() == 1 {
+                        self.steps = 1;
+                    } else {
+                        let steps = arg_vec[1].parse::<u32>();
+                        match steps {
+                            Ok(s) => self.steps = s,
+                            Err(e) => println!("Error parsing step: {}", e),
                         }
-                        Err(e) => println!("Error parsing step: {}", e),
                     }
-                },
+                }
                 "breakpoint" | "bp" => if arg_vec.len() > 1 {
                     let breakpoint = u32::from_str_radix(arg_vec[1], 16);
                     match breakpoint {
@@ -121,8 +123,8 @@ impl Debugger {
                     println!("Stopped: {}", cpu.stopped());
                     println!("Waiting: {}", cpu.waiting());
                 }
-                "run" | "r" => self.active = false,
-                "exit" => self.quit = true,
+                "run" | "r" => self.state = DebugState::Run,
+                "exit" => self.state = DebugState::Quit,
                 "help" | "h" => {
                     println!("disassemble, da        -- toggle on the fly disassembly");
                     print!("dump ([param])         -- dump wram, vram, oam, cgram to files");
