@@ -1,6 +1,7 @@
 extern crate super_rustycom_core;
 
 mod debugger;
+mod time_source;
 
 use std::env;
 use std::fs::File;
@@ -11,6 +12,7 @@ use super_rustycom_core::cpu::W65C816S;
 use super_rustycom_core::mmap;
 use debugger::Debugger;
 use debugger::disassemble_current;
+use time_source::TimeSource;
 
 fn main() {
     // Get ROM path from first argument
@@ -33,8 +35,18 @@ fn main() {
     abus.apu_write8(0x00, 0xAA);
     abus.apu_write8(0x01, 0xBB);
 
+    // Init time source
+    let time_source = TimeSource::new();
+    let mut elapsed_ns = 0;
+
     // Run
     loop {
+        // Update time and get nanoseconds spent since last update
+        let current_ns = time_source.elapsed_ns();
+        let time_diff = current_ns - elapsed_ns;
+        elapsed_ns = current_ns;
+
+        // Handle debugger state
         if debugger.quit {
             break;
         } else if debugger.active {
