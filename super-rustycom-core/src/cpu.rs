@@ -83,6 +83,10 @@ impl W65C816S {
         }
     }
 
+    pub fn reset(&mut self, abus: &mut ABus) {
+        self.pc = abus.page_wrapping_cpu_read16(RESET8);
+    }
+
     /// Returns the value of `C`
     pub fn a(&self) -> u16 { self.a }
     /// Returns the value of `X`
