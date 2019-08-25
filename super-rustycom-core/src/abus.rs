@@ -140,15 +140,15 @@ impl ABus {
 
     fn cpu_read_sys(&mut self, addr: usize) -> u8 {
         match addr {
-            mmap::WRAM_MIRR_FIRST...mmap::WRAM_MIRR_LAST => self.wram[addr],
-            mmap::PPU_IO_FIRST...mmap::PPU_IO_LAST => {
+            mmap::WRAM_MIRR_FIRST..=mmap::WRAM_MIRR_LAST => self.wram[addr],
+            mmap::PPU_IO_FIRST..=mmap::PPU_IO_LAST => {
                 // PPU IO
                 if addr < mmap::MPYL {
                     panic!("Read ${:06X}: PPU IO write-only for cpu", addr);
                 }
                 self.ppu_io.read(addr)
             }
-            mmap::APU_IO_FIRST...mmap::APU_IO_LAST => {
+            mmap::APU_IO_FIRST..=mmap::APU_IO_LAST => {
                 // APU IO
                 let apu_port = if addr < 0x2144 { addr } else { addr - 4 };
                 match apu_port {
@@ -204,11 +204,11 @@ impl ABus {
             mmap::JOY3H => self.joy_io.joy_3h(),
             mmap::JOY4L => self.joy_io.joy_4l(),
             mmap::JOY4H => self.joy_io.joy_4h(),
-            mmap::DMA_FIRST...mmap::DMA_LAST => {
+            mmap::DMA_FIRST..=mmap::DMA_LAST => {
                 // DMA
                 self.dma.read(addr)
             }
-            mmap::EXP_FIRST...mmap::EXP_LAST => {
+            mmap::EXP_FIRST..=mmap::EXP_LAST => {
                 // Expansion
                 panic!("Read ${:06X}: Expansion not implemented", addr)
             }
@@ -223,23 +223,23 @@ impl ABus {
         let bank = (addr >> 16) as usize;
         let bank_addr = (addr & 0x00FFFF) as usize;
         match bank {
-            mmap::WS1_SYSLR_FIRST_BANK...mmap::WS1_SYSLR_LAST_BANK => match bank_addr {
-                mmap::SYS_FIRST...mmap::SYS_LAST => self.cpu_read_sys(bank_addr),
-                mmap::LOROM_FIRST...mmap::LOROM_LAST => self.rom.read_ws1_lo_rom8(bank, bank_addr),
+            mmap::WS1_SYSLR_FIRST_BANK..=mmap::WS1_SYSLR_LAST_BANK => match bank_addr {
+                mmap::SYS_FIRST..=mmap::SYS_LAST => self.cpu_read_sys(bank_addr),
+                mmap::LOROM_FIRST..=mmap::LOROM_LAST => self.rom.read_ws1_lo_rom8(bank, bank_addr),
                 _ => unreachable!(),
             },
-            mmap::WS1_HIROM_FIRST_BANK...mmap::WS1_HIROM_LAST_BANK => {
+            mmap::WS1_HIROM_FIRST_BANK..=mmap::WS1_HIROM_LAST_BANK => {
                 self.rom.read_ws1_hi_rom8(bank, bank_addr)
             }
-            mmap::WRAM_FIRST_BANK...mmap::WRAM_LAST_BANK => {
+            mmap::WRAM_FIRST_BANK..=mmap::WRAM_LAST_BANK => {
                 self.wram[(bank - mmap::WRAM_FIRST_BANK) * 0x10000 + bank_addr]
             }
-            mmap::WS2_SYSLR_FIRST_BANK...mmap::WS2_SYSLR_LAST_BANK => match bank_addr {
-                mmap::SYS_FIRST...mmap::SYS_LAST => self.cpu_read_sys(bank_addr),
-                mmap::LOROM_FIRST...mmap::LOROM_LAST => self.rom.read_ws2_lo_rom8(bank, bank_addr),
+            mmap::WS2_SYSLR_FIRST_BANK..=mmap::WS2_SYSLR_LAST_BANK => match bank_addr {
+                mmap::SYS_FIRST..=mmap::SYS_LAST => self.cpu_read_sys(bank_addr),
+                mmap::LOROM_FIRST..=mmap::LOROM_LAST => self.rom.read_ws2_lo_rom8(bank, bank_addr),
                 _ => unreachable!(),
             },
-            mmap::WS2_HIROM_FIRST_BANK...mmap::WS2_HIROM_LAST_BANK => {
+            mmap::WS2_HIROM_FIRST_BANK..=mmap::WS2_HIROM_LAST_BANK => {
                 self.rom.read_ws2_hi_rom8(bank, bank_addr)
             }
             _ => unreachable!(),
@@ -287,18 +287,18 @@ impl ABus {
 
     fn cpu_write_sys(&mut self, addr: usize, value: u8) {
         match addr {
-            mmap::WRAM_MIRR_FIRST...mmap::WRAM_MIRR_LAST => {
+            mmap::WRAM_MIRR_FIRST..=mmap::WRAM_MIRR_LAST => {
                 // WRAM
                 self.wram[addr] = value
             }
-            mmap::PPU_IO_FIRST...mmap::PPU_IO_LAST => {
+            mmap::PPU_IO_FIRST..=mmap::PPU_IO_LAST => {
                 // PPU IO
                 if addr > mmap::SETINI {
                     panic!("Write ${:06X}: PPU IO read-only for cpu", addr);
                 }
                 self.ppu_io.write(addr, value);
             }
-            mmap::APU_IO_FIRST...mmap::APU_IO_LAST => {
+            mmap::APU_IO_FIRST..=mmap::APU_IO_LAST => {
                 // APU IO
                 let apu_port = if addr < 0x2144 { addr } else { addr - 4 };
                 match apu_port {
@@ -333,11 +333,11 @@ impl ABus {
             mmap::MDMAEN => self.dma.write_mdma_en(value),
             mmap::HDMAEN => self.dma.write_hdma_en(value),
             mmap::MEMSEL => self.memsel = value,
-            mmap::DMA_FIRST...mmap::DMA_LAST => {
+            mmap::DMA_FIRST..=mmap::DMA_LAST => {
                 // DMA
                 self.dma.write(addr, value);
             }
-            mmap::EXP_FIRST...mmap::EXP_LAST => {
+            mmap::EXP_FIRST..=mmap::EXP_LAST => {
                 // Expansion
                 panic!("Write ${:06X}: Expansion not implemented", addr)
             }
@@ -352,27 +352,27 @@ impl ABus {
         let bank = (addr >> 16) as usize;
         let bank_addr = (addr & 0x00FFFF) as usize;
         match bank {
-            mmap::WS1_SYSLR_FIRST_BANK...mmap::WS1_SYSLR_LAST_BANK => match bank_addr {
-                mmap::SYS_FIRST...mmap::SYS_LAST => self.cpu_write_sys(bank_addr, value),
-                mmap::LOROM_FIRST...mmap::LOROM_LAST => {
+            mmap::WS1_SYSLR_FIRST_BANK..=mmap::WS1_SYSLR_LAST_BANK => match bank_addr {
+                mmap::SYS_FIRST..=mmap::SYS_LAST => self.cpu_write_sys(bank_addr, value),
+                mmap::LOROM_FIRST..=mmap::LOROM_LAST => {
                     self.rom.write_ws1_lo_rom8(bank, bank_addr, value);
                 }
                 _ => unreachable!(),
             },
-            mmap::WS1_HIROM_FIRST_BANK...mmap::WS1_HIROM_LAST_BANK => {
+            mmap::WS1_HIROM_FIRST_BANK..=mmap::WS1_HIROM_LAST_BANK => {
                 self.rom.write_ws1_hi_rom8(bank, bank_addr, value);
             }
-            mmap::WRAM_FIRST_BANK...mmap::WRAM_LAST_BANK => {
+            mmap::WRAM_FIRST_BANK..=mmap::WRAM_LAST_BANK => {
                 self.wram[(bank - mmap::WRAM_FIRST_BANK) * 0x10000 + bank_addr] = value;
             }
-            mmap::WS2_SYSLR_FIRST_BANK...mmap::WS2_SYSLR_LAST_BANK => match bank_addr {
-                mmap::SYS_FIRST...mmap::SYS_LAST => self.cpu_write_sys(bank_addr, value),
-                mmap::LOROM_FIRST...mmap::LOROM_LAST => {
+            mmap::WS2_SYSLR_FIRST_BANK..=mmap::WS2_SYSLR_LAST_BANK => match bank_addr {
+                mmap::SYS_FIRST..=mmap::SYS_LAST => self.cpu_write_sys(bank_addr, value),
+                mmap::LOROM_FIRST..=mmap::LOROM_LAST => {
                     self.rom.write_ws2_lo_rom8(bank, bank_addr,value);
                 }
                 _ => unreachable!(),
             },
-            mmap::WS2_HIROM_FIRST_BANK...mmap::WS2_HIROM_LAST_BANK => {
+            mmap::WS2_HIROM_FIRST_BANK..=mmap::WS2_HIROM_LAST_BANK => {
                 self.rom.write_ws2_hi_rom8(bank, bank_addr, value);
             }
             _ => unreachable!(),

@@ -760,14 +760,6 @@ impl W65C816S {
                 self.pc = self.pc.wrapping_add(1);
                 2
             }
-            _ => {
-                panic!(
-                    "Unknown opcode ${0:02X} at ${1:02X}:{2:04X}",
-                    opcode,
-                    addr >> 16,
-                    addr & 0xFFF
-                )
-            }
         }
     }
 
@@ -825,7 +817,7 @@ impl W65C816S {
     }
 
     /// Returns the address and wrapping of data the instruction at `addr` points to using
-    /// [absolute] mode
+    /// \[absolute\] mode
     ///
     /// 24bit pointer at lo`[$00][$HHLL]` mid`[$00][$HHLL+1]` hi`[$00][$HHLL+2]` with actual data at
     /// `[$himidlo]`
@@ -922,7 +914,7 @@ impl W65C816S {
     }
 
     /// Returns the address and wrapping of data the instruction at `addr` points to using
-    /// [direct] mode
+    /// \[direct\] mode
     ///
     /// 16bit pointer at lo`[$00][$DH][$LL]` mid`[$00][$DH][$LL+1]` hi`[$00][$DH][$LL+2]` if in
     /// emulation mode and `DL` is `$00`, otherwise lo`[$00][$D+LL]` mid`[$00][$D+LL+1]`
@@ -969,7 +961,7 @@ impl W65C816S {
     }
 
     /// Returns the address and wrapping of data the instruction at `addr` points to using
-    /// [direct],Y mode
+    /// \[direct\],Y mode
     ///
     /// 16bit pointer at lo`[$00][$DH][$LL]` mid`[$00][$DH][$LL+1]` hi`[$00][$DH][$LL+2]`. Data at
     /// lo`[$himidlo+Y]` hi`[$himidlo+Y+1]`.
