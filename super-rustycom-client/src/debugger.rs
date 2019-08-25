@@ -124,6 +124,7 @@ impl Debugger {
                     println!("Waiting: {}", cpu.waiting());
                 }
                 "run" | "r" => self.state = DebugState::Run,
+                "reset" => cpu.reset(abus),
                 "exit" => self.state = DebugState::Quit,
                 "help" | "h" => {
                     println!("disassemble, da        -- toggle on the fly disassembly");
