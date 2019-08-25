@@ -90,6 +90,13 @@ impl Debugger {
                         Err(err) => println!("Dumping CGRAM failed!\n{}", err),
                     };
                 },
+                "peek" => if arg_vec.len() == 2 {
+                    let ret = u32::from_str_radix(arg_vec[1], 16);
+                    match ret {
+                        Ok(addr) => println!("${:06X}", abus.addr_wrapping_cpu_read24(addr)),
+                        Err(e) => println!("Invalid addr \"{}\"", arg_vec[1]),
+                    }
+                },
                 "step" | "s" => {
                     self.state = DebugState::Step;
                     if arg_vec.len() == 1 {
@@ -126,20 +133,26 @@ impl Debugger {
                 "run" | "r" => self.state = DebugState::Run,
                 "reset" => cpu.reset(abus),
                 "exit" => self.state = DebugState::Quit,
-                "help" | "h" => {
-                    println!("disassemble, da        -- toggle on the fly disassembly");
-                    print!("dump ([param])         -- dump wram, vram, oam, cgram to files");
-                    println!(", supports choosing one with parameter");
-                    println!("step, s ([param])      -- step to next instruction or by amount");
-                    println!("breakpoint, bp [param] -- set execution breakpoint at hex address");
-                    println!("cpu                    -- print out cpu state");
-                    println!("run, r                 -- run until breakpoint is hit");
-                    println!("exit                   -- stop emulation");
-                }
+                "help" | "h" => print_help(),
                 _ => println!("Unknown command \"{}\"", command_str.trim()),
             }
+        } else {
+            print_help();
         }
     }
+}
+
+fn print_help() {
+    println!("disassemble, da        -- toggle on the fly disassembly");
+    println!("dump ([param])         -- dump wram, vram, oam, cgram to files");
+    println!("                          specify one to dump only it");
+    println!("peek [addr]            -- peek 24bits from addr");
+    println!("step, s ([param])      -- step to next instruction or by amount");
+    println!("breakpoint, bp [param] -- set execution breakpoint at hex address");
+    println!("cpu                    -- print out cpu state");
+    println!("run, r                 -- run until breakpoint is hit");
+    println!("reset                  -- reset cpu");
+    println!("exit                   -- stop emulation");
 }
 
 fn dump_memory(file_path: &str, buf: &[u8]) -> Result<(), String> {
