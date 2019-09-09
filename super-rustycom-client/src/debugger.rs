@@ -33,6 +33,7 @@ impl Debugger {
     }
 
     pub fn take_command(&mut self, cpu: &mut W65C816S, abus: &mut ABus) {
+        println!("PRG at");
         disassemble_current(cpu, abus);
         print!("(debug) ");
         io::stdout().flush().unwrap();
