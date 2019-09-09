@@ -217,12 +217,12 @@ impl W65C816S {
 
         // Pushes register to stack at 8/16bits wide based on cond and increments pc by 1
         macro_rules! push_reg {
-            ($cond:expr, $reg_ref:expr, $op_cycles:expr) => ({
+            ($cond:expr, $reg_val:expr, $op_cycles:expr) => ({
                 if $cond {
-                    let value = $reg_ref as u8;
+                    let value = $reg_val as u8;
                     self.push8(value, abus);
                 } else {
-                    let value = $reg_ref as u16;
+                    let value = $reg_val as u16;
                     self.push16(value, abus);
                 }
                 self.pc = self.pc.wrapping_add(1);
@@ -681,16 +681,16 @@ impl W65C816S {
             op::PEA => push_eff!(imm, 3, 5),
             op::PEI => push_eff!(dir, 2, 6 + dl_zero),
             op::PER => push_eff!(imm, 3, 6),
-            op::PHA => push_reg!(self.p.m, *&self.a, 4 - m),
-            op::PHX => push_reg!(self.p.x, *&self.x, 4 - x),
-            op::PHY => push_reg!(self.p.x, *&self.y, 4 - x),
-            op::PLA => pull_reg!(self.p.m, *&mut self.a, 5 - m),
-            op::PLX => pull_reg!(self.p.x, *&mut self.x, 5 - x),
-            op::PLY => pull_reg!(self.p.x, *&mut self.y, 5 - x),
-            op::PHB => push_reg!(true, *&self.db, 3),
-            op::PHD => push_reg!(false, *&self.d, 4),
-            op::PHK => push_reg!(true, *&self.pb, 3),
-            op::PHP => push_reg!(true, *&self.p.value(), 3),
+            op::PHA => push_reg!(self.p.m, self.a, 4 - m),
+            op::PHX => push_reg!(self.p.x, self.x, 4 - x),
+            op::PHY => push_reg!(self.p.x, self.y, 4 - x),
+            op::PLA => pull_reg!(self.p.m, self.a, 5 - m),
+            op::PLX => pull_reg!(self.p.x, self.x, 5 - x),
+            op::PLY => pull_reg!(self.p.x, self.y, 5 - x),
+            op::PHB => push_reg!(true, self.db, 3),
+            op::PHD => push_reg!(false, self.d, 4),
+            op::PHK => push_reg!(true, self.pb, 3),
+            op::PHP => push_reg!(true, self.p.value(), 3),
             op::PLB => {
                 let value = self.pull8(abus);
                 self.db = value;
@@ -699,7 +699,7 @@ impl W65C816S {
                 self.pc = self.pc.wrapping_add(1);
                 4
             }
-            op::PLD => pull_reg!(false, *&mut self.d, 5),
+            op::PLD => pull_reg!(false, self.d, 5),
             op::PLP => {
                 let value = self.pull8(abus);
                 self.p.set_value(value);
@@ -714,10 +714,10 @@ impl W65C816S {
                 self.waiting = true;
                 3
             }
-            op::TAX => transfer!(self.p.x, *&self.a, *&mut self.x),
-            op::TAY => transfer!(self.p.x, *&self.a, *&mut self.y),
-            op::TSX => transfer!(self.p.x, *&self.s, *&mut self.x),
-            op::TXA => transfer!(self.p.m, *&self.x, *&mut self.a),
+            op::TAX => transfer!(self.p.x, self.a, self.x),
+            op::TAY => transfer!(self.p.x, self.a, self.y),
+            op::TSX => transfer!(self.p.x, self.s, self.x),
+            op::TXA => transfer!(self.p.m, self.x, self.a),
             op::TXS => {
                 self.s = if self.e {
                     0x0100 | (self.x & 0x00FF)
@@ -727,10 +727,10 @@ impl W65C816S {
                 self.pc = self.pc.wrapping_add(1);
                 2
             }
-            op::TXY => transfer!(self.p.x, *&self.x, *&mut self.y),
-            op::TYA => transfer!(self.p.m, *&self.y, *&mut self.a),
-            op::TYX => transfer!(self.p.x, *&self.y, *&mut self.x),
-            op::TCD => transfer!(false, *&self.a, *&mut self.d),
+            op::TXY => transfer!(self.p.x, self.x, self.y),
+            op::TYA => transfer!(self.p.m, self.y, self.a),
+            op::TYX => transfer!(self.p.x, self.y, self.x),
+            op::TCD => transfer!(false, self.a, self.d),
             op::TCS => {
                 self.s = if self.e {
                     0x0100 | (self.a & 0x00FF)
@@ -740,8 +740,8 @@ impl W65C816S {
                 self.pc = self.pc.wrapping_add(1);
                 2
             }
-            op::TDC => transfer!(false, *&self.d, *&mut self.a),
-            op::TSC => transfer!(false, *&self.s, *&mut self.a),
+            op::TDC => transfer!(false, self.d, self.a),
+            op::TSC => transfer!(false, self.s, self.a),
             op::XBA => {
                 self.a = (self.a << 8) | (self.a >> 8);
                 self.p.n = self.a as u8 > 0x7F;
