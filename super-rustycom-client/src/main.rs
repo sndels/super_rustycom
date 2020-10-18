@@ -1,26 +1,18 @@
-extern crate super_rustycom_core;
-
-#[macro_use]
-extern crate clap;
-
-extern crate serde;
-extern crate serde_json;
-
 mod config;
 mod debugger;
 mod time_source;
 
-use std::env;
 use std::fs::File;
 use std::io::prelude::*;
 use std::thread;
 use std::time;
 
-use config::Config;
-use debugger::disassemble_current;
-use debugger::{DebugState, Debugger};
+use crate::config::Config;
+use crate::debugger::disassemble_current;
+use crate::debugger::{DebugState, Debugger};
+use crate::time_source::TimeSource;
+use clap::clap_app;
 use super_rustycom_core::snes::SNES;
-use time_source::TimeSource;
 
 fn main() {
     let args = clap_app!(super_rustycom_client =>

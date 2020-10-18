@@ -1,4 +1,4 @@
-use mmap;
+use crate::mmap;
 
 enum RomMakeup {
     SlowLoRom = 0x20,
@@ -45,10 +45,14 @@ impl Rom {
     }
 
     #[allow(unused_variables)]
-    pub fn read_ws1_hi_rom8(&self, bank: usize, bank_addr: usize) -> u8 { unimplemented!() }
+    pub fn read_ws1_hi_rom8(&self, bank: usize, bank_addr: usize) -> u8 {
+        unimplemented!()
+    }
 
     #[allow(unused_variables)]
-    pub fn read_ws2_lo_rom8(&self, bank: usize, bank_addr: usize) -> u8 { unimplemented!() }
+    pub fn read_ws2_lo_rom8(&self, bank: usize, bank_addr: usize) -> u8 {
+        unimplemented!()
+    }
 
     pub fn read_ws2_hi_rom8(&self, bank: usize, bank_addr: usize) -> u8 {
         self.rom[((bank - mmap::WS2_HIROM_FIRST_BANK) << 16) | bank_addr]
@@ -58,9 +62,7 @@ impl Rom {
     pub fn write_ws1_lo_rom8(&mut self, bank: usize, bank_addr: usize, value: u8) {
         panic!(
             "Write value ${0:02X} to WS1 LoROM at addr ${1:02X}:{2:04X}!",
-            value,
-            bank,
-            bank_addr
+            value, bank, bank_addr
         );
     }
 
@@ -73,18 +75,14 @@ impl Rom {
     pub fn write_ws1_hi_rom8(&mut self, bank: usize, bank_addr: usize, value: u8) {
         panic!(
             "Write value ${0:02X} to WS1 HiROM at addr ${1:02X}:{2:04X}!",
-            value,
-            bank,
-            bank_addr
+            value, bank, bank_addr
         );
     }
 
     pub fn write_ws2_lo_rom8(&mut self, bank: usize, bank_addr: usize, value: u8) {
         panic!(
             "Write value ${0:02X} to WS2 LoROM at addr ${1:02X}:{2:04X}!",
-            value,
-            bank,
-            bank_addr
+            value, bank, bank_addr
         );
     }
 
@@ -92,9 +90,7 @@ impl Rom {
     pub fn write_ws2_hi_rom8(&mut self, bank: usize, bank_addr: usize, value: u8) {
         panic!(
             "Write value ${0:02X} to WS2 HiROM at addr ${1:02X}:{2:04X}!",
-            value,
-            bank,
-            bank_addr
+            value, bank, bank_addr
         );
     }
 

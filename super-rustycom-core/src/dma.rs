@@ -36,16 +36,22 @@ impl Dma {
     }
 
     #[allow(dead_code)]
-    pub fn read_mdma_en(&self) -> u8 { self.mdma_en }
+    pub fn read_mdma_en(&self) -> u8 {
+        self.mdma_en
+    }
 
     pub fn write_mdma_en(&mut self, value: u8) {
         self.mdma_en = value; // TODO: Do transfer
     }
 
     #[allow(dead_code)]
-    pub fn read_hdma_en(&self) -> u8 { self.hdma_en }
+    pub fn read_hdma_en(&self) -> u8 {
+        self.hdma_en
+    }
 
-    pub fn write_hdma_en(&mut self, value: u8) { self.hdma_en = value; }
+    pub fn write_hdma_en(&mut self, value: u8) {
+        self.hdma_en = value;
+    }
 
     pub fn read(&self, addr: usize) -> u8 {
         let port = addr & 0x000F;

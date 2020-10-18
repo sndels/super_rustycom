@@ -1,4 +1,3 @@
-use std::error::Error;
 use std::fs::File;
 use std::io::{self, Write};
 use std::u32;
@@ -52,52 +51,56 @@ impl Debugger {
                         println!("Toggled continious disassembly off");
                     }
                 }
-                "dump" => if arg_vec.len() > 1 {
-                    match arg_vec[1] {
-                        "rom" => unimplemented!(),
-                        "wram" => match dump_memory("wramdump.bin", &abus.wram()) {
+                "dump" => {
+                    if arg_vec.len() > 1 {
+                        match arg_vec[1] {
+                            "rom" => unimplemented!(),
+                            "wram" => match dump_memory("wramdump.bin", &abus.wram()) {
+                                Ok(_) => println!("WRAM dumped"),
+                                Err(err) => println!("Dumping WRAM failed!\n{}", err),
+                            },
+                            "vram" => match dump_memory("vramdump.bin", &abus.vram()) {
+                                Ok(_) => println!("VRAM dumped"),
+                                Err(err) => println!("Dumping VRAM failed!\n{}", err),
+                            },
+                            "oam" => match dump_memory("oamdump.bin", &abus.oam()) {
+                                Ok(_) => println!("OAM dumped"),
+                                Err(err) => println!("Dumping OAM failed!\n{}", err),
+                            },
+                            "cgram" => match dump_memory("cgramdump.bin", &abus.cgram()) {
+                                Ok(_) => println!("CGRAM dumped"),
+                                Err(err) => println!("Dumping CGRAM failed!\n{}", err),
+                            },
+                            &_ => println!("Invalid parameter \"{}\"", arg_vec[1]),
+                        }
+                    } else {
+                        match dump_memory("wramdump.bin", &abus.wram()) {
                             Ok(_) => println!("WRAM dumped"),
                             Err(err) => println!("Dumping WRAM failed!\n{}", err),
-                        },
-                        "vram" => match dump_memory("vramdump.bin", &abus.vram()) {
+                        };
+                        match dump_memory("vramdump.bin", &abus.vram()) {
                             Ok(_) => println!("VRAM dumped"),
                             Err(err) => println!("Dumping VRAM failed!\n{}", err),
-                        },
-                        "oam" => match dump_memory("oamdump.bin", &abus.oam()) {
+                        };
+                        match dump_memory("oamdump.bin", &abus.oam()) {
                             Ok(_) => println!("OAM dumped"),
                             Err(err) => println!("Dumping OAM failed!\n{}", err),
-                        },
-                        "cgram" => match dump_memory("cgramdump.bin", &abus.cgram()) {
+                        };
+                        match dump_memory("cgramdump.bin", &abus.cgram()) {
                             Ok(_) => println!("CGRAM dumped"),
                             Err(err) => println!("Dumping CGRAM failed!\n{}", err),
-                        },
-                        &_ => println!("Invalid parameter \"{}\"", arg_vec[1]),
+                        };
                     }
-                } else {
-                    match dump_memory("wramdump.bin", &abus.wram()) {
-                        Ok(_) => println!("WRAM dumped"),
-                        Err(err) => println!("Dumping WRAM failed!\n{}", err),
-                    };
-                    match dump_memory("vramdump.bin", &abus.vram()) {
-                        Ok(_) => println!("VRAM dumped"),
-                        Err(err) => println!("Dumping VRAM failed!\n{}", err),
-                    };
-                    match dump_memory("oamdump.bin", &abus.oam()) {
-                        Ok(_) => println!("OAM dumped"),
-                        Err(err) => println!("Dumping OAM failed!\n{}", err),
-                    };
-                    match dump_memory("cgramdump.bin", &abus.cgram()) {
-                        Ok(_) => println!("CGRAM dumped"),
-                        Err(err) => println!("Dumping CGRAM failed!\n{}", err),
-                    };
-                },
-                "peek" => if arg_vec.len() == 2 {
-                    let ret = u32::from_str_radix(arg_vec[1], 16);
-                    match ret {
-                        Ok(addr) => println!("${:06X}", abus.addr_wrapping_cpu_read24(addr)),
-                        Err(e) => println!("Invalid addr \"{}\"", arg_vec[1]),
+                }
+                "peek" => {
+                    if arg_vec.len() == 2 {
+                        let ret = u32::from_str_radix(arg_vec[1], 16);
+                        match ret {
+                            Ok(addr) => println!("${:06X}", abus.addr_wrapping_cpu_read24(addr)),
+                            Err(_e) => println!("Invalid addr \"{}\"", arg_vec[1]),
+                        }
                     }
-                },
+                }
                 "step" | "s" => {
                     self.state = DebugState::Step;
                     if arg_vec.len() == 1 {
@@ -110,13 +113,15 @@ impl Debugger {
                         }
                     }
                 }
-                "breakpoint" | "bp" => if arg_vec.len() > 1 {
-                    let breakpoint = u32::from_str_radix(arg_vec[1], 16);
-                    match breakpoint {
-                        Ok(b) => self.breakpoint = b,
-                        Err(e) => println!("Error parsing step: {}", e),
+                "breakpoint" | "bp" => {
+                    if arg_vec.len() > 1 {
+                        let breakpoint = u32::from_str_radix(arg_vec[1], 16);
+                        match breakpoint {
+                            Ok(b) => self.breakpoint = b,
+                            Err(e) => println!("Error parsing step: {}", e),
+                        }
                     }
-                },
+                }
                 "cpu" => {
                     println!("A:       ${:04X}", cpu.a());
                     println!("X:       ${:04X}", cpu.x());
@@ -159,13 +164,13 @@ fn print_help() {
 fn dump_memory(file_path: &str, buf: &[u8]) -> Result<(), String> {
     let mut f = match File::create(file_path) {
         Ok(file) => file,
-        Err(err) => return Err(String::from("Creating file failed:\n") + err.description()),
+        Err(err) => return Err(format!("Creating file failed:\n{}", err)),
     };
     if let Err(err) = f.write_all(buf) {
-        return Err(String::from("Write failed:\n") + err.description());
+        return Err(format!("Write failed:\n{}", err));
     };
     if let Err(err) = f.sync_all() {
-        return Err(String::from("Sync failed:\n") + err.description());
+        return Err(format!("Sync failed:\n{}", err));
     };
     Ok(())
 }
@@ -184,28 +189,32 @@ fn disassemble(addr: u32, cpu: &W65C816S, abus: &mut ABus) {
 
     // DRY macros
     macro_rules! str_operand8 {
-        () => ({
+        () => {{
             format!("{0:02X}", operand8)
-        })
+        }};
     }
 
     macro_rules! str_operand16 {
-        () => ({
+        () => {{
             format!("{0:02X} {1:02X}", operand16 & 0xFF, operand16 >> 8)
-        })
+        }};
     }
 
     macro_rules! str_operand24 {
-        () => ({
-            format!("{0:02X} {1:02X} {2:02X}", operand24 & 0xFF,
-                    (operand24 >> 8) & 0xFF, operand24 >> 16)
-        })
+        () => {{
+            format!(
+                "{0:02X} {1:02X} {2:02X}",
+                operand24 & 0xFF,
+                (operand24 >> 8) & 0xFF,
+                operand24 >> 16
+            )
+        }};
     }
 
     macro_rules! str_full_addr {
-        ($address:expr) => ({
+        ($address:expr) => {{
             format!("[${0:02X}:{1:04X}]", $address >> 16, $address & 0xFFFF)
-        });
+        }};
     }
 
     print!(
@@ -296,32 +305,36 @@ fn disassemble(addr: u32, cpu: &W65C816S, abus: &mut ABus) {
             format!("{0} #${1:04X}", opname, operand16),
             String::new(),
         ),
-        AddrMode::ImmM => if cpu.p_m() {
-            (
-                str_operand8!(),
-                format!("{0} #${1:02X}", opname, operand8),
-                String::new(),
-            )
-        } else {
-            (
-                str_operand16!(),
-                format!("{0} #${1:04X}", opname, operand16),
-                String::new(),
-            )
-        },
-        AddrMode::ImmX => if cpu.p_x() {
-            (
-                str_operand8!(),
-                format!("{0} #${1:02X}", opname, operand8),
-                String::new(),
-            )
-        } else {
-            (
-                str_operand16!(),
-                format!("{0} #${1:04X}", opname, operand16),
-                String::new(),
-            )
-        },
+        AddrMode::ImmM => {
+            if cpu.p_m() {
+                (
+                    str_operand8!(),
+                    format!("{0} #${1:02X}", opname, operand8),
+                    String::new(),
+                )
+            } else {
+                (
+                    str_operand16!(),
+                    format!("{0} #${1:04X}", opname, operand16),
+                    String::new(),
+                )
+            }
+        }
+        AddrMode::ImmX => {
+            if cpu.p_x() {
+                (
+                    str_operand8!(),
+                    format!("{0} #${1:02X}", opname, operand8),
+                    String::new(),
+                )
+            } else {
+                (
+                    str_operand16!(),
+                    format!("{0} #${1:04X}", opname, operand16),
+                    String::new(),
+                )
+            }
+        }
         AddrMode::Imp => (String::new(), String::from(opname), String::new()),
         AddrMode::Long => (
             str_operand24!(),
@@ -366,9 +379,7 @@ fn disassemble(addr: u32, cpu: &W65C816S, abus: &mut ABus) {
     };
     print!(
         " {0:<8} {1:<13} {2:<10}",
-        unique_strs.0,
-        unique_strs.1,
-        unique_strs.2
+        unique_strs.0, unique_strs.1, unique_strs.2
     );
     println!(
         " A:{0:04X} X:{1:04X} Y:{2:04X} {3}",

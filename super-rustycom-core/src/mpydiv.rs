@@ -23,7 +23,9 @@ impl MpyDiv {
     }
 
     /// Sets `multiplicand` to `value`
-    pub fn set_multiplicand(&mut self, value: u8) { self.multiplicand = value; }
+    pub fn set_multiplicand(&mut self, value: u8) {
+        self.multiplicand = value;
+    }
 
     /// Sets `multiplier` to `value` and starts multiplication
     ///
@@ -61,16 +63,24 @@ impl MpyDiv {
     }
 
     /// Returns the low byte of the multiplication result / division remainder
-    pub fn get_mpy_res_low(&self) -> u8 { self.mpy_res as u8 }
+    pub fn get_mpy_res_low(&self) -> u8 {
+        self.mpy_res as u8
+    }
 
     /// Returns the high byte of the multiplication result / division remainder
-    pub fn get_mpy_res_high(&self) -> u8 { (self.mpy_res >> 8) as u8 }
+    pub fn get_mpy_res_high(&self) -> u8 {
+        (self.mpy_res >> 8) as u8
+    }
 
     /// Returns the low byte of the division result
-    pub fn get_div_res_low(&self) -> u8 { self.div_res as u8 }
+    pub fn get_div_res_low(&self) -> u8 {
+        self.div_res as u8
+    }
 
     /// Returns the high byte of the division result
-    pub fn get_div_res_high(&self) -> u8 { (self.div_res >> 8) as u8 }
+    pub fn get_div_res_high(&self) -> u8 {
+        (self.div_res >> 8) as u8
+    }
 }
 
 #[cfg(test)]

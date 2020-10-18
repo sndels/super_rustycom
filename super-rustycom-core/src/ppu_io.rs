@@ -1,4 +1,4 @@
-use mmap;
+use crate::mmap;
 
 pub struct PpuIo {
     // Cpu write

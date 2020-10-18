@@ -1,5 +1,5 @@
-use cpu::W65C816S;
-use abus::ABus;
+use crate::abus::ABus;
+use crate::cpu::W65C816S;
 
 /// Abstraction around the actual emu implementation
 pub struct SNES {

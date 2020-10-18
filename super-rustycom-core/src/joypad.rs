@@ -33,18 +33,44 @@ impl JoyIo {
         }
     }
 
-    pub fn joy_a(&self) -> u8 { self.joy_a }
-    pub fn joy_b(&self) -> u8 { self.joy_b }
-    pub fn rd_io(&self) -> u8 { self.rd_io }
-    pub fn joy_1l(&self) -> u8 { self.joy_1l }
-    pub fn joy_1h(&self) -> u8 { self.joy_1h }
-    pub fn joy_2l(&self) -> u8 { self.joy_2l }
-    pub fn joy_2h(&self) -> u8 { self.joy_2h }
-    pub fn joy_3l(&self) -> u8 { self.joy_3l }
-    pub fn joy_3h(&self) -> u8 { self.joy_3h }
-    pub fn joy_4l(&self) -> u8 { self.joy_4l }
-    pub fn joy_4h(&self) -> u8 { self.joy_4h }
+    pub fn joy_a(&self) -> u8 {
+        self.joy_a
+    }
+    pub fn joy_b(&self) -> u8 {
+        self.joy_b
+    }
+    pub fn rd_io(&self) -> u8 {
+        self.rd_io
+    }
+    pub fn joy_1l(&self) -> u8 {
+        self.joy_1l
+    }
+    pub fn joy_1h(&self) -> u8 {
+        self.joy_1h
+    }
+    pub fn joy_2l(&self) -> u8 {
+        self.joy_2l
+    }
+    pub fn joy_2h(&self) -> u8 {
+        self.joy_2h
+    }
+    pub fn joy_3l(&self) -> u8 {
+        self.joy_3l
+    }
+    pub fn joy_3h(&self) -> u8 {
+        self.joy_3h
+    }
+    pub fn joy_4l(&self) -> u8 {
+        self.joy_4l
+    }
+    pub fn joy_4h(&self) -> u8 {
+        self.joy_4h
+    }
 
-    pub fn set_joy_wr(&mut self, value: u8) { self.joy_wr = value; }
-    pub fn set_wr_io(&mut self, value: u8) { self.wr_io = value; }
+    pub fn set_joy_wr(&mut self, value: u8) {
+        self.joy_wr = value;
+    }
+    pub fn set_wr_io(&mut self, value: u8) {
+        self.wr_io = value;
+    }
 }

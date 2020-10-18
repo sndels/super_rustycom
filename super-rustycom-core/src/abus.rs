@@ -1,9 +1,9 @@
-use dma::Dma;
-use joypad::JoyIo;
-use mmap;
-use mpydiv::MpyDiv;
-use ppu_io::PpuIo;
-use rom::Rom;
+use crate::dma::Dma;
+use crate::joypad::JoyIo;
+use crate::mmap;
+use crate::mpydiv::MpyDiv;
+use crate::ppu_io::PpuIo;
+use crate::rom::Rom;
 
 /// 128 kB of "work" memory
 const WRAM_SIZE: usize = 128 * 1024;
@@ -133,10 +133,18 @@ impl ABus {
         }
     }
 
-    pub fn wram(&self) -> Box<[u8]> { self.wram.clone() }
-    pub fn vram(&self) -> Box<[u8]> { self.vram.clone() }
-    pub fn oam(&self) -> Box<[u8]> { self.oam.clone() }
-    pub fn cgram(&self) -> Box<[u8]> { self.cgram.clone() }
+    pub fn wram(&self) -> Box<[u8]> {
+        self.wram.clone()
+    }
+    pub fn vram(&self) -> Box<[u8]> {
+        self.vram.clone()
+    }
+    pub fn oam(&self) -> Box<[u8]> {
+        self.oam.clone()
+    }
+    pub fn cgram(&self) -> Box<[u8]> {
+        self.cgram.clone()
+    }
 
     fn cpu_read_sys(&mut self, addr: usize) -> u8 {
         match addr {
@@ -152,10 +160,10 @@ impl ABus {
                 // APU IO
                 let apu_port = if addr < 0x2144 { addr } else { addr - 4 };
                 match apu_port {
-                        mmap::APUI00 => (self.apu_io0 >> 8) as u8,
-                        mmap::APUI01 => (self.apu_io1 >> 8) as u8,
-                        mmap::APUI02 => (self.apu_io2 >> 8) as u8,
-                        mmap::APUI03 => (self.apu_io3 >> 8) as u8,
+                    mmap::APUI00 => (self.apu_io0 >> 8) as u8,
+                    mmap::APUI01 => (self.apu_io1 >> 8) as u8,
+                    mmap::APUI02 => (self.apu_io2 >> 8) as u8,
+                    mmap::APUI03 => (self.apu_io3 >> 8) as u8,
                     _ => unreachable!(),
                 }
             }
@@ -252,17 +260,18 @@ impl ABus {
 
     #[allow(dead_code)]
     pub fn addr_wrapping_cpu_read24(&mut self, addr: u32) -> u32 {
-        self.cpu_read8(addr) as u32 | ((self.cpu_read8(addr_wrapping_add(addr, 1)) as u32) << 8)
+        self.cpu_read8(addr) as u32
+            | ((self.cpu_read8(addr_wrapping_add(addr, 1)) as u32) << 8)
             | ((self.cpu_read8(addr_wrapping_add(addr, 2)) as u32) << 16)
     }
-
 
     pub fn bank_wrapping_cpu_read16(&mut self, addr: u32) -> u16 {
         self.cpu_read8(addr) as u16 | ((self.cpu_read8(bank_wrapping_add(addr, 1)) as u16) << 8)
     }
 
     pub fn bank_wrapping_cpu_read24(&mut self, addr: u32) -> u32 {
-        self.cpu_read8(addr) as u32 | ((self.cpu_read8(bank_wrapping_add(addr, 1)) as u32) << 8)
+        self.cpu_read8(addr) as u32
+            | ((self.cpu_read8(bank_wrapping_add(addr, 1)) as u32) << 8)
             | ((self.cpu_read8(bank_wrapping_add(addr, 2)) as u32) << 16)
     }
 
@@ -271,11 +280,14 @@ impl ABus {
     }
 
     pub fn page_wrapping_cpu_read24(&mut self, addr: u32) -> u32 {
-        self.cpu_read8(addr) as u32 | ((self.cpu_read8(page_wrapping_add(addr, 1)) as u32) << 8)
+        self.cpu_read8(addr) as u32
+            | ((self.cpu_read8(page_wrapping_add(addr, 1)) as u32) << 8)
             | ((self.cpu_read8(page_wrapping_add(addr, 2)) as u32) << 16)
     }
 
-    pub fn fetch_operand8(&mut self, addr: u32) -> u8 { self.cpu_read8(bank_wrapping_add(addr, 1)) }
+    pub fn fetch_operand8(&mut self, addr: u32) -> u8 {
+        self.cpu_read8(bank_wrapping_add(addr, 1))
+    }
 
     pub fn fetch_operand16(&mut self, addr: u32) -> u16 {
         self.bank_wrapping_cpu_read16(bank_wrapping_add(addr, 1))
@@ -302,7 +314,6 @@ impl ABus {
                 // APU IO
                 let apu_port = if addr < 0x2144 { addr } else { addr - 4 };
                 match apu_port {
-
                     mmap::APUI00 => self.apu_io0 = (self.apu_io0 & 0xFF00) | value as u16,
                     mmap::APUI01 => self.apu_io1 = (self.apu_io1 & 0xFF00) | value as u16,
                     mmap::APUI02 => self.apu_io2 = (self.apu_io2 & 0xFF00) | value as u16,
@@ -311,7 +322,8 @@ impl ABus {
                 }
             }
             mmap::WMDATA => {
-                let wram_addr = ((self.wm_add_h as usize) << 16) | ((self.wm_add_m as usize) << 8)
+                let wram_addr = ((self.wm_add_h as usize) << 16)
+                    | ((self.wm_add_m as usize) << 8)
                     | (self.wm_add_l as usize);
                 self.wram[wram_addr] = value;
             }
@@ -368,7 +380,7 @@ impl ABus {
             mmap::WS2_SYSLR_FIRST_BANK..=mmap::WS2_SYSLR_LAST_BANK => match bank_addr {
                 mmap::SYS_FIRST..=mmap::SYS_LAST => self.cpu_write_sys(bank_addr, value),
                 mmap::LOROM_FIRST..=mmap::LOROM_LAST => {
-                    self.rom.write_ws2_lo_rom8(bank, bank_addr,value);
+                    self.rom.write_ws2_lo_rom8(bank, bank_addr, value);
                 }
                 _ => unreachable!(),
             },
@@ -423,7 +435,9 @@ impl ABus {
         self.cpu_write8(page_wrapping_add(addr, 2), (value >> 16) as u8);
     }
 }
-pub fn addr_wrapping_add(addr: u32, offset: u32) -> u32 { (addr + offset) & 0x00FFFFFF }
+pub fn addr_wrapping_add(addr: u32, offset: u32) -> u32 {
+    (addr + offset) & 0x00FFFFFF
+}
 
 pub fn bank_wrapping_add(addr: u32, offset: u16) -> u32 {
     (addr & 0xFF0000) | ((addr as u16).wrapping_add(offset) as u32)
