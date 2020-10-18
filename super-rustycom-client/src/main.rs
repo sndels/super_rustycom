@@ -3,6 +3,10 @@ extern crate super_rustycom_core;
 #[macro_use]
 extern crate clap;
 
+extern crate serde;
+extern crate serde_json;
+
+mod config;
 mod debugger;
 mod time_source;
 
@@ -12,6 +16,7 @@ use std::io::prelude::*;
 use std::thread;
 use std::time;
 
+use config::Config;
 use debugger::disassemble_current;
 use debugger::{DebugState, Debugger};
 use super_rustycom_core::snes::SNES;
@@ -22,20 +27,28 @@ fn main() {
         (version: "0.1.0")
         (author: "sndels <sndels@iki.fi>")
         (about: "Very WIP Super Nintendo emulation")
-        (@arg ROM: +required "Sets the rom file to use")
+        (@arg ROM: --rom +takes_value "Sets the rom file to use, previous file used if not given")
     )
     .get_matches();
 
+    let mut config = Config::load();
+
     // Get ROM path from first argument
-    let rom_path = args.value_of("ROM").unwrap();
+    if let Some(rom_path) = args.value_of("ROM") {
+        config.rom_path = rom_path.to_string();
+    }
+    assert!(
+        !config.rom_path.is_empty(),
+        "No ROM given in args or in config"
+    );
 
     // Load ROM from file
-    let mut rom_file = File::open(&rom_path).expect("Opening rom failed");
+    let mut rom_file = File::open(&config.rom_path).expect("Opening rom failed");
     let mut rom_bytes = Vec::new();
     let read_bytes = rom_file
         .read_to_end(&mut rom_bytes)
         .expect("Reading rom to bytes failed");
-    println!("Read {} bytes from {}", read_bytes, rom_path);
+    println!("Read {} bytes from {}", read_bytes, config.rom_path);
 
     // Init hardware
     let mut snes = SNES::new(rom_bytes);
@@ -89,4 +102,6 @@ fn main() {
         }
         thread::sleep(time::Duration::from_millis(2));
     }
+
+    config.save();
 }
