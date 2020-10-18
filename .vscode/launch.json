@@ -1,0 +1,32 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "(Windows) Client Release",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/super-rustycom-client/target/release/super_rustycom_client.exe",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/super-rustycom-client/target/release",
+            "environment": [],
+            "externalConsole": true,
+            "preLaunchTask": "Build Release Client"
+        },
+        {
+            "name": "(Windows) Client Debug",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/super-rustycom-client/target/debug/super_rustycom_client.exe",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/super-rustycom-client/target/debug",
+            "environment": [],
+            "externalConsole": true,
+            "preLaunchTask": "Build Debug Client"
+        }
+    ]
+}

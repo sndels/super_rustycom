@@ -1,0 +1,49 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Build Release Client",
+            "group": "build",
+            "command": "cargo",
+            "args": [
+                "build",
+                "--release"
+            ],
+            "options": {
+                "cwd": "${workspaceRoot}/super-rustycom-client"
+            },
+            "problemMatcher": [
+                "$rustc"
+            ]
+        },
+        {
+            "label": "Build Debug Client",
+            "group": "build",
+            "command": "cargo",
+            "args": [
+                "build"
+            ],
+            "options": {
+                "cwd": "${workspaceRoot}/super-rustycom-client"
+            },
+            "problemMatcher": [
+                "$rustc"
+            ]
+        },
+        {
+            "label": "Build Core Docs",
+            "group": "build",
+            "command": "cargo",
+            "args": [
+                "doc",
+                "--document-private-items"
+            ],
+            "options": {
+                "cwd": "${workspaceRoot}/super-rustycom-core"
+            },
+            "problemMatcher": [
+                "$rustc"
+            ]
+        }
+    ]
+}
