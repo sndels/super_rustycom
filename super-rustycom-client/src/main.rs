@@ -1,5 +1,8 @@
 extern crate super_rustycom_core;
 
+#[macro_use]
+extern crate clap;
+
 mod debugger;
 mod time_source;
 
@@ -9,14 +12,22 @@ use std::io::prelude::*;
 use std::thread;
 use std::time;
 
-use super_rustycom_core::snes::SNES;
-use debugger::{Debugger, DebugState};
 use debugger::disassemble_current;
+use debugger::{DebugState, Debugger};
+use super_rustycom_core::snes::SNES;
 use time_source::TimeSource;
 
 fn main() {
+    let args = clap_app!(super_rustycom_client =>
+        (version: "0.1.0")
+        (author: "sndels <sndels@iki.fi>")
+        (about: "Very WIP Super Nintendo emulation")
+        (@arg ROM: +required "Sets the rom file to use")
+    )
+    .get_matches();
+
     // Get ROM path from first argument
-    let rom_path = env::args().nth(1).expect("No rom defined");
+    let rom_path = args.value_of("ROM").unwrap();
 
     // Load ROM from file
     let mut rom_file = File::open(&rom_path).expect("Opening rom failed");

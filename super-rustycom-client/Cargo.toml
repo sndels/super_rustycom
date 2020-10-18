@@ -5,3 +5,4 @@ authors = ["Santeri Salmijärvi <santeri.salmijarvi@aalto.fi>"]
 
 [dependencies]
 super-rustycom-core = { path = "../super-rustycom-core" }
+clap = "2.33.3"
