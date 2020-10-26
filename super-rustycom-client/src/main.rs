@@ -1,5 +1,6 @@
 mod config;
 mod debugger;
+mod text;
 mod time_source;
 
 use std::fs::File;
@@ -8,6 +9,7 @@ use std::io::prelude::*;
 use crate::config::Config;
 use crate::debugger::disassemble_current;
 use crate::debugger::{DebugState, Debugger};
+use crate::text::TextRenderer;
 use crate::time_source::TimeSource;
 use clap::clap_app;
 use minifb::{Key, Window, WindowOptions};
@@ -64,7 +66,7 @@ fn main() {
     )
     .unwrap();
     // window.limit_update_rate(Some(std::time::Duration::from_micros(16600)));
-    let mut white_spot: usize = 0;
+    let text_renderer = TextRenderer::new();
 
     // Run
     while window.is_open() && !window.is_key_down(Key::Escape) {
@@ -109,23 +111,22 @@ fn main() {
             DebugState::Quit => break,
         }
 
-        // Running pixel with tail
-        for (i, c) in buffer.iter_mut().enumerate() {
-            if i == white_spot {
-                *c = 0xFFFFFFFF;
-            } else {
-                let previous_color = *c;
-                let r = (previous_color >> 16) as u8;
-                let g = (previous_color >> 8) as u8;
-                let b = previous_color as u8;
-                let new_color = 0xFF000000
-                    | ((r.saturating_sub(1) as u32) << 16)
-                    | ((g.saturating_sub(1) as u32) << 8)
-                    | (b.saturating_sub(1) as u32);
-                *c = new_color;
-            }
+        {
+            let pixel_slices = {
+                let mut slices = Vec::new();
+                let mut rest = &mut buffer[..];
+                for _ in 0..config.resolution.height {
+                    let (head, tail) = rest.split_at_mut(config.resolution.width);
+                    slices.push(head);
+                    rest = tail;
+                }
+                slices
+            };
+            text_renderer.draw(
+                "ABCDEFGHIJKLMN\nOPQRSTUVWXYZ\nabcdefghijlkmn\nopqrstuvwxyz\n0123456789\n .,:?!$#()[]".into(),
+                pixel_slices,
+            );
         }
-        white_spot = white_spot + 1;
 
         window
             .update_with_buffer(&buffer, config.resolution.width, config.resolution.height)
