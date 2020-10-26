@@ -26,7 +26,7 @@ impl Debugger {
             breakpoint: 0x0,
             steps: 0,
             state: DebugState::Active,
-            disassemble: true,
+            disassemble: false,
             quit: false,
         }
     }

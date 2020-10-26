@@ -4,14 +4,13 @@ mod time_source;
 
 use std::fs::File;
 use std::io::prelude::*;
-use std::thread;
-use std::time;
 
 use crate::config::Config;
 use crate::debugger::disassemble_current;
 use crate::debugger::{DebugState, Debugger};
 use crate::time_source::TimeSource;
 use clap::clap_app;
+use minifb::{Key, Window, WindowOptions};
 use super_rustycom_core::snes::SNES;
 
 fn main() {
@@ -50,8 +49,25 @@ fn main() {
     let time_source = TimeSource::new();
     let mut emulated_clock_ticks = 0;
 
+    // Init drawing
+    let pixel_count = config.resolution.width * config.resolution.height;
+    let mut buffer: Vec<u32> = vec![0; pixel_count];
+    let mut window = Window::new(
+        "Super Rustycom",
+        config.resolution.width,
+        config.resolution.height,
+        {
+            let mut options = WindowOptions::default();
+            options.scale = minifb::Scale::X4;
+            options
+        },
+    )
+    .unwrap();
+    // window.limit_update_rate(Some(std::time::Duration::from_micros(16600)));
+    let mut white_spot: usize = 0;
+
     // Run
-    loop {
+    while window.is_open() && !window.is_key_down(Key::Escape) {
         // Update time
         // TODO: Final timing in executed cpu cycles inside the emu struct (?), so keep unspent
         // clock cycles in mind
@@ -92,7 +108,28 @@ fn main() {
             }
             DebugState::Quit => break,
         }
-        thread::sleep(time::Duration::from_millis(2));
+
+        // Running pixel with tail
+        for (i, c) in buffer.iter_mut().enumerate() {
+            if i == white_spot {
+                *c = 0xFFFFFFFF;
+            } else {
+                let previous_color = *c;
+                let r = (previous_color >> 16) as u8;
+                let g = (previous_color >> 8) as u8;
+                let b = previous_color as u8;
+                let new_color = 0xFF000000
+                    | ((r.saturating_sub(1) as u32) << 16)
+                    | ((g.saturating_sub(1) as u32) << 8)
+                    | (b.saturating_sub(1) as u32);
+                *c = new_color;
+            }
+        }
+        white_spot = white_spot + 1;
+
+        window
+            .update_with_buffer(&buffer, config.resolution.width, config.resolution.height)
+            .unwrap();
     }
 
     config.save();

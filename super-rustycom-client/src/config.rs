@@ -8,8 +8,21 @@ use std::{
 };
 
 #[derive(Serialize, Deserialize)]
+pub struct Resolution {
+    pub width: usize,
+    pub height: usize,
+}
+
+impl Resolution {
+    pub fn new(width: usize, height: usize) -> Resolution {
+        Resolution { width, height }
+    }
+}
+
+#[derive(Serialize, Deserialize)]
 pub struct Config {
     pub rom_path: String,
+    pub resolution: Resolution,
 }
 
 static CONFIG_PATH: &str = "config.json";
@@ -18,6 +31,7 @@ impl Config {
     pub fn new() -> Config {
         Config {
             rom_path: String::new(),
+            resolution: Resolution::new(320, 240),
         }
     }
 
