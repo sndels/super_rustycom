@@ -122,20 +122,7 @@ impl Debugger {
                         }
                     }
                 }
-                "cpu" => {
-                    println!("A:       ${:04X}", cpu.a());
-                    println!("X:       ${:04X}", cpu.x());
-                    println!("Y:       ${:04X}", cpu.y());
-                    println!("PB:      ${:02X}", cpu.pb());
-                    println!("PC:      ${:04X}", cpu.pc());
-                    println!("DB:      ${:02X}", cpu.db());
-                    println!("D:       ${:04X}", cpu.d());
-                    println!("S:       ${:04X}", cpu.s());
-                    println!("P:       {}", status_str(cpu));
-                    println!("E:       {}", cpu.e());
-                    println!("Stopped: {}", cpu.stopped());
-                    println!("Waiting: {}", cpu.waiting());
-                }
+                "cpu" => println!("{}", status_str(cpu)),
                 "run" | "r" => self.state = DebugState::Run,
                 "reset" => cpu.reset(abus),
                 "exit" => self.state = DebugState::Quit,
@@ -386,11 +373,11 @@ fn disassemble(addr: u32, cpu: &W65C816S, abus: &mut ABus) {
         cpu.a(),
         cpu.x(),
         cpu.y(),
-        status_str(cpu)
+        status_reg_str(cpu)
     );
 }
 
-fn status_str(cpu: &W65C816S) -> String {
+fn status_reg_str(cpu: &W65C816S) -> String {
     let mut status = String::new();
     status.push(if cpu.e() { 'E' } else { 'e' });
     status.push(if cpu.p_n() { 'N' } else { 'n' });
@@ -402,6 +389,24 @@ fn status_str(cpu: &W65C816S) -> String {
     status.push(if cpu.p_z() { 'Z' } else { 'z' });
     status.push(if cpu.p_c() { 'C' } else { 'c' });
     status
+}
+
+pub fn status_str(cpu: &W65C816S) -> String {
+    [
+        format!("A: ${:04X}", cpu.a()),
+        format!("X: ${:04X}", cpu.x()),
+        format!("Y: ${:04X}", cpu.y()),
+        format!("PB:${:02X}", cpu.pb()),
+        format!("PC:${:04X}", cpu.pc()),
+        format!("DB:${:02X}", cpu.db()),
+        format!("D: ${:04X}", cpu.d()),
+        format!("S: ${:04X}", cpu.s()),
+        format!("P: {}", status_reg_str(cpu)),
+        format!("E: {}", cpu.e()),
+        format!("Stopped:{}", cpu.stopped()),
+        format!("Waiting:{}", cpu.waiting()),
+    ]
+    .join("\n")
 }
 
 #[derive(Copy, Clone)]
