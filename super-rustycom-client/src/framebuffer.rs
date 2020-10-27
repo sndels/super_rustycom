@@ -1,3 +1,5 @@
+use std::cmp;
+
 use crate::config::Config;
 
 pub struct Framebuffer {
@@ -24,6 +26,8 @@ impl Framebuffer {
     }
 
     /// Returns mutable slices to the requested window in the buffer.
+    /// Clamps to borders if given too large dimensions.
+    /// Returns empty Vec if top and/or left is out of bounds.
     pub fn window(
         &mut self,
         left: usize,
@@ -31,15 +35,26 @@ impl Framebuffer {
         width: usize,
         height: usize,
     ) -> Vec<&mut [u32]> {
-        assert!(left + width <= self.width);
-        assert!(top + height <= self.height);
+        if left >= self.width || top >= self.height {
+            return Vec::new();
+        }
+        let clamped_width = if left + width < self.width {
+            width
+        } else {
+            width - (left + width - self.width) - 1
+        };
+        let clamped_height = if top + height < self.height {
+            height
+        } else {
+            height - (top + height - self.height) - 1
+        };
 
         let mut slices = Vec::new();
         let (_, mut rest) = self.buffer.split_at_mut(top * self.width + left);
-        for _ in 0..height {
-            let (head, tail) = rest.split_at_mut(width);
+        for _ in 0..clamped_height {
+            let (head, tail) = rest.split_at_mut(clamped_width);
             slices.push(head);
-            let (_, tail) = tail.split_at_mut(self.width - width);
+            let (_, tail) = tail.split_at_mut(self.width - clamped_width);
             rest = tail;
         }
         slices
