@@ -19,6 +19,10 @@ impl Framebuffer {
         &self.buffer
     }
 
+    pub fn clear(&mut self, color: u32) {
+        self.buffer = vec![color; self.width * self.height];
+    }
+
     /// Returns mutable slices to the requested window in the buffer.
     pub fn window(
         &mut self,

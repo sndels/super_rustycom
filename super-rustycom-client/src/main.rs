@@ -135,6 +135,7 @@ fn main() {
         ]
         .join("\n");
 
+        fb.clear(0x00000000);
         // Draw views
         text_renderer.draw(disassembly, fb.window(2, 2, 300, 470));
         text_renderer.draw(debugger::status_str(&snes.cpu), fb.window(560, 2, 79, 85));
