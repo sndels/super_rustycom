@@ -137,8 +137,19 @@ fn main() {
 
         fb.clear(0x00000000);
         // Draw views
-        text_renderer.draw(disassembly, fb.window(2, 2, 300, 470));
-        text_renderer.draw(debugger::status_str(&snes.cpu), fb.window(560, 2, 79, 85));
+        text_renderer.draw(
+            disassembly,
+            fb.window(
+                2,
+                2,
+                config.resolution.width - 2 - 1,
+                config.resolution.height - 2 - 1,
+            ),
+        );
+        text_renderer.draw(
+            debugger::status_str(&snes.cpu),
+            fb.window(config.resolution.width - 79, 2, 79, 85),
+        );
 
         window
             .update_with_buffer(
