@@ -33,7 +33,7 @@ impl Debugger {
 
     pub fn take_command(&mut self, cpu: &mut W65C816S, abus: &mut ABus) {
         println!("PRG at");
-        disassemble_current(cpu, abus);
+        println!("{}", disassemble_current(cpu, abus));
         print!("(debug) ");
         io::stdout().flush().unwrap();
         let mut command_str = String::new();
@@ -162,11 +162,11 @@ fn dump_memory(file_path: &str, buf: &[u8]) -> Result<(), String> {
     Ok(())
 }
 
-pub fn disassemble_current(cpu: &W65C816S, abus: &mut ABus) {
-    disassemble(cpu.current_address(), cpu, abus);
+pub fn disassemble_current(cpu: &W65C816S, abus: &mut ABus) -> String {
+    disassemble(cpu.current_address(), cpu, abus)
 }
 
-fn disassemble(addr: u32, cpu: &W65C816S, abus: &mut ABus) {
+fn disassemble(addr: u32, cpu: &W65C816S, abus: &mut ABus) -> String {
     let opcode = abus.cpu_read8(addr);
     let opname = OPNAMES[opcode as usize];
     let opmode = ADDR_MODES[opcode as usize];
@@ -204,7 +204,7 @@ fn disassemble(addr: u32, cpu: &W65C816S, abus: &mut ABus) {
         }};
     }
 
-    print!(
+    let raw_header = format!(
         "${0:02X}:{1:04X} {2:02X}",
         addr >> 16,
         addr & 0xFFFF,
@@ -364,17 +364,12 @@ fn disassemble(addr: u32, cpu: &W65C816S, abus: &mut ABus) {
             str_full_addr!(cpu.stack_ptr16_y(addr, abus).0),
         ),
     };
-    print!(
+    let disassembled = format!(
         " {0:<8} {1:<13} {2:<10}",
         unique_strs.0, unique_strs.1, unique_strs.2
     );
-    println!(
-        " A:{0:04X} X:{1:04X} Y:{2:04X} {3}",
-        cpu.a(),
-        cpu.x(),
-        cpu.y(),
-        status_reg_str(cpu)
-    );
+
+    [raw_header, disassembled].join("")
 }
 
 fn status_reg_str(cpu: &W65C816S) -> String {

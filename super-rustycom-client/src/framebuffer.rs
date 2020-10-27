@@ -27,8 +27,8 @@ impl Framebuffer {
         width: usize,
         height: usize,
     ) -> Vec<&mut [u32]> {
-        assert!(left + width < self.width);
-        assert!(top + height < self.height);
+        assert!(left + width <= self.width);
+        assert!(top + height <= self.height);
 
         let mut slices = Vec::new();
         let (_, mut rest) = self.buffer.split_at_mut(top * self.width + left);

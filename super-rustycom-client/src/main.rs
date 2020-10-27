@@ -4,12 +4,12 @@ mod framebuffer;
 mod text;
 mod time_source;
 
+use std::collections::VecDeque;
 use std::fs::File;
 use std::io::prelude::*;
 
 use crate::config::Config;
-use crate::debugger::disassemble_current;
-use crate::debugger::{DebugState, Debugger};
+use crate::debugger::{disassemble_current, DebugState, Debugger};
 use crate::framebuffer::Framebuffer;
 use crate::text::TextRenderer;
 use crate::time_source::TimeSource;
@@ -61,13 +61,16 @@ fn main() {
         config.resolution.height,
         {
             let mut options = WindowOptions::default();
-            options.scale = minifb::Scale::X4;
+            options.scale = minifb::Scale::X2;
             options
         },
     )
     .unwrap();
-    // window.limit_update_rate(Some(std::time::Duration::from_micros(16600)));
+    //window.limit_update_rate(Some(std::time::Duration::from_micros(16600)));
     let text_renderer = TextRenderer::new();
+
+    // We need history of ops for output
+    let mut disassembled_history: VecDeque<String> = VecDeque::new();
 
     // Run
     while window.is_open() && !window.is_key_down(Key::Escape) {
@@ -81,6 +84,7 @@ fn main() {
         let diff_ticks = (clock_ticks - emulated_clock_ticks) as u64;
 
         // Handle debugger state
+        let mut ran_ops = Vec::new();
         match debugger.state {
             DebugState::Active => {
                 debugger.take_command(&mut snes.cpu, &mut snes.abus);
@@ -89,20 +93,20 @@ fn main() {
             }
             DebugState::Step => {
                 // Go through steps
-                snes.run_steps(debugger.steps, debugger.disassemble, disassemble_current);
+                snes.run_steps(debugger.steps, |cpu, mut abus| {
+                    ran_ops.push(disassemble_current(&cpu, &mut abus))
+                });
                 // Reset debugger state
                 debugger.steps = 0;
                 debugger.state = DebugState::Active;
-                // Update cycle count to prevent warping
+                // Update cycle count to prevent warping on pauses
                 emulated_clock_ticks = current_ns / 47;
             }
             DebugState::Run => {
-                let (ticks, hit_breakpoint) = snes.run(
-                    diff_ticks,
-                    debugger.breakpoint,
-                    debugger.disassemble,
-                    disassemble_current,
-                );
+                let (ticks, hit_breakpoint) =
+                    snes.run(diff_ticks, debugger.breakpoint, |cpu, mut abus| {
+                        ran_ops.push(disassemble_current(&cpu, &mut abus))
+                    });
                 if hit_breakpoint {
                     debugger.state = DebugState::Active;
                 }
@@ -112,7 +116,28 @@ fn main() {
             DebugState::Quit => break,
         }
 
-        text_renderer.draw(debugger::status_str(&snes.cpu), fb.window(240, 2, 79, 85));
+        // Collect op history view
+        disassembled_history.extend(ran_ops.into_iter());
+        if disassembled_history.len() > 30 {
+            disassembled_history.drain(0..disassembled_history.len() - 30);
+        }
+        let disassembly = [
+            disassembled_history
+                .iter()
+                .cloned()
+                .collect::<Vec<String>>()
+                .join("\n"),
+            [
+                String::from("> "),
+                disassemble_current(&snes.cpu, &mut snes.abus),
+            ]
+            .join(""),
+        ]
+        .join("\n");
+
+        // Draw views
+        text_renderer.draw(disassembly, fb.window(2, 2, 300, 470));
+        text_renderer.draw(debugger::status_str(&snes.cpu), fb.window(560, 2, 79, 85));
 
         window
             .update_with_buffer(

@@ -19,21 +19,21 @@ impl SNES {
 
     /// Runs the hardware for given number of ticks and returns actual ticks emulated and wheter
     /// or not a breakpoint was hit
-    pub fn run(
+    pub fn run<F>(
         &mut self,
         clock_ticks: u64,
         breakpoint: u32,
-        disassemble: bool,
-        da_func: fn(&W65C816S, &mut ABus),
-    ) -> (u64, bool) {
+        mut disassemble_func: F,
+    ) -> (u64, bool)
+    where
+        F: FnMut(&W65C816S, &mut ABus),
+    {
         let target_cpu_cycles = clock_ticks / 8; // SlowROM (?)
         let mut cpu_cycles = 0;
         let mut hit_breakpoint = false;
         while cpu_cycles < target_cpu_cycles {
             if self.cpu.current_address() != breakpoint {
-                if disassemble {
-                    da_func(&self.cpu, &mut self.abus);
-                }
+                disassemble_func(&self.cpu, &mut self.abus);
                 cpu_cycles += self.cpu.step(&mut self.abus) as u64;
             } else {
                 hit_breakpoint = true;
@@ -44,16 +44,12 @@ impl SNES {
     }
 
     /// Runs the hardware for given number instructions
-    pub fn run_steps(
-        &mut self,
-        instructions: u32,
-        disassemble: bool,
-        da_func: fn(&W65C816S, &mut ABus),
-    ) {
+    pub fn run_steps<F>(&mut self, instructions: u32, mut disassemble_func: F)
+    where
+        F: FnMut(&W65C816S, &mut ABus),
+    {
         for _ in 0..instructions {
-            if disassemble {
-                da_func(&self.cpu, &mut self.abus)
-            }
+            disassemble_func(&self.cpu, &mut self.abus);
             self.cpu.step(&mut self.abus);
         }
     }
