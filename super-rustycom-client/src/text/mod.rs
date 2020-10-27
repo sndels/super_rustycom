@@ -18,17 +18,30 @@ impl TextRenderer {
     }
 
     pub fn draw(&self, text: String, mut pixel_buffer: Vec<&mut [u32]>) {
-        let mut start_pixel_row = self.line_spacing;
-        let mut start_pixel_column = self.char_spacing;
-        let row_count = pixel_buffer.len();
-        let column_count = pixel_buffer[0].len();
-        for c in text.chars() {
+        let window_width = pixel_buffer[0].len();
+        let window_height = pixel_buffer.len();
+        assert!(window_width > self.font.width + self.char_spacing);
+        assert!(window_height > self.font.height + self.line_spacing);
+
+        let mut start_pixel_row = 0;
+        let mut start_pixel_column = 0;
+        // Let's use a peekable iterator instead of straight loop since we need this in column logic
+        let mut iter = text.chars().into_iter().peekable();
+        while let Some(c) = iter.next() {
+            macro_rules! change_line {
+                () => {
+                    start_pixel_column = 0;
+                    start_pixel_row += self.font.height + self.line_spacing;
+                };
+            };
+
+            // Make sure we don't run out of vertical pixels
+            if start_pixel_row + self.font.height >= window_height {
+                break;
+            }
+
             if c == '\n' {
-                start_pixel_column = self.char_spacing;
-                start_pixel_row += self.font.height + self.line_spacing;
-                if start_pixel_row >= row_count {
-                    break;
-                }
+                change_line!();
             } else {
                 self.draw_char(
                     c,
@@ -37,12 +50,10 @@ impl TextRenderer {
                 );
 
                 start_pixel_column += self.font.width + self.char_spacing;
-                if start_pixel_column >= column_count {
-                    start_pixel_column = self.char_spacing;
-                    start_pixel_row += self.font.height + self.line_spacing;
-                    if start_pixel_row >= row_count {
-                        break;
-                    }
+                if iter.peek() != Some(&'\n')
+                    && start_pixel_column + self.font.width >= window_width
+                {
+                    change_line!();
                 }
             }
         }
