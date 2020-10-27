@@ -1,5 +1,6 @@
 mod config;
 mod debugger;
+mod framebuffer;
 mod text;
 mod time_source;
 
@@ -9,6 +10,7 @@ use std::io::prelude::*;
 use crate::config::Config;
 use crate::debugger::disassemble_current;
 use crate::debugger::{DebugState, Debugger};
+use crate::framebuffer::Framebuffer;
 use crate::text::TextRenderer;
 use crate::time_source::TimeSource;
 use clap::clap_app;
@@ -52,8 +54,7 @@ fn main() {
     let mut emulated_clock_ticks = 0;
 
     // Init drawing
-    let pixel_count = config.resolution.width * config.resolution.height;
-    let mut buffer: Vec<u32> = vec![0; pixel_count];
+    let mut fb = Framebuffer::new(&config);
     let mut window = Window::new(
         "Super Rustycom",
         config.resolution.width,
@@ -111,25 +112,14 @@ fn main() {
             DebugState::Quit => break,
         }
 
-        {
-            let pixel_slices = {
-                let mut slices = Vec::new();
-                let mut rest = &mut buffer[..];
-                for _ in 0..config.resolution.height {
-                    let (head, tail) = rest.split_at_mut(config.resolution.width);
-                    slices.push(head);
-                    rest = tail;
-                }
-                slices
-            };
-            text_renderer.draw(
-                "ABCDEFGHIJKLMN\nOPQRSTUVWXYZ\nabcdefghijlkmn\nopqrstuvwxyz\n0123456789\n .,:?!$#()[]".into(),
-                pixel_slices,
-            );
-        }
+        text_renderer.draw(debugger::status_str(&snes.cpu), fb.window(240, 2, 79, 85));
 
         window
-            .update_with_buffer(&buffer, config.resolution.width, config.resolution.height)
+            .update_with_buffer(
+                fb.buffer(),
+                config.resolution.width,
+                config.resolution.height,
+            )
             .unwrap();
     }
 
