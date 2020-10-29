@@ -174,12 +174,15 @@ fn main() {
                 config.resolution.height,
             ),
         );
-
-        // Overlay stall on top
         if lag_ticks > 0 {
             text_renderer.draw(
                 format!["Lagged {} ticks behind!", lag_ticks],
-                fb.window(2, 2, config.resolution.width, config.resolution.height),
+                fb.window(
+                    2,
+                    config.resolution.height - 14,
+                    config.resolution.width,
+                    config.resolution.height,
+                ),
             );
         }
 
