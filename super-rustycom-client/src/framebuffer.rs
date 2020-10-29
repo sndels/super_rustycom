@@ -1,5 +1,3 @@
-use std::cmp;
-
 use crate::config::Config;
 
 pub struct Framebuffer {
