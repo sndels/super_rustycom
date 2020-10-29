@@ -80,6 +80,7 @@ fn main() {
 
         // Handle debugger state
         let mut ran_ops = Vec::new();
+        let mut lag_ticks = 0;
         match debugger.state {
             DebugState::Active => {
                 debugger.take_command(&mut snes.cpu, &mut snes.abus);
@@ -105,6 +106,8 @@ fn main() {
                 if hit_breakpoint {
                     debugger.state = DebugState::Active;
                 }
+                let spent_ticks = time_source.elapsed_ticks() - clock_ticks;
+                lag_ticks = spent_ticks.saturating_sub(ticks);
                 // Update actual number of emulated cycles
                 emulated_clock_ticks += ticks;
             }
@@ -145,6 +148,14 @@ fn main() {
             debugger::status_str(&snes.cpu),
             fb.window(config.resolution.width - 79, 2, 79, 85),
         );
+
+        // Overlay stall on top
+        if lag_ticks > 0 {
+            text_renderer.draw(
+                format!["Lagged {} ticks behind!", lag_ticks],
+                fb.window(2, 2, config.resolution.width, config.resolution.height),
+            );
+        }
 
         window
             .update_with_buffer(
