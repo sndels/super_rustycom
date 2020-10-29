@@ -19,7 +19,7 @@ impl TextRenderer {
 
     /// Draws the text in the given pixel buffer line by line.
     /// Overflowing characters in either dimension are ignored.
-    pub fn draw(&self, text: String, mut pixel_buffer: Vec<&mut [u32]>) {
+    pub fn draw(&self, text: String, color: u32, mut pixel_buffer: Vec<&mut [u32]>) {
         let window_width = pixel_buffer[0].len();
         let window_height = pixel_buffer.len();
         if window_width == 0
@@ -46,6 +46,7 @@ impl TextRenderer {
                 if start_pixel_column + self.font.width < window_width {
                     self.draw_char(
                         c,
+                        color,
                         start_pixel_column,
                         &mut pixel_buffer[start_pixel_row..start_pixel_row + self.font.height],
                     );
@@ -55,12 +56,18 @@ impl TextRenderer {
         }
     }
 
-    fn draw_char(&self, c: char, start_pixel_column: usize, pixel_rows: &mut [&mut [u32]]) {
+    fn draw_char(
+        &self,
+        c: char,
+        color: u32,
+        start_pixel_column: usize,
+        pixel_rows: &mut [&mut [u32]],
+    ) {
         let char_bits = self.font.chars[c as usize];
         for font_column in 0..self.font.width {
             let output_column = start_pixel_column + font_column;
             for row in 0..self.font.height {
-                pixel_rows[row][output_column] = 0xFFFFFFFF * char_bits[row][font_column];
+                pixel_rows[row][output_column] = color * char_bits[row][font_column];
             }
         }
     }

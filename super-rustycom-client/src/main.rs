@@ -140,6 +140,7 @@ fn main() {
         // Draw views
         text_renderer.draw(
             disassembly,
+            0xFFFFFFFF,
             fb.window(
                 2,
                 2,
@@ -149,11 +150,13 @@ fn main() {
         );
         text_renderer.draw(
             debugger::status_str(&snes.cpu),
+            0xFFFFFFFF,
             fb.window(config.resolution.width - 79, 2, 79, 85),
         );
 
         text_renderer.draw(
             format!["Emulation is {} ticks ahead!", ahead_ticks],
+            0xFFFFFFFF,
             fb.window(
                 2,
                 config.resolution.height - 30,
@@ -167,6 +170,7 @@ fn main() {
                 "Extra tasks took {} ticks!",
                 time_source.elapsed_ticks().saturating_sub(extra_ticks)
             ],
+            0xFFFFFFFF,
             fb.window(
                 2,
                 config.resolution.height - 22,
@@ -177,6 +181,7 @@ fn main() {
         if lag_ticks > 0 {
             text_renderer.draw(
                 format!["Lagged {} ticks behind!", lag_ticks],
+                0xFFFF0000,
                 fb.window(
                     2,
                     config.resolution.height - 14,
