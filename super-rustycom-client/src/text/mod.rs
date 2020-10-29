@@ -56,7 +56,7 @@ impl TextRenderer {
     }
 
     fn draw_char(&self, c: char, start_pixel_column: usize, pixel_rows: &mut [&mut [u32]]) {
-        let char_bits = self.font.chars.get(&c).unwrap();
+        let char_bits = self.font.chars[c as usize];
         for font_column in 0..self.font.width {
             let output_column = start_pixel_column + font_column;
             for row in 0..self.font.height {
