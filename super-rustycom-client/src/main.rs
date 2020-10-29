@@ -81,6 +81,7 @@ fn main() {
         // Handle debugger state
         let mut ran_ops = Vec::new();
         let mut lag_ticks = 0;
+        let mut ahead_ticks = 0;
         match debugger.state {
             DebugState::Active => {
                 debugger.take_command(&mut snes.cpu, &mut snes.abus);
@@ -108,12 +109,14 @@ fn main() {
                 }
                 let spent_ticks = time_source.elapsed_ticks() - clock_ticks;
                 lag_ticks = spent_ticks.saturating_sub(ticks);
+                ahead_ticks = ticks.saturating_sub(spent_ticks);
                 // Update actual number of emulated cycles
                 emulated_clock_ticks += ticks;
             }
             DebugState::Quit => break,
         }
 
+        let extra_ticks = time_source.elapsed_ticks() - clock_ticks;
         // Collect op history view
         disassembled_history.extend(ran_ops.into_iter());
         if disassembled_history.len() > 30 {
@@ -147,6 +150,29 @@ fn main() {
         text_renderer.draw(
             debugger::status_str(&snes.cpu),
             fb.window(config.resolution.width - 79, 2, 79, 85),
+        );
+
+        text_renderer.draw(
+            format!["Emulation is {} ticks ahead!", ahead_ticks],
+            fb.window(
+                2,
+                config.resolution.height - 30,
+                config.resolution.width,
+                config.resolution.height,
+            ),
+        );
+        // TODO: This is missing lag indicator and window update, might want to give previous frame?
+        text_renderer.draw(
+            format![
+                "Extra tasks took {} ticks!",
+                time_source.elapsed_ticks().saturating_sub(extra_ticks)
+            ],
+            fb.window(
+                2,
+                config.resolution.height - 22,
+                config.resolution.width,
+                config.resolution.height,
+            ),
         );
 
         // Overlay stall on top
