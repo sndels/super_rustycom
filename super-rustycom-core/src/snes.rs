@@ -21,10 +21,10 @@ impl SNES {
     /// or not a breakpoint was hit
     pub fn run<F>(
         &mut self,
-        clock_ticks: u64,
+        clock_ticks: u128,
         breakpoint: u32,
         mut disassemble_func: F,
-    ) -> (u64, bool)
+    ) -> (u128, bool)
     where
         F: FnMut(&W65C816S, &mut ABus),
     {
@@ -34,7 +34,7 @@ impl SNES {
         while cpu_cycles < target_cpu_cycles {
             if self.cpu.current_address() != breakpoint {
                 disassemble_func(&self.cpu, &mut self.abus);
-                cpu_cycles += self.cpu.step(&mut self.abus) as u64;
+                cpu_cycles += self.cpu.step(&mut self.abus) as u128;
             } else {
                 hit_breakpoint = true;
                 break;

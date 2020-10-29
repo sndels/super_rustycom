@@ -49,10 +49,6 @@ fn main() {
     let mut snes = SNES::new(rom_bytes);
     let mut debugger = Debugger::new();
 
-    // Init time source
-    let time_source = TimeSource::new();
-    let mut emulated_clock_ticks = 0;
-
     // Init drawing
     let mut fb = Framebuffer::new(&config);
     let mut window = Window::new(
@@ -72,16 +68,15 @@ fn main() {
     // We need history of ops for output
     let mut disassembled_history: VecDeque<String> = VecDeque::new();
 
+    // Init time source
+    let time_source = TimeSource::new();
+    let mut emulated_clock_ticks = 0;
+
     // Run
     while window.is_open() && !window.is_key_down(Key::Escape) {
-        // Update time
-        // TODO: Final timing in executed cpu cycles inside the emu struct (?), so keep unspent
-        // clock cycles in mind
-        let current_ns = time_source.elapsed_ns();
-
-        // Calculate clock pulses, cpu cycles that should have passed
-        let clock_ticks = current_ns / 47;
-        let diff_ticks = (clock_ticks - emulated_clock_ticks) as u64;
+        // Update ticks that should have passed
+        let clock_ticks = time_source.elapsed_ticks();
+        let diff_ticks = clock_ticks.saturating_sub(emulated_clock_ticks);
 
         // Handle debugger state
         let mut ran_ops = Vec::new();
@@ -89,7 +84,7 @@ fn main() {
             DebugState::Active => {
                 debugger.take_command(&mut snes.cpu, &mut snes.abus);
                 // Update cycle count to prevent warping
-                emulated_clock_ticks = current_ns / 47;
+                emulated_clock_ticks = time_source.elapsed_ticks();
             }
             DebugState::Step => {
                 // Go through steps
@@ -100,7 +95,7 @@ fn main() {
                 debugger.steps = 0;
                 debugger.state = DebugState::Active;
                 // Update cycle count to prevent warping on pauses
-                emulated_clock_ticks = current_ns / 47;
+                emulated_clock_ticks = time_source.elapsed_ticks();
             }
             DebugState::Run => {
                 let (ticks, hit_breakpoint) =
@@ -110,7 +105,7 @@ fn main() {
                 if hit_breakpoint {
                     debugger.state = DebugState::Active;
                 }
-                // Update emulated cycles and take overshoot into account
+                // Update actual number of emulated cycles
                 emulated_clock_ticks += ticks;
             }
             DebugState::Quit => break,

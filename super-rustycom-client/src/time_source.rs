@@ -11,8 +11,9 @@ impl TimeSource {
         }
     }
 
-    pub fn elapsed_ns(&self) -> u64 {
-        let elapsed = self.start.elapsed();
-        elapsed.as_secs() * 1000000000 + elapsed.subsec_nanos() as u64
+    pub fn elapsed_ticks(&self) -> u128 {
+        let nanos = self.start.elapsed().as_nanos();
+        // NTSC clock runs at 21.447MHz so this is really 46.56... but we don't care about absolute accuracy
+        nanos / 47
     }
 }
