@@ -26,14 +26,19 @@ impl SNES {
         mut disassemble_func: F,
     ) -> (u128, bool)
     where
-        F: FnMut(&W65C816S, &mut ABus),
+        F: FnMut(&W65C816S, &mut ABus, usize),
     {
-        let target_cpu_cycles = clock_ticks / 8; // SlowROM (?)
+        let ticks_per_cycle = 8;
+        let target_cpu_cycles = clock_ticks / ticks_per_cycle; // SlowROM (?)
         let mut cpu_cycles = 0;
         let mut hit_breakpoint = false;
         while cpu_cycles < target_cpu_cycles {
             if self.cpu.current_address() != breakpoint {
-                disassemble_func(&self.cpu, &mut self.abus);
+                disassemble_func(
+                    &self.cpu,
+                    &mut self.abus,
+                    (target_cpu_cycles - cpu_cycles) as usize,
+                );
                 cpu_cycles += self.cpu.step(&mut self.abus) as u128;
             } else {
                 hit_breakpoint = true;

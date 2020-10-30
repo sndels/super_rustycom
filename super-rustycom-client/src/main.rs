@@ -18,6 +18,11 @@ use clap::clap_app;
 use minifb::{Key, Window, WindowOptions};
 use super_rustycom_core::snes::SNES;
 
+const SHOWN_HISTORY_LINES: usize = 20;
+// Cpu cycles to gather disassembly for
+// Might be overkill without long interrupts but is still fast
+const HISTORY_CYCLE_COUNT: usize = 1000;
+
 fn main() {
     let args = clap_app!(super_rustycom_client =>
         (version: "0.1.0")
@@ -66,7 +71,7 @@ fn main() {
     //window.limit_update_rate(Some(std::time::Duration::from_micros(16600)));
     let text_renderer = TextRenderer::new();
 
-    // We need history of ops for output
+    // We need history of ops for output, deque since we want to also drop old ones
     let mut disassembled_history: VecDeque<String> = VecDeque::new();
 
     // Init time source
@@ -80,7 +85,7 @@ fn main() {
         let diff_ticks = clock_ticks.saturating_sub(emulated_clock_ticks);
 
         // Handle debugger state and run the emulator
-        let mut ran_ops = Vec::new();
+        let mut new_disassembly = Vec::new();
         let mut extra_nanos = 0;
         let mut missing_nanos = 0;
         match debugger.state {
@@ -92,7 +97,7 @@ fn main() {
             DebugState::Step => {
                 // Go through steps
                 snes.run_steps(debugger.steps, |cpu, mut abus| {
-                    ran_ops.push(disassemble_current(&cpu, &mut abus))
+                    new_disassembly.push(disassemble_current(&cpu, &mut abus))
                 });
                 // Reset debugger state
                 debugger.steps = 0;
@@ -102,10 +107,15 @@ fn main() {
             }
             DebugState::Run => {
                 let t_run = Instant::now();
-                let (ticks, hit_breakpoint) =
-                    snes.run(diff_ticks, debugger.breakpoint, |cpu, mut abus| {
-                        ran_ops.push(disassemble_current(&cpu, &mut abus))
-                    });
+                let (ticks, hit_breakpoint) = snes.run(
+                    diff_ticks,
+                    debugger.breakpoint,
+                    |cpu, mut abus, ops_left| {
+                        if ops_left < HISTORY_CYCLE_COUNT {
+                            new_disassembly.push(disassemble_current(&cpu, &mut abus))
+                        }
+                    },
+                );
 
                 if hit_breakpoint {
                     debugger.state = DebugState::Active;
@@ -122,11 +132,10 @@ fn main() {
             DebugState::Quit => break,
         }
 
-        let t_history_gather = Instant::now();
         // Collect op history view
-        disassembled_history.extend(ran_ops.into_iter());
-        if disassembled_history.len() > 30 {
-            disassembled_history.drain(0..disassembled_history.len() - 30);
+        disassembled_history.extend(new_disassembly.into_iter());
+        if disassembled_history.len() > SHOWN_HISTORY_LINES {
+            disassembled_history.drain(0..disassembled_history.len() - SHOWN_HISTORY_LINES);
         }
         let disassembly = [
             disassembled_history
@@ -141,7 +150,6 @@ fn main() {
             .join(""),
         ]
         .join("\n");
-        let history_gather_millis = t_history_gather.elapsed().as_nanos() as f32 * 1e-6;
 
         let t_debug_draw = Instant::now();
         fb.clear(0x00000000);
@@ -163,16 +171,6 @@ fn main() {
         );
         let debug_draw_millis = t_debug_draw.elapsed().as_nanos() as f32 * 1e-6;
 
-        text_renderer.draw(
-            format!["History gahter took {:.2}ms!", history_gather_millis],
-            0xFFFFFFFF,
-            fb.window(
-                2,
-                config.resolution.height - 22,
-                config.resolution.width,
-                config.resolution.height,
-            ),
-        );
         text_renderer.draw(
             format!["Debug draw took {:.2}ms!", debug_draw_millis],
             0xFFFFFFFF,
