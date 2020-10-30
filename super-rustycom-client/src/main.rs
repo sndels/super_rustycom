@@ -7,6 +7,7 @@ mod time_source;
 use std::collections::VecDeque;
 use std::fs::File;
 use std::io::prelude::*;
+use std::time::Instant;
 
 use crate::config::Config;
 use crate::debugger::{disassemble_current, DebugState, Debugger};
@@ -78,10 +79,10 @@ fn main() {
         let clock_ticks = time_source.elapsed_ticks();
         let diff_ticks = clock_ticks.saturating_sub(emulated_clock_ticks);
 
-        // Handle debugger state
+        // Handle debugger state and run the emulator
         let mut ran_ops = Vec::new();
-        let mut lag_ticks = 0;
-        let mut ahead_ticks = 0;
+        let mut extra_nanos = 0;
+        let mut missing_nanos = 0;
         match debugger.state {
             DebugState::Active => {
                 debugger.take_command(&mut snes.cpu, &mut snes.abus);
@@ -100,16 +101,21 @@ fn main() {
                 emulated_clock_ticks = time_source.elapsed_ticks();
             }
             DebugState::Run => {
+                let t_run = Instant::now();
                 let (ticks, hit_breakpoint) =
                     snes.run(diff_ticks, debugger.breakpoint, |cpu, mut abus| {
                         ran_ops.push(disassemble_current(&cpu, &mut abus))
                     });
+
                 if hit_breakpoint {
                     debugger.state = DebugState::Active;
                 }
-                let spent_ticks = time_source.elapsed_ticks() - clock_ticks;
-                lag_ticks = spent_ticks.saturating_sub(ticks);
-                ahead_ticks = ticks.saturating_sub(spent_ticks);
+
+                let emulated_nanos = TimeSource::to_nanos(ticks);
+                let spent_nanos = t_run.elapsed().as_nanos();
+                extra_nanos = emulated_nanos.saturating_sub(spent_nanos);
+                missing_nanos = spent_nanos.saturating_sub(emulated_nanos);
+
                 // Update actual number of emulated cycles
                 emulated_clock_ticks += ticks;
             }
@@ -154,16 +160,29 @@ fn main() {
             fb.window(config.resolution.width - 79, 2, 79, 85),
         );
 
-        text_renderer.draw(
-            format!["Emulation is {} ticks ahead!", ahead_ticks],
-            0xFFFFFFFF,
-            fb.window(
-                2,
-                config.resolution.height - 30,
-                config.resolution.width,
-                config.resolution.height,
-            ),
-        );
+        if extra_nanos > 0 {
+            text_renderer.draw(
+                format!["Emulation is {:.2}ms ahead!", extra_nanos as f32 * 1e-6],
+                0xFFFFFFFF,
+                fb.window(
+                    2,
+                    config.resolution.height - 14,
+                    config.resolution.width,
+                    config.resolution.height,
+                ),
+            );
+        } else if missing_nanos > 0 {
+            text_renderer.draw(
+                format!["Lagged {:2}ms behind!", missing_nanos as f32 * 1e-6],
+                0xFFFF0000,
+                fb.window(
+                    2,
+                    config.resolution.height - 14,
+                    config.resolution.width,
+                    config.resolution.height,
+                ),
+            );
+        }
         // TODO: This is missing lag indicator and window update, might want to give previous frame?
         text_renderer.draw(
             format![
@@ -178,18 +197,6 @@ fn main() {
                 config.resolution.height,
             ),
         );
-        if lag_ticks > 0 {
-            text_renderer.draw(
-                format!["Lagged {} ticks behind!", lag_ticks],
-                0xFFFF0000,
-                fb.window(
-                    2,
-                    config.resolution.height - 14,
-                    config.resolution.width,
-                    config.resolution.height,
-                ),
-            );
-        }
 
         window
             .update_with_buffer(
