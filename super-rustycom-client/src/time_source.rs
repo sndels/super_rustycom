@@ -18,4 +18,8 @@ impl TimeSource {
         let nanos = self.start.elapsed().as_nanos();
         nanos / TICK_NANOS
     }
+
+    pub fn to_nanos(ticks: u128) -> u128 {
+        ticks * TICK_NANOS
+    }
 }
