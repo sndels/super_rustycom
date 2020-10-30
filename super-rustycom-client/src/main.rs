@@ -122,7 +122,7 @@ fn main() {
             DebugState::Quit => break,
         }
 
-        let extra_ticks = time_source.elapsed_ticks() - clock_ticks;
+        let t_history_gather = Instant::now();
         // Collect op history view
         disassembled_history.extend(ran_ops.into_iter());
         if disassembled_history.len() > 30 {
@@ -141,7 +141,9 @@ fn main() {
             .join(""),
         ]
         .join("\n");
+        let history_gather_millis = t_history_gather.elapsed().as_nanos() as f32 * 1e-6;
 
+        let t_debug_draw = Instant::now();
         fb.clear(0x00000000);
         // Draw views
         text_renderer.draw(
@@ -159,7 +161,28 @@ fn main() {
             0xFFFFFFFF,
             fb.window(config.resolution.width - 79, 2, 79, 85),
         );
+        let debug_draw_millis = t_debug_draw.elapsed().as_nanos() as f32 * 1e-6;
 
+        text_renderer.draw(
+            format!["History gahter took {:.2}ms!", history_gather_millis],
+            0xFFFFFFFF,
+            fb.window(
+                2,
+                config.resolution.height - 22,
+                config.resolution.width,
+                config.resolution.height,
+            ),
+        );
+        text_renderer.draw(
+            format!["Debug draw took {:.2}ms!", debug_draw_millis],
+            0xFFFFFFFF,
+            fb.window(
+                2,
+                config.resolution.height - 32,
+                config.resolution.width,
+                config.resolution.height,
+            ),
+        );
         if extra_nanos > 0 {
             text_renderer.draw(
                 format!["Emulation is {:.2}ms ahead!", extra_nanos as f32 * 1e-6],
@@ -183,20 +206,6 @@ fn main() {
                 ),
             );
         }
-        // TODO: This is missing lag indicator and window update, might want to give previous frame?
-        text_renderer.draw(
-            format![
-                "Extra tasks took {} ticks!",
-                time_source.elapsed_ticks().saturating_sub(extra_ticks)
-            ],
-            0xFFFFFFFF,
-            fb.window(
-                2,
-                config.resolution.height - 22,
-                config.resolution.width,
-                config.resolution.height,
-            ),
-        );
 
         window
             .update_with_buffer(
