@@ -6,6 +6,8 @@ use crate::text::TextRenderer;
 use std::time::Instant;
 use super_rustycom_core::snes::SNES;
 
+const MARGIN: usize = 2;
+
 pub struct UI {
     text_renderer: TextRenderer,
     fb: Framebuffer,
@@ -55,16 +57,19 @@ impl UI {
             )
             .collect::<Vec<String>>();
         let (w, h) = self.text_renderer.window_size(disassembly.iter());
-        self.text_renderer
-            .draw(&disassembly, 0xFFFFFFFF, self.fb.window(2, 2, w, h));
+        self.text_renderer.draw(
+            &disassembly,
+            0xFFFFFFFF,
+            self.fb.window(MARGIN, MARGIN, w, h),
+        );
     }
 
     fn draw_cpu(&mut self, snes: &SNES, config: &Config) {
         let text = status_str(&snes.cpu);
         let (w, h) = self.text_renderer.window_size(text.iter());
-        let start_x = config.resolution.width.saturating_sub(w + 2);
+        let start_x = config.resolution.width.saturating_sub(w + MARGIN);
         self.text_renderer
-            .draw(&text, 0xFFFFFFFF, self.fb.window(start_x, 2, w, h));
+            .draw(&text, 0xFFFFFFFF, self.fb.window(start_x, MARGIN, w, h));
     }
 
     fn draw_perf(&mut self, data: &DrawData, debug_draw_millis: f32, config: &Config) {
@@ -77,7 +82,7 @@ impl UI {
                 &[format!("Debug draw took {:>5.2}ms!", debug_draw_millis)],
                 0xFFFFFFFF,
                 self.fb.window(
-                    2,
+                    MARGIN,
                     start_y,
                     config.resolution.width,
                     self.text_renderer.line_height(),
@@ -108,7 +113,7 @@ impl UI {
                 &[message],
                 color,
                 self.fb.window(
-                    2,
+                    MARGIN,
                     start_y,
                     config.resolution.width,
                     self.text_renderer.line_height(),
