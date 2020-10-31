@@ -23,10 +23,12 @@ impl TextRenderer {
     where
         T: IntoIterator<Item = &'a String>,
     {
-        let window_width = pixel_buffer[0].len();
         let window_height = pixel_buffer.len();
+        if window_height == 0 {
+            return;
+        }
+        let window_width = pixel_buffer[0].len();
         if window_width == 0
-            || window_height == 0
             || window_width <= (self.font.width + self.char_spacing)
             || window_height <= (self.font.height + self.line_spacing)
         {
