@@ -1,16 +1,17 @@
 mod config;
 mod debugger;
+mod draw_data;
 mod framebuffer;
 mod text;
 mod time_source;
 
-use std::collections::VecDeque;
 use std::fs::File;
 use std::io::prelude::*;
 use std::time::Instant;
 
 use crate::config::Config;
 use crate::debugger::{disassemble_current, DebugState, Debugger};
+use crate::draw_data::DrawData;
 use crate::framebuffer::Framebuffer;
 use crate::text::TextRenderer;
 use crate::time_source::TimeSource;
@@ -71,8 +72,7 @@ fn main() {
     //window.limit_update_rate(Some(std::time::Duration::from_micros(16600)));
     let text_renderer = TextRenderer::new();
 
-    // We need history of ops for output, deque since we want to also drop old ones
-    let mut disassembled_history: VecDeque<String> = VecDeque::new();
+    let mut debug_data = DrawData::new();
 
     // Init time source
     let time_source = TimeSource::new();
@@ -86,8 +86,6 @@ fn main() {
 
         // Handle debugger state and run the emulator
         let mut new_disassembly = Vec::new();
-        let mut extra_nanos = 0;
-        let mut missing_nanos = 0;
         match debugger.state {
             DebugState::Active => {
                 debugger.take_command(&mut snes.cpu, &mut snes.abus);
@@ -123,8 +121,8 @@ fn main() {
 
                 let emulated_nanos = TimeSource::to_nanos(ticks);
                 let spent_nanos = t_run.elapsed().as_nanos();
-                extra_nanos = emulated_nanos.saturating_sub(spent_nanos);
-                missing_nanos = spent_nanos.saturating_sub(emulated_nanos);
+                debug_data.extra_nanos = emulated_nanos.saturating_sub(spent_nanos);
+                debug_data.missing_nanos = spent_nanos.saturating_sub(emulated_nanos);
 
                 // Update actual number of emulated cycles
                 emulated_clock_ticks += ticks;
@@ -133,12 +131,10 @@ fn main() {
         }
 
         // Collect op history view
-        disassembled_history.extend(new_disassembly.into_iter());
-        if disassembled_history.len() > SHOWN_HISTORY_LINES {
-            disassembled_history.drain(0..disassembled_history.len() - SHOWN_HISTORY_LINES);
-        }
+        debug_data.update_history(new_disassembly, SHOWN_HISTORY_LINES);
         let disassembly = [
-            disassembled_history
+            debug_data
+                .disassembled_history
                 .iter()
                 .cloned()
                 .collect::<Vec<String>>()
@@ -181,9 +177,12 @@ fn main() {
                 config.resolution.height,
             ),
         );
-        if extra_nanos > 0 {
+        if debug_data.extra_nanos > 0 {
             text_renderer.draw(
-                format!["Emulation is {:.2}ms ahead!", extra_nanos as f32 * 1e-6],
+                format![
+                    "Emulation is {:.2}ms ahead!",
+                    debug_data.extra_nanos as f32 * 1e-6
+                ],
                 0xFFFFFFFF,
                 fb.window(
                     2,
@@ -192,9 +191,12 @@ fn main() {
                     config.resolution.height,
                 ),
             );
-        } else if missing_nanos > 0 {
+        } else if debug_data.missing_nanos > 0 {
             text_renderer.draw(
-                format!["Lagged {:2}ms behind!", missing_nanos as f32 * 1e-6],
+                format![
+                    "Lagged {:2}ms behind!",
+                    debug_data.missing_nanos as f32 * 1e-6
+                ],
                 0xFFFF0000,
                 fb.window(
                     2,
