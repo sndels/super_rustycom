@@ -62,22 +62,23 @@ impl UI {
     fn draw_cpu(&mut self, snes: &SNES, config: &Config) {
         let text = status_str(&snes.cpu);
         let (w, h) = self.text_renderer.window_size(text.iter());
-        self.text_renderer.draw(
-            &text,
-            0xFFFFFFFF,
-            self.fb.window(config.resolution.width - w - 1, 2, w, h),
-        );
+        let start_x = config.resolution.width.saturating_sub(w + 2);
+        self.text_renderer
+            .draw(&text, 0xFFFFFFFF, self.fb.window(start_x, 2, w, h));
     }
 
     fn draw_perf(&mut self, data: &DrawData, debug_draw_millis: f32, config: &Config) {
         {
-            let row_pos = config.resolution.height - 2 * self.text_renderer.line_height() - 1;
+            let start_y = config
+                .resolution
+                .height
+                .saturating_sub(2 * self.text_renderer.line_height());
             self.text_renderer.draw(
                 &[format!("Debug draw took {:.2}ms!", debug_draw_millis)],
                 0xFFFFFFFF,
                 self.fb.window(
                     2,
-                    row_pos,
+                    start_y,
                     config.resolution.width,
                     self.text_renderer.line_height(),
                 ),
@@ -85,7 +86,10 @@ impl UI {
         }
 
         {
-            let row_pos = config.resolution.height - self.text_renderer.line_height() - 1;
+            let start_y = config
+                .resolution
+                .height
+                .saturating_sub(self.text_renderer.line_height());
             let (message, color) = if data.missing_nanos > 0 {
                 (
                     format!("Lagged {:2}ms behind!", data.missing_nanos as f32 * 1e-6),
@@ -105,7 +109,7 @@ impl UI {
                 color,
                 self.fb.window(
                     2,
-                    row_pos,
+                    start_y,
                     config.resolution.width,
                     self.text_renderer.line_height(),
                 ),
