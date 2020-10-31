@@ -74,7 +74,7 @@ impl UI {
                 .height
                 .saturating_sub(2 * self.text_renderer.line_height());
             self.text_renderer.draw(
-                &[format!("Debug draw took {:.2}ms!", debug_draw_millis)],
+                &[format!("Debug draw took {:>5.2}ms!", debug_draw_millis)],
                 0xFFFFFFFF,
                 self.fb.window(
                     2,
@@ -92,13 +92,13 @@ impl UI {
                 .saturating_sub(self.text_renderer.line_height());
             let (message, color) = if data.missing_nanos > 0 {
                 (
-                    format!("Lagged {:2}ms behind!", data.missing_nanos as f32 * 1e-6),
+                    format!("Lagged {:>5.2}ms behind!", data.missing_nanos as f32 * 1e-6),
                     0xFFFF0000,
                 )
             } else {
                 (
                     format!(
-                        "Emulation is {:.2}ms ahead!",
+                        "Emulation is {:>5.2}ms ahead!",
                         data.extra_nanos as f32 * 1e-6
                     ),
                     0xFFFFFFFF,
