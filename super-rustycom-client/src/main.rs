@@ -65,6 +65,8 @@ fn main() {
         {
             let mut options = WindowOptions::default();
             options.scale = minifb::Scale::X2;
+            options.scale_mode = minifb::ScaleMode::AspectRatioStretch;
+            options.resize = true;
             options
         },
     )
@@ -130,6 +132,18 @@ fn main() {
             DebugState::Quit => break,
         }
 
+        let (w_window, h_window) = window.get_size();
+        // We use double scale for output
+        let w_buffer = w_window / 2;
+        let h_buffer = h_window / 2;
+        if w_buffer != config.resolution.width || h_buffer != config.resolution.height {
+            fb.resize(w_buffer, h_buffer);
+            config.resolution.width = w_buffer;
+            config.resolution.height = h_buffer;
+        }
+
+        fb.clear(0x00000000);
+
         // Collect op history view
         debug_data.update_history(new_disassembly, SHOWN_HISTORY_LINES);
         let current_disassembly = [[
@@ -142,7 +156,6 @@ fn main() {
             .iter()
             .chain(&current_disassembly);
         let t_debug_draw = Instant::now();
-        fb.clear(0x00000000);
         // Draw views
         text_renderer.draw(
             disassembly_iter,
