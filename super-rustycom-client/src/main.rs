@@ -214,13 +214,13 @@ fn main() {
             );
         }
 
-        window
-            .update_with_buffer(
-                fb.buffer(),
-                config.resolution.width,
-                config.resolution.height,
-            )
-            .unwrap();
+        if let Err(msg) = window.update_with_buffer(
+            fb.buffer(),
+            config.resolution.width,
+            config.resolution.height,
+        ) {
+            eprintln!("Window: {}", msg);
+        }
     }
 
     config.save();
