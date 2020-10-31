@@ -17,6 +17,10 @@ impl TextRenderer {
         }
     }
 
+    pub fn line_height(&self) -> usize {
+        self.font.height + self.line_spacing
+    }
+
     /// Draws the text in the given pixel buffer line by line.
     /// Overflowing characters in either dimension are ignored.
     pub fn draw<'a, T>(&self, text: T, color: u32, mut pixel_buffer: Vec<&mut [u32]>)
