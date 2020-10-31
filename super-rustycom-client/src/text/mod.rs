@@ -21,6 +21,23 @@ impl TextRenderer {
         self.font.height + self.line_spacing
     }
 
+    pub fn window_size<'a, T>(&self, text: T) -> (usize, usize)
+    where
+        T: ExactSizeIterator<Item = &'a String>,
+    {
+        if text.len() == 0 {
+            return (0, 0);
+        }
+        let line_count = text.len();
+        let max_row_length = text.max_by(|x, y| x.len().cmp(&y.len())).unwrap().len();
+        // Last line/character don't need spacing after them
+        let height = (self.font.height + self.line_spacing) * line_count - self.line_spacing;
+        // Saturate in case we call with all empty lines
+        let width = ((self.font.width + self.char_spacing) * max_row_length)
+            .saturating_sub(self.char_spacing);
+        (width, height)
+    }
+
     /// Draws the text in the given pixel buffer line by line.
     /// Overflowing characters in either dimension are ignored.
     pub fn draw<'a, T>(&self, text: T, color: u32, mut pixel_buffer: Vec<&mut [u32]>)
