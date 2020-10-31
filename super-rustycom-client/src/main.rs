@@ -175,7 +175,7 @@ fn main() {
         let debug_draw_millis = t_debug_draw.elapsed().as_nanos() as f32 * 1e-6;
 
         text_renderer.draw(
-            &[format!["Debug draw took {:.2}ms!", debug_draw_millis]],
+            &[format!("Debug draw took {:.2}ms!", debug_draw_millis)],
             0xFFFFFFFF,
             fb.window(
                 2,
@@ -186,10 +186,10 @@ fn main() {
         );
         if debug_data.extra_nanos > 0 {
             text_renderer.draw(
-                &[format![
+                &[format!(
                     "Emulation is {:.2}ms ahead!",
                     debug_data.extra_nanos as f32 * 1e-6
-                ]],
+                )],
                 0xFFFFFFFF,
                 fb.window(
                     2,
@@ -200,10 +200,10 @@ fn main() {
             );
         } else if debug_data.missing_nanos > 0 {
             text_renderer.draw(
-                &[format![
+                &[format!(
                     "Lagged {:2}ms behind!",
                     debug_data.missing_nanos as f32 * 1e-6
-                ]],
+                )],
                 0xFFFF0000,
                 fb.window(
                     2,
