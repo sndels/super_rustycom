@@ -28,28 +28,25 @@ impl TextRenderer {
         T: IntoIterator<Item = &'a String>,
     {
         let window_height = pixel_buffer.len();
-        if window_height == 0 {
+        if window_height == 0 || window_height < self.font.height {
             return;
         }
         let window_width = pixel_buffer[0].len();
-        if window_width == 0
-            || window_width <= (self.font.width + self.char_spacing)
-            || window_height <= (self.font.height + self.line_spacing)
-        {
+        if window_width == 0 || window_width < self.font.width {
             return;
         }
 
         let mut start_pixel_row = 0;
         for line in text {
             // Make sure we don't run out of vertical pixels
-            if start_pixel_row + self.font.height >= window_height {
+            if start_pixel_row + self.font.height > window_height {
                 break;
             }
 
             let mut start_pixel_column = 0;
             for c in line.chars() {
                 // Don't draw if we've ran out of space on the line
-                if start_pixel_column + self.font.width >= window_width {
+                if start_pixel_column + self.font.width > window_width {
                     break;
                 }
 
