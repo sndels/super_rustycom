@@ -32,7 +32,7 @@ impl UI {
 
         self.fb.clear(0x00000000);
 
-        self.draw_history(data, snes, config);
+        self.draw_history(data, snes);
         self.draw_cpu(snes, config);
 
         let debug_draw_millis = t_debug_draw.elapsed().as_nanos() as f32 * 1e-6;
@@ -40,31 +40,32 @@ impl UI {
         self.draw_perf(data, debug_draw_millis, config);
     }
 
-    fn draw_history(&mut self, data: &DrawData, snes: &mut SNES, config: &Config) {
-        let current_disassembly = [[
-            String::from("> "),
-            disassemble_current(&snes.cpu, &mut snes.abus),
-        ]
-        .join("")];
-        let disassembly_iter = data.disassembled_history.iter().chain(&current_disassembly);
-
-        self.text_renderer.draw(
-            disassembly_iter,
-            0xFFFFFFFF,
-            self.fb.window(
-                2,
-                2,
-                config.resolution.width - 2 - 1,
-                config.resolution.height - 2 - 1,
-            ),
-        );
+    fn draw_history(&mut self, data: &DrawData, snes: &mut SNES) {
+        let disassembly = data
+            .disassembled_history
+            .iter()
+            .cloned()
+            .chain(
+                [format!(
+                    "> {}",
+                    disassemble_current(&snes.cpu, &mut snes.abus)
+                )]
+                .iter()
+                .cloned(),
+            )
+            .collect::<Vec<String>>();
+        let (w, h) = self.text_renderer.window_size(disassembly.iter());
+        self.text_renderer
+            .draw(&disassembly, 0xFFFFFFFF, self.fb.window(2, 2, w, h));
     }
 
     fn draw_cpu(&mut self, snes: &SNES, config: &Config) {
+        let text = status_str(&snes.cpu);
+        let (w, h) = self.text_renderer.window_size(text.iter());
         self.text_renderer.draw(
-            &status_str(&snes.cpu),
+            &text,
             0xFFFFFFFF,
-            self.fb.window(config.resolution.width - 79, 2, 79, 85),
+            self.fb.window(config.resolution.width - w - 1, 2, w, h),
         );
     }
 
