@@ -122,7 +122,7 @@ impl Debugger {
                         }
                     }
                 }
-                "cpu" => println!("{}", status_str(cpu)),
+                "cpu" => println!("{}", status_str(cpu).join("\n")),
                 "run" | "r" => self.state = DebugState::Run,
                 "reset" => cpu.reset(abus),
                 "exit" => self.state = DebugState::Quit,
@@ -386,7 +386,7 @@ fn status_reg_str(cpu: &W65C816S) -> String {
     status
 }
 
-pub fn status_str(cpu: &W65C816S) -> String {
+pub fn status_str(cpu: &W65C816S) -> [String; 12] {
     [
         format!("A: ${:04X}", cpu.a()),
         format!("X: ${:04X}", cpu.x()),
@@ -401,7 +401,6 @@ pub fn status_str(cpu: &W65C816S) -> String {
         format!("Stopped:{}", cpu.stopped()),
         format!("Waiting:{}", cpu.waiting()),
     ]
-    .join("\n")
 }
 
 #[derive(Copy, Clone)]

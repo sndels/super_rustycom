@@ -155,7 +155,7 @@ fn main() {
             ),
         );
         text_renderer.draw(
-            &[debugger::status_str(&snes.cpu)],
+            &debugger::status_str(&snes.cpu),
             0xFFFFFFFF,
             fb.window(config.resolution.width - 79, 2, 79, 85),
         );
