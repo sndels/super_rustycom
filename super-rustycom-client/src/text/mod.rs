@@ -40,15 +40,15 @@ impl TextRenderer {
 
     /// Draws the text in the given pixel buffer line by line.
     /// Overflowing characters in either dimension are ignored.
-    pub fn draw<'a, T>(&self, text: T, color: u32, mut pixel_buffer: Vec<&mut [u32]>)
+    pub fn draw<'a, T>(&self, text: T, color: u32, mut buffer_window: Vec<&mut [u32]>)
     where
         T: IntoIterator<Item = &'a String>,
     {
-        let window_height = pixel_buffer.len();
+        let window_height = buffer_window.len();
         if window_height == 0 || window_height < self.font.height {
             return;
         }
-        let window_width = pixel_buffer[0].len();
+        let window_width = buffer_window[0].len();
         if window_width == 0 || window_width < self.font.width {
             return;
         }
@@ -71,7 +71,7 @@ impl TextRenderer {
                     c,
                     color,
                     start_pixel_column,
-                    &mut pixel_buffer[start_pixel_row..start_pixel_row + self.font.height],
+                    &mut buffer_window[start_pixel_row..start_pixel_row + self.font.height],
                 );
                 start_pixel_column += self.font.width + self.char_spacing;
             }
