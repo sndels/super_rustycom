@@ -45,7 +45,7 @@ impl SNES {
                 break;
             }
         }
-        (cpu_cycles * 8, hit_breakpoint) // SlowROM
+        (cpu_cycles * ticks_per_cycle, hit_breakpoint) // SlowROM
     }
 
     /// Runs the hardware for given number instructions
