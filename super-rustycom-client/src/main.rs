@@ -4,6 +4,7 @@ mod draw_data;
 mod framebuffer;
 mod text;
 mod time_source;
+mod ui;
 
 use std::fs::File;
 use std::io::prelude::*;
@@ -12,9 +13,8 @@ use std::time::Instant;
 use crate::config::Config;
 use crate::debugger::{disassemble_current, DebugState, Debugger};
 use crate::draw_data::DrawData;
-use crate::framebuffer::Framebuffer;
-use crate::text::TextRenderer;
 use crate::time_source::TimeSource;
+use crate::ui::UI;
 use clap::clap_app;
 use minifb::{Key, Window, WindowOptions};
 use super_rustycom_core::snes::SNES;
@@ -57,7 +57,6 @@ fn main() {
     let mut debugger = Debugger::new();
 
     // Init drawing
-    let mut fb = Framebuffer::new(&config);
     let mut window = Window::new(
         "Super Rustycom",
         config.resolution.width,
@@ -72,7 +71,8 @@ fn main() {
     )
     .unwrap();
     //window.limit_update_rate(Some(std::time::Duration::from_micros(16600)));
-    let text_renderer = TextRenderer::new();
+
+    let mut ui = UI::new(&config);
 
     let mut debug_data = DrawData::new();
 
@@ -137,85 +137,17 @@ fn main() {
         let w_buffer = w_window / 2;
         let h_buffer = h_window / 2;
         if w_buffer != config.resolution.width || h_buffer != config.resolution.height {
-            fb.resize(w_buffer, h_buffer);
+            ui.resize(w_buffer, h_buffer);
             config.resolution.width = w_buffer;
             config.resolution.height = h_buffer;
         }
 
-        fb.clear(0x00000000);
-
-        // Collect op history view
         debug_data.update_history(new_disassembly, SHOWN_HISTORY_LINES);
-        let current_disassembly = [[
-            String::from("> "),
-            disassemble_current(&snes.cpu, &mut snes.abus),
-        ]
-        .join("")];
-        let disassembly_iter = debug_data
-            .disassembled_history
-            .iter()
-            .chain(&current_disassembly);
-        let t_debug_draw = Instant::now();
-        // Draw views
-        text_renderer.draw(
-            disassembly_iter,
-            0xFFFFFFFF,
-            fb.window(
-                2,
-                2,
-                config.resolution.width - 2 - 1,
-                config.resolution.height - 2 - 1,
-            ),
-        );
-        text_renderer.draw(
-            &debugger::status_str(&snes.cpu),
-            0xFFFFFFFF,
-            fb.window(config.resolution.width - 79, 2, 79, 85),
-        );
-        let debug_draw_millis = t_debug_draw.elapsed().as_nanos() as f32 * 1e-6;
 
-        text_renderer.draw(
-            &[format!("Debug draw took {:.2}ms!", debug_draw_millis)],
-            0xFFFFFFFF,
-            fb.window(
-                2,
-                config.resolution.height - 32,
-                config.resolution.width,
-                config.resolution.height,
-            ),
-        );
-        if debug_data.extra_nanos > 0 {
-            text_renderer.draw(
-                &[format!(
-                    "Emulation is {:.2}ms ahead!",
-                    debug_data.extra_nanos as f32 * 1e-6
-                )],
-                0xFFFFFFFF,
-                fb.window(
-                    2,
-                    config.resolution.height - 14,
-                    config.resolution.width,
-                    config.resolution.height,
-                ),
-            );
-        } else if debug_data.missing_nanos > 0 {
-            text_renderer.draw(
-                &[format!(
-                    "Lagged {:2}ms behind!",
-                    debug_data.missing_nanos as f32 * 1e-6
-                )],
-                0xFFFF0000,
-                fb.window(
-                    2,
-                    config.resolution.height - 14,
-                    config.resolution.width,
-                    config.resolution.height,
-                ),
-            );
-        }
+        ui.draw(&debug_data, &mut snes, &config);
 
         if let Err(msg) = window.update_with_buffer(
-            fb.buffer(),
+            ui.buffer(),
             config.resolution.width,
             config.resolution.height,
         ) {
