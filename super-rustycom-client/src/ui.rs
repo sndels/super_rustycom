@@ -69,42 +69,44 @@ impl UI {
     }
 
     fn draw_perf(&mut self, data: &DrawData, debug_draw_millis: f32, config: &Config) {
-        self.text_renderer.draw(
-            &[format!("Debug draw took {:.2}ms!", debug_draw_millis)],
-            0xFFFFFFFF,
-            self.fb.window(
-                2,
-                config.resolution.height - 32,
-                config.resolution.width,
-                config.resolution.height,
-            ),
-        );
-        if data.extra_nanos > 0 {
+        {
+            let row_pos = config.resolution.height - 2 * self.text_renderer.line_height() - 1;
             self.text_renderer.draw(
-                &[format!(
-                    "Emulation is {:.2}ms ahead!",
-                    data.extra_nanos as f32 * 1e-6
-                )],
+                &[format!("Debug draw took {:.2}ms!", debug_draw_millis)],
                 0xFFFFFFFF,
                 self.fb.window(
                     2,
-                    config.resolution.height - 14,
+                    row_pos,
                     config.resolution.width,
-                    config.resolution.height,
+                    self.text_renderer.line_height(),
                 ),
             );
-        } else if data.missing_nanos > 0 {
+        }
+
+        {
+            let row_pos = config.resolution.height - self.text_renderer.line_height() - 1;
+            let (message, color) = if data.missing_nanos > 0 {
+                (
+                    format!("Lagged {:2}ms behind!", data.missing_nanos as f32 * 1e-6),
+                    0xFFFF0000,
+                )
+            } else {
+                (
+                    format!(
+                        "Emulation is {:.2}ms ahead!",
+                        data.extra_nanos as f32 * 1e-6
+                    ),
+                    0xFFFFFFFF,
+                )
+            };
             self.text_renderer.draw(
-                &[format!(
-                    "Lagged {:2}ms behind!",
-                    data.missing_nanos as f32 * 1e-6
-                )],
-                0xFFFF0000,
+                &[message],
+                color,
                 self.fb.window(
                     2,
-                    config.resolution.height - 14,
+                    row_pos,
                     config.resolution.width,
-                    config.resolution.height,
+                    self.text_renderer.line_height(),
                 ),
             );
         }
