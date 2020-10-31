@@ -23,6 +23,12 @@ impl Framebuffer {
         self.buffer = vec![color; self.width * self.height];
     }
 
+    pub fn resize(&mut self, width: usize, height: usize) {
+        self.buffer = vec![0; width * height];
+        self.width = width;
+        self.height = height;
+    }
+
     /// Returns mutable slices to the requested window in the buffer.
     /// Clamps to borders if given too large dimensions.
     /// Returns empty Vec if top and/or left is out of bounds.
