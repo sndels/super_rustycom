@@ -132,26 +132,20 @@ fn main() {
 
         // Collect op history view
         debug_data.update_history(new_disassembly, SHOWN_HISTORY_LINES);
-        let disassembly = [
-            debug_data
-                .disassembled_history
-                .iter()
-                .cloned()
-                .collect::<Vec<String>>()
-                .join("\n"),
-            [
-                String::from("> "),
-                disassemble_current(&snes.cpu, &mut snes.abus),
-            ]
-            .join(""),
+        let current_disassembly = [[
+            String::from("> "),
+            disassemble_current(&snes.cpu, &mut snes.abus),
         ]
-        .join("\n");
-
+        .join("")];
+        let disassembly_iter = debug_data
+            .disassembled_history
+            .iter()
+            .chain(&current_disassembly);
         let t_debug_draw = Instant::now();
         fb.clear(0x00000000);
         // Draw views
         text_renderer.draw(
-            disassembly,
+            disassembly_iter,
             0xFFFFFFFF,
             fb.window(
                 2,
@@ -161,14 +155,14 @@ fn main() {
             ),
         );
         text_renderer.draw(
-            debugger::status_str(&snes.cpu),
+            &[debugger::status_str(&snes.cpu)],
             0xFFFFFFFF,
             fb.window(config.resolution.width - 79, 2, 79, 85),
         );
         let debug_draw_millis = t_debug_draw.elapsed().as_nanos() as f32 * 1e-6;
 
         text_renderer.draw(
-            format!["Debug draw took {:.2}ms!", debug_draw_millis],
+            &[format!["Debug draw took {:.2}ms!", debug_draw_millis]],
             0xFFFFFFFF,
             fb.window(
                 2,
@@ -179,10 +173,10 @@ fn main() {
         );
         if debug_data.extra_nanos > 0 {
             text_renderer.draw(
-                format![
+                &[format![
                     "Emulation is {:.2}ms ahead!",
                     debug_data.extra_nanos as f32 * 1e-6
-                ],
+                ]],
                 0xFFFFFFFF,
                 fb.window(
                     2,
@@ -193,10 +187,10 @@ fn main() {
             );
         } else if debug_data.missing_nanos > 0 {
             text_renderer.draw(
-                format![
+                &[format![
                     "Lagged {:2}ms behind!",
                     debug_data.missing_nanos as f32 * 1e-6
-                ],
+                ]],
                 0xFFFF0000,
                 fb.window(
                     2,

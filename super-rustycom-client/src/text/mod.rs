@@ -19,7 +19,10 @@ impl TextRenderer {
 
     /// Draws the text in the given pixel buffer line by line.
     /// Overflowing characters in either dimension are ignored.
-    pub fn draw(&self, text: String, color: u32, mut pixel_buffer: Vec<&mut [u32]>) {
+    pub fn draw<'a, T>(&self, text: T, color: u32, mut pixel_buffer: Vec<&mut [u32]>)
+    where
+        T: IntoIterator<Item = &'a String>,
+    {
         let window_width = pixel_buffer[0].len();
         let window_height = pixel_buffer.len();
         if window_width == 0
@@ -31,28 +34,28 @@ impl TextRenderer {
         }
 
         let mut start_pixel_row = 0;
-        let mut start_pixel_column = 0;
-        for c in text.chars() {
+        for line in text {
             // Make sure we don't run out of vertical pixels
             if start_pixel_row + self.font.height >= window_height {
                 break;
             }
 
-            if c == '\n' {
-                start_pixel_column = 0;
-                start_pixel_row += self.font.height + self.line_spacing;
-            } else {
+            let mut start_pixel_column = 0;
+            for c in line.chars() {
                 // Don't draw if we've ran out of space on the line
-                if start_pixel_column + self.font.width < window_width {
-                    self.draw_char(
-                        c,
-                        color,
-                        start_pixel_column,
-                        &mut pixel_buffer[start_pixel_row..start_pixel_row + self.font.height],
-                    );
-                    start_pixel_column += self.font.width + self.char_spacing;
+                if start_pixel_column + self.font.width >= window_width {
+                    break;
                 }
+
+                self.draw_char(
+                    c,
+                    color,
+                    start_pixel_column,
+                    &mut pixel_buffer[start_pixel_row..start_pixel_row + self.font.height],
+                );
+                start_pixel_column += self.font.width + self.char_spacing;
             }
+            start_pixel_row += self.font.height + self.line_spacing;
         }
     }
 
