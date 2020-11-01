@@ -1,4 +1,5 @@
 use crate::config::Config;
+use log::warn;
 
 pub struct Framebuffer {
     buffer: Vec<u32>,
@@ -40,6 +41,10 @@ impl Framebuffer {
         height: usize,
     ) -> Vec<&mut [u32]> {
         if left >= self.width || top >= self.height {
+            warn!(
+                "Tried to create window from ({},{}) on buffer size ({},{})",
+                left, top, self.width, self.height
+            );
             return Vec::new();
         }
         let clamped_width = if left + width < self.width {
