@@ -18,6 +18,7 @@ const CGRAM_SIZE: usize = 512;
 
 /// Main interface for accessing different memory chunks and common registers
 pub struct ABus {
+    // TODO: Use straight arrays instead and wrap ABus in box to get better cache coherency?
     /// "Work"RAM
     wram: Box<[u8]>,
     /// VideoRAM
