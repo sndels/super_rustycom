@@ -2,9 +2,9 @@ const FONT_WIDTH: usize = 5;
 const FONT_HEIGHT: usize = 6;
 
 pub struct Font {
-    pub chars: Vec<[[u32; FONT_WIDTH]; FONT_HEIGHT]>,
-    pub width: usize,
-    pub height: usize,
+    chars: Vec<[[u32; FONT_WIDTH]; FONT_HEIGHT]>,
+    width: usize,
+    height: usize,
 }
 
 impl Font {
@@ -700,5 +700,17 @@ impl Font {
             width: FONT_WIDTH,
             height: FONT_HEIGHT,
         }
+    }
+
+    pub fn width(&self) -> usize {
+        self.width
+    }
+
+    pub fn height(&self) -> usize {
+        self.height
+    }
+
+    pub fn pixels(&self, c: char) -> &[[u32; FONT_WIDTH]; FONT_HEIGHT] {
+        &self.chars[c as usize]
     }
 }
