@@ -2,6 +2,7 @@ use std::fs::File;
 use std::io::{self, Write};
 use std::u32;
 
+use log::error;
 use super_rustycom_core::abus::ABus;
 use super_rustycom_core::cpu::W65C816S;
 
@@ -35,11 +36,15 @@ impl Debugger {
         println!("PRG at");
         println!("{}", disassemble_current(cpu, abus));
         print!("(debug) ");
-        io::stdout().flush().unwrap();
+        if let Err(why) = io::stdout().flush() {
+            error!("{}", why);
+            return;
+        }
         let mut command_str = String::new();
-        io::stdin()
-            .read_line(&mut command_str)
-            .expect("Read failed");
+        if let Err(why) = io::stdin().read_line(&mut command_str) {
+            error!("{}", why);
+            return;
+        }
         let arg_vec = command_str.trim().split_whitespace().collect::<Vec<&str>>();
         if arg_vec.len() > 0 {
             match arg_vec[0] {
@@ -55,41 +60,57 @@ impl Debugger {
                     if arg_vec.len() > 1 {
                         match arg_vec[1] {
                             "rom" => unimplemented!(),
-                            "wram" => match dump_memory("wramdump.bin", &abus.wram()) {
-                                Ok(_) => println!("WRAM dumped"),
-                                Err(err) => println!("Dumping WRAM failed!\n{}", err),
-                            },
-                            "vram" => match dump_memory("vramdump.bin", &abus.vram()) {
-                                Ok(_) => println!("VRAM dumped"),
-                                Err(err) => println!("Dumping VRAM failed!\n{}", err),
-                            },
-                            "oam" => match dump_memory("oamdump.bin", &abus.oam()) {
-                                Ok(_) => println!("OAM dumped"),
-                                Err(err) => println!("Dumping OAM failed!\n{}", err),
-                            },
-                            "cgram" => match dump_memory("cgramdump.bin", &abus.cgram()) {
-                                Ok(_) => println!("CGRAM dumped"),
-                                Err(err) => println!("Dumping CGRAM failed!\n{}", err),
-                            },
+                            "wram" => {
+                                if dump_memory("wramdump.bin", &abus.wram()) {
+                                    println!("WRAM dumped");
+                                } else {
+                                    println!("Dumping WRAM failed!");
+                                }
+                            }
+                            "vram" => {
+                                if dump_memory("vramdump.bin", &abus.vram()) {
+                                    println!("VRAM dumped");
+                                } else {
+                                    println!("Dumping VRAM failed!");
+                                }
+                            }
+                            "oam" => {
+                                if dump_memory("oamdump.bin", &abus.oam()) {
+                                    println!("OAM dumped");
+                                } else {
+                                    println!("Dumping OAM failed!");
+                                }
+                            }
+                            "cgram" => {
+                                if dump_memory("cgrmdump.bin", &abus.cgram()) {
+                                    println!("CGRAM dumped");
+                                } else {
+                                    println!("Dumping CGRAM failed!");
+                                }
+                            }
                             &_ => println!("Invalid parameter \"{}\"", arg_vec[1]),
                         }
                     } else {
-                        match dump_memory("wramdump.bin", &abus.wram()) {
-                            Ok(_) => println!("WRAM dumped"),
-                            Err(err) => println!("Dumping WRAM failed!\n{}", err),
-                        };
-                        match dump_memory("vramdump.bin", &abus.vram()) {
-                            Ok(_) => println!("VRAM dumped"),
-                            Err(err) => println!("Dumping VRAM failed!\n{}", err),
-                        };
-                        match dump_memory("oamdump.bin", &abus.oam()) {
-                            Ok(_) => println!("OAM dumped"),
-                            Err(err) => println!("Dumping OAM failed!\n{}", err),
-                        };
-                        match dump_memory("cgramdump.bin", &abus.cgram()) {
-                            Ok(_) => println!("CGRAM dumped"),
-                            Err(err) => println!("Dumping CGRAM failed!\n{}", err),
-                        };
+                        if dump_memory("wramdump.bin", &abus.wram()) {
+                            println!("WRAM dumped");
+                        } else {
+                            println!("Dumping WRAM failed!");
+                        }
+                        if dump_memory("vramdump.bin", &abus.vram()) {
+                            println!("VRAM dumped");
+                        } else {
+                            println!("Dumping VRAM failed!");
+                        }
+                        if dump_memory("oamdump.bin", &abus.oam()) {
+                            println!("OAM dumped");
+                        } else {
+                            println!("Dumping OAM failed!");
+                        }
+                        if dump_memory("cgrmdump.bin", &abus.cgram()) {
+                            println!("CGRAM dumped");
+                        } else {
+                            println!("Dumping CGRAM failed!");
+                        }
                     }
                 }
                 "peek" => {
@@ -148,18 +169,24 @@ fn print_help() {
     println!("exit                   -- stop emulation");
 }
 
-fn dump_memory(file_path: &str, buf: &[u8]) -> Result<(), String> {
+// Dumps given array and returns if the operation succeeded
+fn dump_memory(file_path: &str, buf: &[u8]) -> bool {
     let mut f = match File::create(file_path) {
         Ok(file) => file,
-        Err(err) => return Err(format!("Creating file failed:\n{}", err)),
+        Err(err) => {
+            error!("{}", err);
+            return false;
+        }
     };
     if let Err(err) = f.write_all(buf) {
-        return Err(format!("Write failed:\n{}", err));
+        error!("{}", err);
+        return false;
     };
     if let Err(err) = f.sync_all() {
-        return Err(format!("Sync failed:\n{}", err));
+        error!("{}", err);
+        return false;
     };
-    Ok(())
+    true
 }
 
 pub fn disassemble_current(cpu: &W65C816S, abus: &mut ABus) -> String {
