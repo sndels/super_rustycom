@@ -5,3 +5,4 @@ authors = ["Santeri Salmijärvi <santeri.salmijarvi@aalto.fi>"]
 edition = "2018"
 
 [dependencies]
+log = "0.4.11"

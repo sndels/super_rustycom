@@ -1,3 +1,5 @@
+use log::error;
+
 pub struct Dma {
     mdma_en: u8,
     hdma_en: u8,
@@ -70,7 +72,10 @@ impl Dma {
             NTRLX => self.ntr_l[channel],
             UNUSEDX => self.unused[channel],
             MIRRX => self.unused[channel],
-            _ => panic!("DMA read ${:04X}: Unused region", addr),
+            _ => {
+                error!("DMA read ${:04X}: Unused region", addr);
+                0
+            }
         }
     }
 
@@ -91,7 +96,7 @@ impl Dma {
             NTRLX => self.ntr_l[channel] = value,
             UNUSEDX => self.unused[channel] = value,
             MIRRX => self.unused[channel] = value,
-            _ => panic!("DMA write ${:04X}: Unused region", addr),
+            _ => error!("DMA write ${:04X}: Unused region", addr),
         }
     }
 }

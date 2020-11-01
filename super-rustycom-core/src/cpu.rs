@@ -1,5 +1,6 @@
 use crate::abus::ABus;
 use crate::op;
+use log::error;
 
 /// The cpu core in Ricoh 5A22 powering the Super Nintendo
 pub struct W65C816S {
@@ -2084,7 +2085,7 @@ fn addr_8_8_8(bank: u8, page: u8, byte: u8) -> u32 {
 /// Converts normal u8 to 8bit binary-coded decimal
 fn dec_to_bcd8(value: u8) -> u8 {
     if value > 99 {
-        panic!("{} too large for 8bit BCD", value);
+        error!("{} too large for 8bit BCD", value);
     }
     ((value / 10) << 4) | (value % 10)
 }
@@ -2092,7 +2093,7 @@ fn dec_to_bcd8(value: u8) -> u8 {
 /// Converts normal u16 to 16bit binary-coded decimal
 fn dec_to_bcd16(value: u16) -> u16 {
     if value > 9999 {
-        panic!("{} too large for 16bit BCD", value);
+        error!("{} too large for 16bit BCD", value);
     }
     ((value / 1000) << 12)
         | (((value % 1000) / 100) << 8)
@@ -2105,7 +2106,7 @@ fn bcd_to_dec8(value: u8) -> u8 {
     let ll = value & 0x000F;
     let hh = (value >> 4) & 0x000F;
     if hh > 0x9 || ll > 0x9 {
-        panic!("{:02X} is not a valid 8bit BCD", value);
+        error!("{:02X} is not a valid 8bit BCD", value);
     }
     hh * 10 + ll
 }
@@ -2117,7 +2118,7 @@ fn bcd_to_dec16(value: u16) -> u16 {
     let mh = (value >> 8) & 0x000F;
     let hh = (value >> 12) & 0x000F;
     if hh > 0x9 || mh > 0x9 || ml > 0x9 || ll > 0x9 {
-        panic!("{:04X} is not a valid 16bit BCD", value);
+        error!("{:04X} is not a valid 16bit BCD", value);
     }
     hh * 1000 + mh * 100 + ml * 10 + ll
 }

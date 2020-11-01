@@ -5,6 +5,8 @@ use crate::mpydiv::MpyDiv;
 use crate::ppu_io::PpuIo;
 use crate::rom::Rom;
 
+use log::{error, warn};
+
 /// 128 kB of "work" memory
 const WRAM_SIZE: usize = 128 * 1024;
 /// 64 kB of video memory
@@ -152,7 +154,7 @@ impl ABus {
             mmap::PPU_IO_FIRST..=mmap::PPU_IO_LAST => {
                 // PPU IO
                 if addr < mmap::MPYL {
-                    panic!("Read ${:06X}: PPU IO write-only for cpu", addr);
+                    error!("Read ${:06X}: PPU IO write-only for cpu", addr);
                 }
                 self.ppu_io.read(addr)
             }
@@ -218,12 +220,16 @@ impl ABus {
             }
             mmap::EXP_FIRST..=mmap::EXP_LAST => {
                 // Expansion
-                panic!("Read ${:06X}: Expansion not implemented", addr)
+                warn!("Read ${:06X}: Expansion not implemented", addr);
+                0
             }
-            _ => panic!(
-                "System area read ${:04X}: Address unused or write-only",
-                addr
-            ),
+            _ => {
+                error!(
+                    "System area read ${:04X}: Address unused or write-only",
+                    addr
+                );
+                0
+            }
         }
     }
 
@@ -305,10 +311,11 @@ impl ABus {
             }
             mmap::PPU_IO_FIRST..=mmap::PPU_IO_LAST => {
                 // PPU IO
-                if addr > mmap::SETINI {
-                    panic!("Write ${:06X}: PPU IO read-only for cpu", addr);
+                if addr <= mmap::SETINI {
+                    self.ppu_io.write(addr, value);
+                } else {
+                    error!("Write ${:06X}: PPU IO read-only for cpu", addr);
                 }
-                self.ppu_io.write(addr, value);
             }
             mmap::APU_IO_FIRST..=mmap::APU_IO_LAST => {
                 // APU IO
@@ -351,9 +358,9 @@ impl ABus {
             }
             mmap::EXP_FIRST..=mmap::EXP_LAST => {
                 // Expansion
-                panic!("Write ${:06X}: Expansion not implemented", addr)
+                warn!("Write ${:06X}: Expansion not implemented", addr)
             }
-            _ => panic!(
+            _ => error!(
                 "System area write ${:04X}: Address unused or read-only",
                 addr
             ),
@@ -397,7 +404,7 @@ impl ABus {
             0x01 => self.apu_io1 = (self.apu_io1 & 0xFF00) | value as u16,
             0x02 => self.apu_io2 = (self.apu_io2 & 0xFF00) | value as u16,
             0x03 => self.apu_io3 = (self.apu_io3 & 0xFF00) | value as u16,
-            _ => panic!("APU write to invalid IO register!"),
+            _ => error!("APU write to invalid IO register ${:02X}!", reg),
         }
     }
 
