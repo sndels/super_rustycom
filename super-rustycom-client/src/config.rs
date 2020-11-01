@@ -1,3 +1,4 @@
+use log::{error, info};
 use serde::{Deserialize, Serialize};
 use serde_json;
 
@@ -39,15 +40,32 @@ impl Config {
         match File::open(CONFIG_PATH) {
             Ok(config_file) => {
                 let reader = BufReader::new(config_file);
-                serde_json::from_reader(reader).expect("Reading existing config failed!")
+                match serde_json::from_reader(reader) {
+                    Ok(config) => return config,
+                    Err(why) => {
+                        error!("{}", why);
+                    }
+                }
             }
-            Err(_) => Config::new(),
+            Err(why) => {
+                error!("{}", why);
+            }
         }
+        info!("Initializing new config");
+        Config::new()
     }
 
     pub fn save(&self) {
-        let config_file = File::create(CONFIG_PATH).expect("Opening config for write failed!");
+        let config_file = match File::create(CONFIG_PATH) {
+            Ok(file) => file,
+            Err(why) => {
+                error!("{}", why);
+                return;
+            }
+        };
         let writer = BufWriter::new(config_file);
-        serde_json::to_writer(writer, &self).expect("Writing config failed!");
+        if let Err(why) = serde_json::to_writer(writer, &self) {
+            error!("{}", why);
+        }
     }
 }
