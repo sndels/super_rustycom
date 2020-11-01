@@ -44,7 +44,7 @@ impl UI {
 
     fn draw_history(&mut self, data: &DrawData, snes: &mut SNES) {
         let disassembly = data
-            .disassembled_history
+            .disassembled_history()
             .iter()
             .cloned()
             .chain(

@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 
 pub struct DrawData {
-    pub disassembled_history: VecDeque<String>,
+    disassembled_history: VecDeque<String>,
     // Emulation headroom
     pub extra_nanos: u128,
     // Emulation lag
@@ -15,6 +15,10 @@ impl DrawData {
             extra_nanos: 0,
             missing_nanos: 0,
         }
+    }
+
+    pub fn disassembled_history(&self) -> &VecDeque<String> {
+        &self.disassembled_history
     }
 
     pub fn update_history(&mut self, new_disassembly: Vec<String>, history_window: usize) {
