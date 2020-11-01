@@ -136,17 +136,17 @@ impl ABus {
         }
     }
 
-    pub fn wram(&self) -> Box<[u8]> {
-        self.wram.clone()
+    pub fn wram(&self) -> &[u8] {
+        &self.wram
     }
-    pub fn vram(&self) -> Box<[u8]> {
-        self.vram.clone()
+    pub fn vram(&self) -> &[u8] {
+        &self.vram
     }
-    pub fn oam(&self) -> Box<[u8]> {
-        self.oam.clone()
+    pub fn oam(&self) -> &[u8] {
+        &self.oam
     }
-    pub fn cgram(&self) -> Box<[u8]> {
-        self.cgram.clone()
+    pub fn cgram(&self) -> &[u8] {
+        &self.cgram
     }
 
     fn cpu_read_sys(&mut self, addr: usize) -> u8 {
