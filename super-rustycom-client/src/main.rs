@@ -16,6 +16,7 @@ use crate::draw_data::DrawData;
 use crate::time_source::TimeSource;
 use crate::ui::UI;
 use clap::clap_app;
+use log::{error, info};
 use minifb::{Key, Window, WindowOptions};
 use super_rustycom_core::snes::SNES;
 
@@ -23,6 +24,41 @@ const SHOWN_HISTORY_LINES: usize = 20;
 // Cpu cycles to gather disassembly for
 // Might be overkill without long interrupts but is still fast
 const HISTORY_CYCLE_COUNT: usize = 1000;
+
+fn unwrap<T, E>(result: Result<T, E>) -> T
+where
+    E: std::fmt::Display,
+{
+    match result {
+        Ok(val) => val,
+        Err(why) => {
+            error!("{}", why);
+            panic!();
+        }
+    }
+}
+
+fn setup_logger() -> Result<(), fern::InitError> {
+    fern::Dispatch::new()
+        .format(|out, message, record| {
+            out.finish(format_args!(
+                "{}[{}][{}:{}] {}",
+                chrono::Local::now().format("[%Y-%m-%d][%H:%M:%S]"),
+                record.level(),
+                record.target(),
+                record.line().unwrap_or(0),
+                message
+            ))
+        })
+        // .level(log::LevelFilter::Info)
+        // .level(log::LevelFilter::Debug)
+        .level(log::LevelFilter::Warn)
+        // .level(log::LevelFilter::Error)
+        .chain(std::io::stdout())
+        .chain(std::fs::File::create("emu.log")?)
+        .apply()?;
+    Ok(())
+}
 
 fn main() {
     let args = clap_app!(super_rustycom_client =>
@@ -33,31 +69,36 @@ fn main() {
     )
     .get_matches();
 
+    if let Err(why) = setup_logger() {
+        panic!("{}", why);
+    };
+
     let mut config = Config::load();
 
     // Get ROM path from first argument
     if let Some(rom_path) = args.value_of("ROM") {
         config.rom_path = rom_path.to_string();
     }
-    assert!(
-        !config.rom_path.is_empty(),
-        "No ROM given in args or in config"
-    );
+    if config.rom_path.is_empty() {
+        error!("No ROM given in args or in config");
+        panic!();
+    }
 
     // Load ROM from file
-    let mut rom_file = File::open(&config.rom_path).expect("Opening rom failed");
-    let mut rom_bytes = Vec::new();
-    let read_bytes = rom_file
-        .read_to_end(&mut rom_bytes)
-        .expect("Reading rom to bytes failed");
-    println!("Read {} bytes from {}", read_bytes, config.rom_path);
+    let rom_bytes = {
+        let mut rom_file = unwrap(File::open(&config.rom_path));
+        let mut rom_bytes = Vec::new();
+        let read_bytes = unwrap(rom_file.read_to_end(&mut rom_bytes));
+        info!("Read {} bytes from {}", read_bytes, config.rom_path);
+        rom_bytes
+    };
 
     // Init hardware
     let mut snes = SNES::new(rom_bytes);
     let mut debugger = Debugger::new();
 
     // Init drawing
-    let mut window = Window::new(
+    let mut window = unwrap(Window::new(
         "Super Rustycom",
         config.resolution.width,
         config.resolution.height,
@@ -68,9 +109,7 @@ fn main() {
             options.resize = true;
             options
         },
-    )
-    .unwrap();
-    //window.limit_update_rate(Some(std::time::Duration::from_micros(16600)));
+    ));
 
     let mut ui = UI::new(&config);
 
@@ -146,12 +185,12 @@ fn main() {
 
         ui.draw(&debug_data, &mut snes, &config);
 
-        if let Err(msg) = window.update_with_buffer(
+        if let Err(why) = window.update_with_buffer(
             ui.buffer(),
             config.resolution.width,
             config.resolution.height,
         ) {
-            eprintln!("Window: {}", msg);
+            error!("{}", why);
         }
     }
 
