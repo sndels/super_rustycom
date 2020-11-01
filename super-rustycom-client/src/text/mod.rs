@@ -30,6 +30,7 @@ impl TextRenderer {
             return (0, 0);
         }
         let line_count = text.len();
+        // Safe unwrap since we know len > 0
         let max_row_length = text.max_by(|x, y| x.len().cmp(&y.len())).unwrap().len();
         // Last line/character don't need spacing after them
         let height = (self.font.height() + self.line_spacing) * line_count - self.line_spacing;
