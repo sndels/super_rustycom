@@ -2,6 +2,7 @@ mod config;
 mod debugger;
 mod draw_data;
 mod framebuffer;
+mod input;
 mod text;
 mod time_source;
 mod ui;
@@ -13,6 +14,7 @@ use std::time::Instant;
 use crate::config::Config;
 use crate::debugger::{disassemble_current, DebugState, Debugger};
 use crate::draw_data::DrawData;
+use crate::input::InputState;
 use crate::time_source::TimeSource;
 use crate::ui::UI;
 use clap::clap_app;
@@ -113,6 +115,8 @@ fn main() {
 
     let mut ui = UI::new(&config);
 
+    let mut input_state = InputState::new();
+
     let mut debug_data = DrawData::new();
 
     // Init time source
@@ -180,6 +184,8 @@ fn main() {
             config.resolution.width = w_buffer;
             config.resolution.height = h_buffer;
         }
+
+        input_state.update(&window);
 
         debug_data.update_history(new_disassembly, SHOWN_HISTORY_LINES);
 
