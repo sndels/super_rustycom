@@ -3,6 +3,7 @@ use crate::debugger::{disassemble_current, status_str};
 use crate::draw_data::DrawData;
 use crate::framebuffer::Framebuffer;
 use crate::text::TextRenderer;
+use itertools::Itertools;
 use std::time::Instant;
 use super_rustycom_core::snes::SNES;
 
@@ -33,6 +34,7 @@ impl UI {
         self.fb.clear(0x00000000);
 
         self.draw_history(data, snes);
+        self.draw_mem(snes);
         self.draw_cpu(snes, config);
 
         let debug_draw_millis = t_debug_draw.elapsed().as_nanos() as f32 * 1e-6;
@@ -60,6 +62,43 @@ impl UI {
             )
             .collect::<Vec<String>>();
         self.text_renderer.draw(&disassembly, 0xFFFFFFFF, window);
+    }
+
+    fn draw_mem(&mut self, snes: &mut SNES) {
+        // Below instruction history
+        let window = self.fb.relative_window(0, 40, 80, 40);
+        let window_lines = window.len() / self.text_renderer.line_height();
+
+        let start_byte = 0x0000;
+        // Drop one line since we have the column header
+        let end_byte = start_byte + window_lines.saturating_sub(1) * 0x0010;
+
+        let wram = snes.abus.wram();
+        let wram_text = {
+            let mut wram_text = vec![String::from(
+                "      00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F",
+            )];
+            wram_text.extend(
+                wram[start_byte..end_byte]
+                    .chunks(0x10)
+                    .into_iter()
+                    // Zip line addrs with lines
+                    .zip((start_byte..wram.len()).step_by(0x0010))
+                    // Create line string with space between bytes
+                    .map(|(line, addr)| {
+                        format!(
+                            "${:04X} {}",
+                            addr,
+                            line.iter()
+                                .format_with(" ", |elt, f| f(&format_args!("{:02X}", elt)))
+                        )
+                    })
+                    .collect_vec(),
+            );
+            wram_text
+        };
+
+        self.text_renderer.draw(&wram_text, 0xFFFFFFFF, window);
     }
 
     fn draw_cpu(&mut self, snes: &SNES, config: &Config) {

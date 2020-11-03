@@ -9,6 +9,7 @@ super-rustycom-core = { path = "../super-rustycom-core" }
 clap = "2.33.3"
 chrono = "0.4.19"
 fern = "0.6.0"
+itertools = "0.9.0"
 log = "0.4.11"
 minifb = "0.19.1"
 serde = { version = "1.0.117", features = [ "derive" ]}
