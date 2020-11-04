@@ -41,10 +41,15 @@ impl UI {
     }
 
     fn draw_history(&mut self, data: &DrawData, snes: &mut SNES) {
+        let window = self.fb.relative_window(0, 0, 80, 40);
+        let history_len = data.disassembled_history().len();
+        let window_lines = window.len() / self.text_renderer.line_height();
         let disassembly = data
             .disassembled_history()
             .iter()
             .cloned()
+            // Drop history that doesn't fit while leaving room for current pointer
+            .skip(history_len.saturating_sub(window_lines) + 1)
             .chain(
                 [format!(
                     "> {}",
@@ -54,11 +59,7 @@ impl UI {
                 .cloned(),
             )
             .collect::<Vec<String>>();
-        self.text_renderer.draw(
-            &disassembly,
-            0xFFFFFFFF,
-            self.fb.relative_window(0, 0, 80, 40),
-        );
+        self.text_renderer.draw(&disassembly, 0xFFFFFFFF, window);
     }
 
     fn draw_cpu(&mut self, snes: &SNES, config: &Config) {
