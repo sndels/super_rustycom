@@ -43,6 +43,7 @@ impl UI {
     }
 
     fn draw_history(&mut self, data: &DrawData, snes: &mut SNES) {
+        // Top left corner
         let window = self.fb.relative_window(0, 0, 80, 40);
         let history_len = data.disassembled_history().len();
         let window_lines = window.len() / self.text_renderer.line_height();
@@ -105,8 +106,9 @@ impl UI {
         let text = status_str(&snes.cpu);
         let (w, h) = self.text_renderer.window_size(text.iter());
         let start_x = config.resolution.width.saturating_sub(w);
-        self.text_renderer
-            .draw(&text, 0xFFFFFFFF, self.fb.absolute_window(start_x, 0, w, h));
+        // Top right corner
+        let window = self.fb.absolute_window(start_x, 0, w, h);
+        self.text_renderer.draw(&text, 0xFFFFFFFF, window);
     }
 
     fn draw_perf(&mut self, data: &DrawData, debug_draw_millis: f32, config: &Config) {
@@ -115,15 +117,17 @@ impl UI {
                 .resolution
                 .height
                 .saturating_sub(2 * self.text_renderer.line_height());
+            // Bottom left corner above ahead/lag count
+            let window = self.fb.absolute_window(
+                0,
+                start_y,
+                config.resolution.width,
+                self.text_renderer.line_height(),
+            );
             self.text_renderer.draw(
                 &[format!("Debug draw took {:>5.2}ms!", debug_draw_millis)],
                 0xFFFFFFFF,
-                self.fb.absolute_window(
-                    0,
-                    start_y,
-                    config.resolution.width,
-                    self.text_renderer.line_height(),
-                ),
+                window,
             );
         }
 
@@ -132,6 +136,13 @@ impl UI {
                 .resolution
                 .height
                 .saturating_sub(self.text_renderer.line_height());
+            // Bottom left corner
+            let window = self.fb.absolute_window(
+                0,
+                start_y,
+                config.resolution.width,
+                self.text_renderer.line_height(),
+            );
             let (message, color) = if data.missing_nanos > 0 {
                 (
                     format!("Lagged {:>5.2}ms behind!", data.missing_nanos as f32 * 1e-6),
@@ -146,16 +157,7 @@ impl UI {
                     0xFFFFFFFF,
                 )
             };
-            self.text_renderer.draw(
-                &[message],
-                color,
-                self.fb.absolute_window(
-                    0,
-                    start_y,
-                    config.resolution.width,
-                    self.text_renderer.line_height(),
-                ),
-            );
+            self.text_renderer.draw(&[message], color, window);
         }
     }
 }
