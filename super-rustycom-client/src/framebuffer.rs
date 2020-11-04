@@ -30,10 +30,10 @@ impl Framebuffer {
         self.height = height;
     }
 
-    /// Returns mutable slices to the requested window in the buffer.
+    /// Returns mutable slices to the requested window in the buffer using absolute pixel values.
     /// Clamps to borders if given too large dimensions.
     /// Returns empty Vec if top and/or left is out of bounds.
-    pub fn window(
+    pub fn absolute_window(
         &mut self,
         left: usize,
         top: usize,
@@ -73,5 +73,29 @@ impl Framebuffer {
         slices.push(head);
 
         slices
+    }
+
+    /// Returns mutable slices to the requested window in the buffer using pixel percentages.
+    /// Clamps to borders if given too large dimensions.
+    /// Returns empty Vec if top and/or left is out of bounds.
+    pub fn relative_window(
+        &mut self,
+        left: usize,
+        top: usize,
+        width: usize,
+        height: usize,
+    ) -> Vec<&mut [u32]> {
+        if left >= 100 || top >= 100 {
+            warn!("Tried to create window from ({}%,{}%)", left, top,);
+            return Vec::new();
+        }
+
+        self.absolute_window(
+            // Ceil start, floor dim to avoid overlap in adjacent relative windows
+            ((left as f32 / 100f32) * self.width as f32).ceil() as usize,
+            ((top as f32 / 100f32) * self.height as f32).ceil() as usize,
+            ((width as f32 / 100f32) * self.width as f32).floor() as usize,
+            ((height as f32 / 100f32) * self.height as f32).floor() as usize,
+        )
     }
 }
