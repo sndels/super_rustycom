@@ -22,7 +22,7 @@ use log::{error, info};
 use minifb::{Key, Window, WindowOptions};
 use super_rustycom_core::snes::SNES;
 
-const SHOWN_HISTORY_LINES: usize = 20;
+const SHOWN_HISTORY_LINES: usize = 50;
 // Cpu cycles to gather disassembly for
 // Might be overkill without long interrupts but is still fast
 const HISTORY_CYCLE_COUNT: usize = 1000;
