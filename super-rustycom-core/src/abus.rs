@@ -399,12 +399,25 @@ impl ABus {
         }
     }
 
+    pub fn apu_read8(&mut self, reg: u8) -> u8 {
+        match reg {
+            0x00 => self.apu_io0 as u8,
+            0x01 => self.apu_io1 as u8,
+            0x02 => self.apu_io2 as u8,
+            0x03 => self.apu_io3 as u8,
+            _ => {
+                error!("APU read from invalid IO register ${:02X}!", reg);
+                0
+            }
+        }
+    }
+
     pub fn apu_write8(&mut self, reg: u8, value: u8) {
         match reg {
-            0x00 => self.apu_io0 = (self.apu_io0 & 0xFF00) | value as u16,
-            0x01 => self.apu_io1 = (self.apu_io1 & 0xFF00) | value as u16,
-            0x02 => self.apu_io2 = (self.apu_io2 & 0xFF00) | value as u16,
-            0x03 => self.apu_io3 = (self.apu_io3 & 0xFF00) | value as u16,
+            0x00 => self.apu_io0 = ((value as u16) << 8 | 0x00FF) & self.apu_io0,
+            0x01 => self.apu_io1 = ((value as u16) << 8 | 0x00FF) & self.apu_io1,
+            0x02 => self.apu_io2 = ((value as u16) << 8 | 0x00FF) & self.apu_io2,
+            0x03 => self.apu_io3 = ((value as u16) << 8 | 0x00FF) & self.apu_io3,
             _ => error!("APU write to invalid IO register ${:02X}!", reg),
         }
     }
