@@ -1,5 +1,6 @@
+mod op;
+
 use crate::abus::ABus;
-use crate::op;
 use log::error;
 
 /// The cpu core in Ricoh 5A22 powering the Super Nintendo
