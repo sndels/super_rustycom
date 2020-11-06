@@ -1,10 +1,12 @@
 use crate::abus::ABus;
+use crate::apu::APU;
 use crate::cpu::W65C816S;
 
 /// Abstraction around the actual emu implementation
 pub struct SNES {
     pub abus: ABus,
     pub cpu: W65C816S,
+    pub apu: APU,
 }
 
 impl SNES {
@@ -14,6 +16,7 @@ impl SNES {
         SNES {
             cpu: W65C816S::new(&mut abus),
             abus: abus,
+            apu: APU::new(),
         }
     }
 
@@ -40,6 +43,8 @@ impl SNES {
                     (target_cpu_cycles - cpu_cycles) as usize,
                 );
                 cpu_cycles += self.cpu.step(&mut self.abus) as u128;
+                let (_, apu_io) = self.apu.step(self.abus.apu_io());
+                self.abus.copy_smp_io(apu_io);
             } else {
                 hit_breakpoint = true;
                 break;

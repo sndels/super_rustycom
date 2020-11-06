@@ -1,6 +1,6 @@
-use crate::abus::ABus;
+use super::bus::Bus;
 
-struct SPC700 {
+pub struct SPC700 {
     /// 8bit accumulator
     a: u8,
     /// 8bit index
@@ -33,16 +33,16 @@ struct SPC700 {
 }
 
 impl SPC700 {
-    pub fn new() -> APU {
-        APU {
-            a:0x00,
-            x:0x00,
-            r:0x00,
-            y:0x00,
-            sp:0x00,
-            psw
-
-         }
+    pub fn new() -> SPC700 {
+        SPC700 {
+            a: 0x00,
+            x: 0x00,
+            y: 0x00,
+            sp: 0x00,
+            psw: StatusReg::new(),
+            ya: 0x0000,
+            pc: 0xFFC0,
+        }
     }
 
     pub fn a(&self) -> u8 {
@@ -51,8 +51,11 @@ impl SPC700 {
     pub fn x(&self) -> u8 {
         self.x
     }
+    pub fn y(&self) -> u8 {
+        self.y
+    }
     pub fn sp(&self) -> u8 {
-        self.x
+        self.sp
     }
     pub fn ya(&self) -> u16 {
         self.ya
@@ -62,12 +65,12 @@ impl SPC700 {
     }
 
     /// Returns the value of the negative flag
-    pub fn p_n(&self) -> bool {
-        self.p.n
+    pub fn psw_n(&self) -> bool {
+        self.psw.n
     }
     /// Returns the value of the overflow flag
-    pub fn p_v(&self) -> bool {
-        self.p.v
+    pub fn psw_v(&self) -> bool {
+        self.psw.v
     }
     /// Returns the value of the zero page location flag
     pub fn psw_p(&self) -> bool {
@@ -95,171 +98,185 @@ impl SPC700 {
     }
 
     /// Executes the instruction pointed by `PC` and returns the cycles it took
-    pub fn step(&mut self, bus: &mut ApuBus) -> u8 {
+    pub fn step(&mut self, bus: &mut Bus) -> u8 {
+        // Addressing macros return a reference to the byte at the addressed location
+        // mut_-versions return mutable reference
+        macro_rules! mut_abs {
+            // [aa], [aaaa]
+            ($addr:expr) => {{
+                let page = (self.psw_p() as u16) << 8;
+                bus.access_write(page | $addr as u16)
+            }};
 
-    // Addressing macros return a reference to the byte at the addressed location
-    // mut_-versions return mutable reference
-    macro_rules! mut_abs {
-        // [aa], [aaaa]
-    ($addr:expr) => {{
-        let page = (self.psw_p() as u16) << 8;
-        bus.access_mut(page | $addr as u16)
-    }};
-    // [aa+X], [aa+Y], [aaaa+X], [aaaa+Y]
-    ($addr:expr, $reg:expr) => {{
-        let page = (self.psw_p() as u16) << 8;
-        bus.access_mut(((page | $addr as u16) + $reg as u16) & (page | 0x00FF))
-    }};
-}
-    macro_rules! abs {
-    ($addr:expr) => {{
-        &*mut_abs!($addr)
-    }};
-    ($addr:expr, $reg:expr) => {{
-        &*mut_abs!($addr, $reg)
-    }};
-}
-    macro_rules! mut_abs_ptr_y {
-        // [[aa]+Y]
-        ($addr:expr )=> {{
-        bus.access_mut(bus.read16($addr).wrapping_add(self.y as u16)))
-        }};
-    }
-    macro_rules! abs_ptr_y {
-        ($addr:expr )=> {{
-        abs_ptr_y!($addr)
-        }};
-    }
-    macro_rules! mut_abs_x_ptr {
-        // [[aa+X]]
-        ($addr:expr )=> {{
-        bus.access_mut(bus.read16($addr.wrapping_add(self.x) as u16))
-        }};
-    }
-    macro_rules! abs_x_ptr {
-        ($addr:expr )=> {{
-        abs_x_ptr!($addr)
-        }};
-    }
+            // [aa+X], [aa+Y], [aaaa+X], [aaaa+Y]
+            ($addr:expr, $reg:expr) => {{
+                let page = (self.psw_p() as u16) << 8;
+                bus.access_write(((page | $addr as u16) + $reg as u16) & (page | 0x00FF))
+            }};
+        }
+        macro_rules! abs {
+            // [aa], [aaaa]
+            ($addr:expr) => {{
+                let page = (self.psw_p() as u16) << 8;
+                bus.read8(page | $addr as u16)
+            }};
 
-    // Ops
-    macro_rules! mov_reg_byte {
-        // reg = byte, affects negative, zero flags
-        ($reg:expr, $byte:expr, $op_length:expr) => {
-            *lhs = byte;
-            self.psw.n = byte& 0x80;
-            self.psw.n = byte== 0x00;
-            $op_length
+            // [aa+X], [aa+Y], [aaaa+X], [aaaa+Y]
+            ($addr:expr, $reg:expr) => {{
+                let page = (self.psw_p() as u16) << 8;
+                bus.read8(((page | $addr as u16) + $reg as u16) & (page | 0x00FF))
+            }};
+        }
+        macro_rules! mut_abs_ptr_y {
+            // [[aa]+Y]
+            ($addr:expr ) => {
+                bus.access_write(bus.read16($addr as u16).wrapping_add(self.y as u16))
+            };
+        }
+        macro_rules! abs_ptr_y {
+            ($addr:expr ) => {
+                bus.read8(bus.read16($addr as u16).wrapping_add(self.y as u16))
+            };
+        }
+        macro_rules! mut_abs_x_ptr {
+            // [[aa+X]]
+            ($addr:expr ) => {
+                // TODO: Does this wrap with page?
+                // Need to do cast after wrapping add if so
+                bus.access_write(bus.read16(($addr as u16) + (self.x as u16)))
+            };
+        }
+        macro_rules! abs_x_ptr {
+            ($addr:expr ) => {
+                bus.read8(bus.read16($addr.wrapping_add(self.x) as u16))
+            };
+        }
+
+        // Ops
+        macro_rules! mov_reg_byte {
+            // reg = byte, affects negative, zero flags
+            ($reg:expr, $byte:expr, $op_length:expr, $op_cycles:expr) => {{
+                *$reg = $byte;
+                self.psw.n = ($byte & 0x80) > 0;
+                self.psw.z = $byte == 0x00;
+                self.pc = self.pc.wrapping_add($op_length);
+                $op_cycles
+            }};
+        }
+        macro_rules! mov_addr_byte {
+            // [addr] = byte, doesn't affect flags
+            ($mem_byte:expr, $byte:expr, $op_length:expr, $op_cycles:expr) => {{
+                *$mem_byte = $byte;
+                self.pc = self.pc.wrapping_add($op_length);
+                $op_cycles
+            }};
+        }
+
+        let op_code = bus.read8(self.pc);
+        // Pre-fetch operands for brevity
+        let b0 = bus.read8(self.pc.wrapping_add(1));
+        let b1 = bus.read8(self.pc.wrapping_add(2));
+        let op8 = b0;
+        let op16 = ((b1 as u16) << 8) | b0 as u16;
+
+        match op_code {
+            // MOV A,nn
+            0xE8 => mov_reg_byte!(&mut self.a, op8, 2, 2),
+            // MOV X,nn
+            0xCD => mov_reg_byte!(&mut self.x, op8, 2, 2),
+            // MOV Y,nn
+            0x8D => mov_reg_byte!(&mut self.x, op8, 2, 2),
+            // MOV A,X
+            0x7D => mov_reg_byte!(&mut self.a, self.x, 1, 2),
+            // MOV X,A
+            0x5D => mov_reg_byte!(&mut self.x, self.a, 1, 2),
+            // MOV A,Y
+            0xDD => mov_reg_byte!(&mut self.a, self.y, 1, 2),
+            // MOV Y,A
+            0xFD => mov_reg_byte!(&mut self.y, self.a, 1, 2),
+            // MOV X,SP
+            0x9D => mov_reg_byte!(&mut self.x, self.sp, 1, 2),
+            // MOV SP,X
+            0xBD => mov_reg_byte!(&mut self.sp, self.x, 1, 2),
+            // MOV A,[aa]
+            0xE4 => mov_reg_byte!(&mut self.a, abs!(op8), 2, 3),
+            // MOV A,[aa+X]
+            0xF4 => mov_reg_byte!(&mut self.a, abs!(op8, self.x), 2, 4),
+            // MOV A,[aaaa]
+            0xE5 => mov_reg_byte!(&mut self.a, abs!(op16), 3, 4),
+            // MOV A,[aaaa+X]
+            0xF5 => mov_reg_byte!(&mut self.a, abs!(op16, self.x), 3, 5),
+            // MOV A,[aaaa+Y]
+            0xF6 => mov_reg_byte!(&mut self.a, abs!(op16, self.y), 3, 5),
+            // MOV A,[X]
+            0xE6 => mov_reg_byte!(&mut self.a, abs!(self.x), 1, 3),
+            // MOV A,[X]+
+            0xBF => {
+                mov_reg_byte!(&mut self.a, abs!(self.x), 1, 4);
+                self.x = self.x.wrapping_add(1);
+                4
+            }
+            // MOV A,[[aa]+Y]
+            0xF7 => mov_reg_byte!(&mut self.a, abs_ptr_y!(op8), 2, 6),
+            // MOV A,[[aa+X]]
+            0xE7 => mov_reg_byte!(&mut self.a, abs_x_ptr!(op8), 2, 6),
+            // MOV X,[aa]
+            0xF8 => mov_reg_byte!(&mut self.x, abs!(op8), 2, 3),
+            // MOV X,[aa+Y]
+            0xF9 => mov_reg_byte!(&mut self.x, abs!(op8, self.y), 2, 4),
+            // MOV X,[aaaa]
+            0xE9 => mov_reg_byte!(&mut self.x, abs!(op16), 3, 4),
+            // MOV Y,[aa]
+            0xEB => mov_reg_byte!(&mut self.y, abs!(op8), 2, 3),
+            // MOV Y,[aa+X]
+            0xFB => mov_reg_byte!(&mut self.y, abs!(op8, self.x), 2, 4),
+            // MOV Y,[aaaa]
+            0xEC => mov_reg_byte!(&mut self.y, abs!(op16), 3, 4),
+            // MOVW YA,aa
+            0xBA => unimplemented!(), // len 2, cycles 5
+            // MOV [aa],nn
+            0x8F => mov_addr_byte!(mut_abs!(b1), b0, 3, 5),
+            // MOV [aa],[bb]
+            0xFA => mov_addr_byte!(mut_abs!(b1), abs!(b0), 3, 5),
+            // MOV [aa],A
+            0xC4 => mov_addr_byte!(mut_abs!(op8), self.a, 2, 4),
+            // MOV [aa],X
+            0xD8 => mov_addr_byte!(mut_abs!(op8), self.x, 2, 4),
+            // MOV [aa],Y
+            0xCB => mov_addr_byte!(mut_abs!(op8), self.y, 2, 4),
+            // MOV [aa+X],A
+            0xD4 => mov_addr_byte!(mut_abs!(op8, self.x), self.a, 2, 5),
+            // MOV [aa+X],Y
+            0xDB => mov_addr_byte!(mut_abs!(op8, self.x), self.y, 2, 5),
+            // MOV [aa+Y],X
+            0xD9 => mov_addr_byte!(mut_abs!(op8, self.y), self.x, 2, 5),
+            // MOV [aaaa],A
+            0xC5 => mov_addr_byte!(mut_abs!(op16), self.a, 3, 5),
+            // MOV [aaaa],X
+            0xC9 => mov_addr_byte!(mut_abs!(op16), self.x, 3, 5),
+            // MOV [aaaa],Y
+            0xCC => mov_addr_byte!(mut_abs!(op16), self.y, 3, 5),
+            // MOV [aaaa+X],A
+            0xD5 => mov_addr_byte!(mut_abs!(op16, self.x), self.a, 3, 6),
+            // MOV [aaaa+Y],A
+            0xD6 => mov_addr_byte!(mut_abs!(op16, self.y), self.a, 3, 6),
+            // MOV [X]+,A
+            0xAF => {
+                mov_addr_byte!(mut_abs!(self.x), self.a, 1, 4);
+                self.x = self.x.wrapping_add(1);
+                4
+            }
+            // MOV [X],A
+            0xC6 => mov_addr_byte!(mut_abs!(self.x), self.a, 1, 4),
+            // MOV [[aa]+Y],A
+            0xD7 => mov_addr_byte!(mut_abs_ptr_y!(op8), self.a, 2, 7),
+            // MOV [[aa+X]],A
+            0xC7 => mov_addr_byte!(mut_abs_x_ptr!(op8), self.a, 2, 7),
+            // MOVW [aa],YA
+            0xDA => unimplemented!(), // len 5
+            _ => unimplemented!(),
         }
     }
-    macro_rules! mov_addr_byte {
-        // [addr] = byte, doesn't affect flags
-        ($addr:expr, $byte:expr, $op_length:expr) => {
-            *bus.access_mut(addr) = byte;
-            $op_length
-        }
-    }
-
-
-    let op_code = bus.access(self.pc);
-    // Pre-fetch operands for brevity
-    let b0 =
-        bus.access(self.pc.wrapping_add(1));
-    let b1=
-        bus.access(self.pc.wrapping_add(2));
-    let op8 = b0;
-    let op16 =
-        ((b1 as u16) << 8)| b0as u16;
-
-    match op_code {
-        // MOV A,nn
-        0xE8 => mov_reg_byte!(self.a, op8,2),
-        // MOV X,nn
-        0xCD => mov_reg_byte!(self.x, op8,2),
-        // MOV Y,nn
-        0x8D => mov_reg_byte!(self.x, op8,2),
-        // MOV A,X
-        0x7D => mov_reg_byte!(self.a, self.x,2),
-        // MOV X,A
-        0x5D => mov_reg_byte!(self.x, self.a,2),
-        // MOV A,Y
-        0xDD => mov_reg_byte!(self.a, self.y,2),
-        // MOV Y,A
-        0xFD => mov_reg_byte!(self.y, self.a,2),
-        // MOV X,SP
-        0x9D => mov_reg_byte!(self.x, self.sp,2),
-        // MOV SP,X
-        0xBD => mov_reg_byte!(self.sp, self.x,2),
-        // MOV A,[aa]
-        0xE4 => mov_reg_byte!(self.a, abs!(op8),3),
-        // MOV A,[aa+X]
-        0xE5 => mov_reg_byte!(self.a, abs!(op8, self.x), 4),
-        // MOV A,[aaaa]
-        0xE5 => mov_reg_byte!(self.a, abs!(op16),4),
-        // MOV A,[aaaa+X]
-        0xF5 => mov_reg_byte!(self.a, abs!(op16, self.x),5),
-        // MOV A,[aaaa+Y]
-        0xF6 => mov_reg_byte!(self.a, abs!(op16, self.y),5),
-        // MOV A,[X]
-        0xE6 => mov_reg_byte!(self.a, abs!(self.x),3),
-        // MOV A,[X]+
-        0xBF => {mov_reg_byte!(self.a, abs!(self.x), 4);self.x.wrapping_add(1); 4},
-        // MOV A,[[aa]+Y]
-        0xF7 => mov_reg_byte!(self.a, abs_ptr_y!(op8),6),
-        // MOV A,[[aa+X]]
-        0xE7 => mov_reg_byte!(self.a, abs_x_ptr!(op8),6),
-        // MOV X,[aa]
-        0xF8 => mov_reg_byte!(self.x, abs!(op8),3),
-        // MOV X,[aa+Y]
-        0xF9 => mov_reg_byte!(self.x, abs!(op8, self.y),4),
-        // MOV X,[aaaa]
-        0xE9 => mov_reg_byte!(self.x, abs!(op16),4),
-        // MOV Y,[aa]
-        0xEB => mov_reg_byte!(self.y, abs!(op8),3),
-        // MOV Y,[aa+X]
-        0xFB => mov_reg_byte!(self.y, abs!(op8, self.x),4),
-        // MOV Y,[aaaa]
-        0xEC => mov_reg_byte!(self.y, abs!(op16),4),
-        // MOVW YA,aa
-        0xBA => unimplemented!()// len 5,
-        // MOV [aa],nn
-        0x8F => mov_addr_byte!(mut_abs!(b1), b0,5),
-        // MOV [aa],[bb]
-        0xFA => mov_addr_byte!(mut_abs!(b1), mut_abs!(b0),5),
-        // MOV [aa],A
-        0xC4 => mov_addr_byte!(mut_abs!(op8), self.a,4),
-        // MOV [aa],X
-        0xD8 => mov_addr_byte!(mut_abs!(op8), self.x,4),
-        // MOV [aa],Y
-        0xCB => mov_addr_byte!(mut_abs!(op8), self.y,4),
-        // MOV [aa+X],A
-        0xD4 => mov_addr_byte!(mut_abs!(op8, self.x), self.a,5),
-        // MOV [aa+X],Y
-        0xDB => mov_addr_byte!(mut_abs!(op8, self.x), self.y,5),
-        // MOV [aa+Y],X
-        0xD9 => mov_addr_byte!(mut_abs!(op8, self.y), self.x,5),
-        // MOV [aaaa],A
-        0xC5 => mov_addr_byte!(mut_abs!(op16), self.a,5),
-        // MOV [aaaa],X
-        0xC9 => mov_addr_byte!(mut_abs!(op16), self.x,5),
-        // MOV [aaaa],Y
-        0xCC => mov_addr_byte!(mut_abs!(op16), self.y,5),
-        // MOV [aaaa+X],A
-        0xD5 => mov_addr_byte!(mut_abs!(op16, self.x), self.a,6),
-        // MOV [aaaa+Y],A
-        0xD6 => mov_addr_byte!(mut_abs!(op16, self.y), self.a,6),
-        // MOV [X]+,A
-        0xAF => {mov_addr_byte!(mut_abs!(self.x), self.a,4);self.x.wrapping_add(1);4},
-        // MOV [X],A
-        0xC6 => mov_addr_byte!(mut_abs!(self.x), self.a,4),
-        // MOV [[aa]+Y],A
-        0xD7 => mov_addr_byte!(mut_abs_ptr_y!(op8), self.a,7),
-        // MOV [[aa+X]],A
-        0xC7 => mov_addr_byte!(mut_abs_x_ptr!(op8), self.a,7),
-    }
-}
-
-
 }
 
 /// The status register in SPC700
@@ -285,14 +302,14 @@ struct StatusReg {
 }
 
 // Status reg masks
-        const P_N: u8 = 0b1000_0000;
-        const P_V: u8 = 0b0100_0000;
-        const P_P: u8 = 0b0010_0000;
-        const P_B: u8 = 0b0001_0000;
-        const P_H: u8 = 0b0000_1000;
-        const P_I: u8 = 0b0000_0100;
-        const P_Z: u8 = 0b0000_0010;
-        const P_C: u8 = 0b0000_0001;
+const P_N: u8 = 0b1000_0000;
+const P_V: u8 = 0b0100_0000;
+const P_P: u8 = 0b0010_0000;
+const P_B: u8 = 0b0001_0000;
+const P_H: u8 = 0b0000_1000;
+const P_I: u8 = 0b0000_0100;
+const P_Z: u8 = 0b0000_0010;
+const P_C: u8 = 0b0000_0001;
 
 impl StatusReg {
     /// Initializes a new instance with default values (`m`, `x` and `i` are set)
@@ -318,13 +335,13 @@ impl StatusReg {
         if self.v {
             value |= P_V;
         }
-        if self.m {
+        if self.p {
             value |= P_P;
         }
-        if self.x {
+        if self.b {
             value |= P_B;
         }
-        if self.d {
+        if self.h {
             value |= P_H;
         }
         if self.i {
@@ -351,42 +368,3 @@ impl StatusReg {
         self.c = value & P_C > 0;
     }
 }
-
-
-// At $FFC0-$FFFF
-// Takes care of init and (initial) data transfer, though ROMs leverage transfer again by jumping to $FFC0
-const IPL_ROM = [
-    0xCD, 0xEF,
-    0xBD,
-    0xE8, 0x00,
-    0xC6,
-    0x1D,
-    0xD0, 0xFC,
-    0x8F, 0xAA,0xF4
-    0x8F, 0xBB,0xF5
-    0x78, 0xCC,0xF4
-    0xD0, 0xFB,
-    0x2F, 0x19,
-    0xEB, 0xF4,
-    0xD0, 0xFC,
-    0x7E, 0xF4,
-    0xD0, 0x0B,
-    0xE4, 0xF5,
-    0xCB, 0xF4,
-    0xD7, 0x00,
-    0xFC,
-    0xD0, 0xF3,
-    0xAB, 0x01,
-    0x10, 0xEF,
-    0x7E, 0xF4,
-    0x10, 0xEB,
-    0xBA, 0xF6,
-    0xDA, 0x00,
-    0xBA, 0xF4,
-    0xC4, 0xF4,
-    0xDD,
-    0x5D,
-    0xD0, 0xDB,
-    0x1F, 0x00,0x00
-    0xC0, 0xFF,
-];

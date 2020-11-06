@@ -4,6 +4,7 @@ use std::u32;
 
 use log::error;
 use super_rustycom_core::abus::ABus;
+use super_rustycom_core::apu::smp::SPC700;
 use super_rustycom_core::cpu::W65C816S;
 
 pub struct Debugger {
@@ -143,7 +144,7 @@ impl Debugger {
                         }
                     }
                 }
-                "cpu" => println!("{}", status_str(cpu).join("\n")),
+                "cpu" => println!("{}", cpu_status_str(cpu).join("\n")),
                 "run" | "r" => self.state = DebugState::Run,
                 "reset" => cpu.reset(abus),
                 "exit" => self.state = DebugState::Quit,
@@ -399,7 +400,7 @@ fn disassemble(addr: u32, cpu: &W65C816S, abus: &mut ABus) -> String {
     [raw_header, disassembled].join("")
 }
 
-fn status_reg_str(cpu: &W65C816S) -> String {
+fn cpu_status_reg_str(cpu: &W65C816S) -> String {
     let mut status = String::new();
     status.push(if cpu.e() { 'E' } else { 'e' });
     status.push(if cpu.p_n() { 'N' } else { 'n' });
@@ -413,7 +414,7 @@ fn status_reg_str(cpu: &W65C816S) -> String {
     status
 }
 
-pub fn status_str(cpu: &W65C816S) -> [String; 12] {
+pub fn cpu_status_str(cpu: &W65C816S) -> [String; 12] {
     [
         format!("A: ${:04X}", cpu.a()),
         format!("X: ${:04X}", cpu.x()),
@@ -423,10 +424,35 @@ pub fn status_str(cpu: &W65C816S) -> [String; 12] {
         format!("DB:${:02X}", cpu.db()),
         format!("D: ${:04X}", cpu.d()),
         format!("S: ${:04X}", cpu.s()),
-        format!("P: {}", status_reg_str(cpu)),
+        format!("P: {}", cpu_status_reg_str(cpu)),
         format!("E: {}", cpu.e()),
         format!("Stopped:{}", cpu.stopped()),
         format!("Waiting:{}", cpu.waiting()),
+    ]
+}
+
+fn smp_status_reg_str(smp: &SPC700) -> String {
+    let mut status = String::new();
+    status.push(if smp.psw_n() { 'N' } else { 'n' });
+    status.push(if smp.psw_v() { 'V' } else { 'v' });
+    status.push(if smp.psw_p() { 'P' } else { 'p' });
+    status.push(if smp.psw_b() { 'B' } else { 'b' });
+    status.push(if smp.psw_h() { 'H' } else { 'h' });
+    status.push(if smp.psw_i() { 'I' } else { 'i' });
+    status.push(if smp.psw_z() { 'Z' } else { 'z' });
+    status.push(if smp.psw_c() { 'C' } else { 'c' });
+    status
+}
+
+pub fn smp_status_str(smp: &SPC700) -> [String; 7] {
+    [
+        format!("A: ${:02X}", smp.a()),
+        format!("X: ${:02X}", smp.x()),
+        format!("Y: ${:02X}", smp.y()),
+        format!("SP:${:02X}", smp.sp()),
+        format!("PSW: {}", smp_status_reg_str(smp)),
+        format!("YA:${:04X}", smp.ya()),
+        format!("PC:${:04X}", smp.pc()),
     ]
 }
 
