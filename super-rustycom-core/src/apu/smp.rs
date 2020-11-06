@@ -149,6 +149,13 @@ impl SPC700 {
                 4
             }};
         }
+        macro_rules! pull {
+            ($reg:expr) => {{
+                self.sp = self.sp.wrapping_add(1);
+                *$reg = bus.read8(0x0010 & (self.sp as u16));
+                4
+            }};
+        }
 
         let op_code = bus.read8(self.pc);
         // Pre-fetch operands for brevity
@@ -260,6 +267,14 @@ impl SPC700 {
             0x6D => push!(self.y),
             // PUSH Y
             0x0D => push!(self.psw.value),
+            // PULL A
+            0xAE => pull!(&mut self.a),
+            // PULL X
+            0xCE => pull!(&mut self.x),
+            // PULL Y
+            0xEE => pull!(&mut self.y),
+            // PULL Y
+            0x8E => pull!(&mut self.psw.value),
             _ => unimplemented!(),
         }
     }
