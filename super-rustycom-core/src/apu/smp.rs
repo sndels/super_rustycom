@@ -156,6 +156,61 @@ impl SPC700 {
                 4
             }};
         }
+        macro_rules! or {
+            ($lhs:expr, $rhs:expr) => {{
+                *$lhs = *$lhs | $rhs;
+                self.psw.set_n(($rhs & 0x80) > 0);
+                self.psw.set_z($rhs == 0x00);
+            }};
+        }
+        macro_rules! and {
+            ($lhs:expr, $rhs:expr) => {{
+                *$lhs = *$lhs & $rhs;
+                self.psw.set_n(($rhs & 0x80) > 0);
+                self.psw.set_z($rhs == 0x00);
+            }};
+        }
+        macro_rules! xor {
+            ($lhs:expr, $rhs:expr) => {{
+                *$lhs = *$lhs ^ $rhs;
+                self.psw.set_n(($rhs & 0x80) > 0);
+                self.psw.set_z($rhs == 0x00);
+            }};
+        }
+        macro_rules! cmp {
+            ($lhs:expr, $rhs:expr) => {{
+                let result = ($lhs as u16) + (!$rhs as u16);
+                self.psw.set_n(((result as u8) & 0x80) > 0);
+                self.psw.set_z((result as u8) == 0x00);
+                self.psw.set_c(result > 0xFF);
+            }};
+        }
+        macro_rules! adc {
+            ($lhs:expr, $rhs:expr) => {{
+                let result = ($lhs as u16) + ($rhs as u16) + (self.pwc.c() as u16);
+                self.psw.set_n(((result as u8) & 0x80) > 0);
+                self.psw.set_z((result as u8) == 0x00);
+                self.psw.set_c(result > 0xFF);
+                self.psw.set_v(
+                    (lhs < 0x80 && rhs < 0x80 && result8 > 0x7F)
+                        || (lhs > 0x7F && rhs > 0x7F && result8 < 0x80),
+                );
+                // TODO: H
+            }};
+        }
+        macro_rules! sbc {
+            ($lhs:expr, $rhs:expr) => {{
+                let result = ($lhs as u16) + (!$rhs as u16) + (self.pwc.c() as u16);
+                self.psw.set_n(((result as u8) & 0x80) > 0);
+                self.psw.set_z((result as u8) == 0x00);
+                self.psw.set_c(result > 0xFF);
+                self.psw.set_v(
+                    (lhs < 0x80 && rhs < 0x80 && result8 > 0x7F)
+                        || (lhs > 0x7F && rhs > 0x7F && result8 < 0x80),
+                );
+                // TODO: H
+            }};
+        }
 
         let op_code = bus.read8(self.pc);
         // Pre-fetch operands for brevity
