@@ -433,26 +433,26 @@ pub fn cpu_status_str(cpu: &W65C816S) -> [String; 12] {
 
 fn smp_status_reg_str(smp: &SPC700) -> String {
     let mut status = String::new();
-    status.push(if smp.psw_n() { 'N' } else { 'n' });
-    status.push(if smp.psw_v() { 'V' } else { 'v' });
-    status.push(if smp.psw_p() { 'P' } else { 'p' });
-    status.push(if smp.psw_b() { 'B' } else { 'b' });
-    status.push(if smp.psw_h() { 'H' } else { 'h' });
-    status.push(if smp.psw_i() { 'I' } else { 'i' });
-    status.push(if smp.psw_z() { 'Z' } else { 'z' });
-    status.push(if smp.psw_c() { 'C' } else { 'c' });
+    status.push(if smp.psw().n() { 'N' } else { 'n' });
+    status.push(if smp.psw().v() { 'V' } else { 'v' });
+    status.push(if smp.psw().p() { 'P' } else { 'p' });
+    status.push(if smp.psw().b() { 'B' } else { 'b' });
+    status.push(if smp.psw().h() { 'H' } else { 'h' });
+    status.push(if smp.psw().i() { 'I' } else { 'i' });
+    status.push(if smp.psw().z() { 'Z' } else { 'z' });
+    status.push(if smp.psw().c() { 'C' } else { 'c' });
     status
 }
 
 pub fn smp_status_str(smp: &SPC700) -> [String; 7] {
     [
-        format!("A: ${:02X}", smp.a()),
-        format!("X: ${:02X}", smp.x()),
-        format!("Y: ${:02X}", smp.y()),
-        format!("SP:${:02X}", smp.sp()),
-        format!("PSW: {}", smp_status_reg_str(smp)),
-        format!("YA:${:04X}", smp.ya()),
-        format!("PC:${:04X}", smp.pc()),
+        format!("A:  ${:02X}", smp.a()),
+        format!("X:  ${:02X}", smp.x()),
+        format!("Y:  ${:02X}", smp.y()),
+        format!("SP: ${:02X}", smp.sp()),
+        format!("PSW:{}", smp_status_reg_str(smp)),
+        format!("YA: ${:04X}", smp.ya()),
+        format!("PC: ${:04X}", smp.pc()),
     ]
 }
 

@@ -57,44 +57,14 @@ impl SPC700 {
     pub fn sp(&self) -> u8 {
         self.sp
     }
+    pub fn psw(&self) -> &StatusReg {
+        &self.psw
+    }
     pub fn ya(&self) -> u16 {
         self.ya
     }
     pub fn pc(&self) -> u16 {
         self.pc
-    }
-
-    /// Returns the value of the negative flag
-    pub fn psw_n(&self) -> bool {
-        self.psw.n
-    }
-    /// Returns the value of the overflow flag
-    pub fn psw_v(&self) -> bool {
-        self.psw.v
-    }
-    /// Returns the value of the zero page location flag
-    pub fn psw_p(&self) -> bool {
-        self.psw.p
-    }
-    /// Returns the value of the break flag
-    pub fn psw_b(&self) -> bool {
-        self.psw.b
-    }
-    /// Returns the value of the half carry flag
-    pub fn psw_h(&self) -> bool {
-        self.psw.h
-    }
-    /// Returns the value of the interrupt flag
-    pub fn psw_i(&self) -> bool {
-        self.psw.i
-    }
-    /// Returns the value of the zero flag
-    pub fn psw_z(&self) -> bool {
-        self.psw.z
-    }
-    /// Returns the value of the carry flag
-    pub fn psw_c(&self) -> bool {
-        self.psw.c
     }
 
     /// Executes the instruction pointed by `PC` and returns the cycles it took
@@ -104,26 +74,26 @@ impl SPC700 {
         macro_rules! mut_abs {
             // [aa], [aaaa]
             ($addr:expr) => {{
-                let page = (self.psw_p() as u16) << 8;
+                let page = (self.psw.p() as u16) << 8;
                 bus.access_write(page | $addr as u16)
             }};
 
             // [aa+X], [aa+Y], [aaaa+X], [aaaa+Y]
             ($addr:expr, $reg:expr) => {{
-                let page = (self.psw_p() as u16) << 8;
+                let page = (self.psw.p() as u16) << 8;
                 bus.access_write(((page | $addr as u16) + $reg as u16) & (page | 0x00FF))
             }};
         }
         macro_rules! abs {
             // [aa], [aaaa]
             ($addr:expr) => {{
-                let page = (self.psw_p() as u16) << 8;
+                let page = (self.psw.p() as u16) << 8;
                 bus.read8(page | $addr as u16)
             }};
 
             // [aa+X], [aa+Y], [aaaa+X], [aaaa+Y]
             ($addr:expr, $reg:expr) => {{
-                let page = (self.psw_p() as u16) << 8;
+                let page = (self.psw.p() as u16) << 8;
                 bus.read8(((page | $addr as u16) + $reg as u16) & (page | 0x00FF))
             }};
         }
@@ -157,8 +127,8 @@ impl SPC700 {
             // reg = byte, affects negative, zero flags
             ($reg:expr, $byte:expr, $op_length:expr, $op_cycles:expr) => {{
                 *$reg = $byte;
-                self.psw.n = ($byte & 0x80) > 0;
-                self.psw.z = $byte == 0x00;
+                self.psw.set_n(($byte & 0x80) > 0);
+                self.psw.set_z($byte == 0x00);
                 self.pc = self.pc.wrapping_add($op_length);
                 $op_cycles
             }};
@@ -169,6 +139,14 @@ impl SPC700 {
                 *$mem_byte = $byte;
                 self.pc = self.pc.wrapping_add($op_length);
                 $op_cycles
+            }};
+        }
+        macro_rules! push {
+            ($byte:expr) => {{
+                *bus.access_write(0x0010 & (self.sp as u16)) = $byte;
+                self.sp = self.sp.wrapping_sub(1);
+                self.pc = self.pc.wrapping_add(1);
+                4
             }};
         }
 
@@ -274,6 +252,14 @@ impl SPC700 {
             0xC7 => mov_addr_byte!(mut_abs_x_ptr!(op8), self.a, 2, 7),
             // MOVW [aa],YA
             0xDA => unimplemented!(), // len 5
+            // PUSH A
+            0x2D => push!(self.a),
+            // PUSH X
+            0x4D => push!(self.x),
+            // PUSH Y
+            0x6D => push!(self.y),
+            // PUSH Y
+            0x0D => push!(self.psw.value),
             _ => unimplemented!(),
         }
     }
@@ -281,24 +267,17 @@ impl SPC700 {
 
 /// The status register in SPC700
 #[derive(Clone)]
-struct StatusReg {
+pub struct StatusReg {
+    /// Flags in order from MSb to SLb
     /// Negative (0 = positive, 1 = negative)
-    n: bool,
     /// Overflow (0 = no overflow, 1 = overflow)
-    v: bool,
     /// Zero page location (0 = $00xx, 1 = $01xx)
-    p: bool,
     /// Break flag (0 = reset, 1 = BRK)
-    b: bool,
     /// Half carry (0 = borrow or no-carry, 1 = carry or no-borrow)
-    h: bool,
-    /// Interrupt flag (0 = enable, 1 = disable)
-    /// No function in SNES APU
-    i: bool,
+    /// Interrupt flag (0 = enable, 1 = disable) No function in SNES APU
     /// Zero flag (0 = non-zero, 1 = zero)
-    z: bool,
     /// Carry flag (0 = no carry, 1 = carry)
-    c: bool,
+    value: u8,
 }
 
 // Status reg masks
@@ -311,60 +290,84 @@ const P_I: u8 = 0b0000_0100;
 const P_Z: u8 = 0b0000_0010;
 const P_C: u8 = 0b0000_0001;
 
+macro_rules! set_bit {
+    ($reg:expr, $bit_mask:expr, $cond:expr) => {
+        // From seander's bit twiddling hacks
+        *$reg = if $cond {
+            *$reg | $bit_mask
+        } else {
+            *$reg & !$bit_mask
+        }
+    };
+}
+
 impl StatusReg {
     /// Initializes a new instance with default values (`m`, `x` and `i` are set)
     pub fn new() -> StatusReg {
-        StatusReg {
-            n: false,
-            v: false,
-            p: false,
-            b: false,
-            h: false,
-            i: false,
-            z: false,
-            c: false,
-        }
+        StatusReg { value: 0x00 }
     }
 
-    /// Returns the u8 value of the register as it would be in hardware
-    fn value(&self) -> u8 {
-        let mut value: u8 = 0b0000_0000;
-        if self.n {
-            value |= P_N;
-        }
-        if self.v {
-            value |= P_V;
-        }
-        if self.p {
-            value |= P_P;
-        }
-        if self.b {
-            value |= P_B;
-        }
-        if self.h {
-            value |= P_H;
-        }
-        if self.i {
-            value |= P_I;
-        }
-        if self.z {
-            value |= P_Z;
-        }
-        if self.c {
-            value |= P_C;
-        }
-        value
+    pub fn n(&self) -> bool {
+        self.value & P_N > 0
     }
 
-    /// Sets the register to `value`
-    fn set_value(&mut self, value: u8) {
-        self.n = value & P_N > 0;
-        self.v = value & P_V > 0;
-        self.p = value & P_P > 0;
-        self.b = value & P_B > 0;
-        self.h = value & P_H > 0;
-        self.i = value & P_I > 0;
-        self.z = value & P_Z > 0;
-        self.c = value & P_C > 0;
+    pub fn v(&self) -> bool {
+        self.value & P_V > 0
+    }
+
+    pub fn p(&self) -> bool {
+        self.value & P_P > 0
+    }
+
+    pub fn b(&self) -> bool {
+        self.value & P_B > 0
+    }
+
+    pub fn h(&self) -> bool {
+        self.value & P_H > 0
+    }
+
+    pub fn i(&self) -> bool {
+        self.value & P_I > 0
+    }
+
+    pub fn z(&self) -> bool {
+        self.value & P_Z > 0
+    }
+
+    pub fn c(&self) -> bool {
+        self.value & P_C > 0
+    }
+
+    pub fn set_n(&mut self, value: bool) {
+        set_bit!(&mut self.value, P_N, value);
+    }
+
+    pub fn set_v(&mut self, value: bool) {
+        set_bit!(&mut self.value, P_V, value);
+    }
+
+    pub fn set_p(&mut self, value: bool) {
+        set_bit!(&mut self.value, P_P, value);
+    }
+
+    pub fn set_b(&mut self, value: bool) {
+        set_bit!(&mut self.value, P_B, value);
+    }
+
+    pub fn set_h(&mut self, value: bool) {
+        set_bit!(&mut self.value, P_H, value);
+    }
+
+    pub fn set_i(&mut self, value: bool) {
+        set_bit!(&mut self.value, P_I, value);
+    }
+
+    pub fn set_z(&mut self, value: bool) {
+        set_bit!(&mut self.value, P_Z, value);
+    }
+
+    pub fn set_c(&mut self, value: bool) {
+        set_bit!(&mut self.value, P_C, value);
     }
 }
