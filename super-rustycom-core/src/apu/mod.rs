@@ -19,10 +19,10 @@ impl APU {
     }
 
     /// Steps the entire APU and returns SMP cycles evaluated as well as the state of the IO ports
-    pub fn step(&mut self, io: &ApuIo) -> (u8, &ApuIo) {
-        self.bus.copy_cpu_io(io);
+    pub fn step(&mut self, io: ApuIo) -> (u8, ApuIo) {
+        self.bus.write_cpu_io(io);
         let cycles = self.smp.step(&mut self.bus);
-        let io = self.bus.io();
+        let io = self.bus.apu_io();
         (cycles, io)
     }
 }

@@ -47,7 +47,8 @@ pub struct ABus {
     /// Memory-2 waitstate control
     memsel: u8,
     /// APU communication
-    apu_io: ApuIo,
+    apu_io_r: ApuIo,
+    apu_io_w: ApuIo,
     /// Lower 8bit of WRAM address used by WMDATA reads
     wm_add_l: u8,
     /// Middle 8bit of WRAM address used by WMDATA reads
@@ -80,7 +81,8 @@ impl ABus {
             htime: 0x01FF,
             vtime: 0x01FF,
             memsel: 0x00,
-            apu_io: ApuIo::new(),
+            apu_io_r: ApuIo::default(),
+            apu_io_w: ApuIo::default(),
             wm_add_l: 0x00,
             wm_add_m: 0x00,
             wm_add_h: 0x00,
@@ -107,7 +109,8 @@ impl ABus {
             htime: 0x01FF,
             vtime: 0x01FF,
             memsel: 0x00,
-            apu_io: ApuIo::new(),
+            apu_io_r: ApuIo::default(),
+            apu_io_w: ApuIo::default(),
             wm_add_l: 0x00,
             wm_add_m: 0x00,
             wm_add_h: 0x00,
@@ -130,12 +133,12 @@ impl ABus {
         &self.cgram
     }
 
-    pub fn apu_io(&self) -> &ApuIo {
-        &self.apu_io
+    pub fn apu_io(&self) -> ApuIo {
+        self.apu_io_w
     }
 
-    pub fn copy_smp_io(&mut self, io: &ApuIo) {
-        self.apu_io.copy_smp(io);
+    pub fn write_smp_io(&mut self, io: ApuIo) {
+        self.apu_io_r = io;
     }
 
     fn cpu_read_sys(&mut self, addr: usize) -> u8 {
@@ -150,8 +153,8 @@ impl ABus {
             }
             mmap::APU_IO_FIRST..=mmap::APU_IO_LAST => {
                 // APU IO
-                let port = if addr < 0x2144 { addr } else { addr - 4 };
-                self.apu_io.cpu_read(port)
+                let port = if addr < 0x2144 { addr } else { addr - 4 } as u8;
+                self.apu_io_r.read(port)
             }
             mmap::WMDATA => {
                 // Get current address
@@ -303,8 +306,8 @@ impl ABus {
             }
             mmap::APU_IO_FIRST..=mmap::APU_IO_LAST => {
                 // APU IO
-                let port = if addr < 0x2144 { addr } else { addr - 4 };
-                self.apu_io.cpu_write(port, value);
+                let port = if addr < 0x2144 { addr } else { addr - 4 } as u8;
+                self.apu_io_w.write(port, value);
             }
             mmap::WMDATA => {
                 let wram_addr = ((self.wm_add_h as usize) << 16)

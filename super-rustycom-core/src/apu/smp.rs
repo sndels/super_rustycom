@@ -41,7 +41,7 @@ impl SPC700 {
             sp: 0x00,
             psw: StatusReg::new(),
             ya: 0x0000,
-            pc: 0xFFC0,
+            pc: 0x0000,
         }
     }
 
@@ -75,74 +75,74 @@ impl SPC700 {
             // !ad
             ($addr:expr) => {{
                 let page = (self.psw.p() as u16) << 8;
-                bus.access_write8(page | $addr as u16)
+                bus.mut_byte(page | ($addr as u16))
             }};
 
             // !ad + reg
             ($addr:expr, $reg:expr) => {{
                 let page = (self.psw.p() as u16) << 8;
-                bus.access_write8(((page | $addr as u16) + $reg as u16) & (page | 0x00FF))
+                bus.mut_byte(((page | $addr as u16) + $reg as u16) & (page | 0x00FF))
             }};
         }
         macro_rules! dp {
             // !ad
             ($addr:expr) => {{
                 let page = (self.psw.p() as u16) << 8;
-                bus.read8(page | $addr as u16)
+                bus.byte(page | ($addr as u16))
             }};
 
             // !ad + reg
             ($addr:expr, $reg:expr) => {{
                 let page = (self.psw.p() as u16) << 8;
-                bus.read8(((page | $addr as u16) + $reg as u16) & (page | 0x00FF))
+                bus.byte(((page | $addr as u16) + $reg as u16) & (page | 0x00FF))
             }};
         }
         macro_rules! mut_dp_word {
             // !ad
             ($addr:expr) => {{
                 let page = (self.psw.p() as u16) << 8;
-                bus.access_page_write16(page | $addr as u16)
+                bus.write_word(page | ($addr as u16))
             }};
         }
         macro_rules! dp_word {
             // !ad
             ($addr:expr) => {{
                 let page = (self.psw.p() as u16) << 8;
-                bus.read16(page | $addr as u16)
+                bus.word(page | ($addr as u16))
             }};
         }
         macro_rules! mut_abs {
             // !addr
             ($addr:expr) => {
-                bus.access_write8($addr as u16)
+                bus.mut_byte($addr as u16)
             };
 
             // !addr + reg
             ($addr:expr, $reg:expr) => {
-                bus.access_write8($addr.wrapping_add($reg as u16))
+                bus.mut_byte($addr.wrapping_add($reg as u16))
             };
         }
         macro_rules! abs {
             // !addr
             ($addr:expr) => {
-                bus.read8($addr as u16)
+                bus.byte($addr as u16)
             };
 
             // !addr + reg
             ($addr:expr, $reg:expr) => {
-                bus.read8($addr.wrapping_add($reg as u16))
+                bus.byte($addr.wrapping_add($reg as u16))
             };
         }
         macro_rules! mut_ind_y {
             // [addr]+Y
             ($addr:expr ) => {
-                bus.access_write8(bus.read16($addr as u16).wrapping_add(self.y as u16))
+                bus.mut_byte(bus.word($addr as u16).wrapping_add(self.y as u16))
             };
         }
         macro_rules! ind_y {
             // [ad]+Y
             ($addr:expr ) => {
-                bus.read8(bus.read16($addr as u16).wrapping_add(self.y as u16))
+                bus.byte(bus.word($addr as u16).wrapping_add(self.y as u16))
             };
         }
         macro_rules! mut_x_ind {
@@ -150,13 +150,13 @@ impl SPC700 {
             ($addr:expr ) => {
                 // TODO: Does this wrap with page?
                 // Need to do cast after wrapping add if so
-                bus.access_write8(bus.read16(($addr as u16) + (self.x as u16)))
+                bus.mut_byte(bus.word(($addr as u16) + (self.x as u16)))
             };
         }
         macro_rules! x_ind {
             // [addr+X]
             ($addr:expr ) => {
-                bus.read8(bus.read16($addr.wrapping_add(self.x) as u16))
+                bus.byte(bus.word($addr.wrapping_add(self.x) as u16))
             };
         }
 
@@ -181,7 +181,7 @@ impl SPC700 {
         macro_rules! push {
             // Push byte to stack
             ($byte:expr) => {{
-                *bus.access_write8(0x0010 & (self.sp as u16)) = $byte;
+                *bus.mut_byte(0x0010 & (self.sp as u16)) = $byte;
                 self.sp = self.sp.wrapping_sub(1);
                 self.pc = self.pc.wrapping_add(1);
                 4
@@ -191,7 +191,7 @@ impl SPC700 {
             // Pull byte from stack
             ($reg:expr) => {{
                 self.sp = self.sp.wrapping_add(1);
-                *$reg = bus.read8(0x0010 & (self.sp as u16));
+                *$reg = bus.byte(0x0010 & (self.sp as u16));
                 4
             }};
         }
@@ -337,10 +337,10 @@ impl SPC700 {
             }};
         }
 
-        let op_code = bus.read8(self.pc);
+        let op_code = bus.byte(self.pc);
         // Pre-fetch operands for brevity
-        let b0 = bus.read8(self.pc.wrapping_add(1));
-        let b1 = bus.read8(self.pc.wrapping_add(2));
+        let b0 = bus.byte(self.pc.wrapping_add(1));
+        let b1 = bus.byte(self.pc.wrapping_add(2));
         let op8 = b0;
         let op16 = ((b1 as u16) << 8) | b0 as u16;
 
@@ -699,6 +699,20 @@ impl SPC700 {
                 self.y = (result >> 8) as u8;
                 self.a = result as u8;
 
+                self.pc = self.pc.wrapping_add(2);
+                5
+            }
+            // MOVW YA,dp  affects N,Z
+            0xBA => {
+                let page = (self.psw.p() as u16) << 8;
+                self.ya = bus.word(page | (op8 as u16));
+                self.pc = self.pc.wrapping_add(2);
+                5
+            }
+            // MOVW dp,YA
+            0xBA => {
+                let page = (self.psw.p() as u16) << 8;
+                bus.write_word(page | (op8 as u16), self.ya);
                 self.pc = self.pc.wrapping_add(2);
                 5
             }

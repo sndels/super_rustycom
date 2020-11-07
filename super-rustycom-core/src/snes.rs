@@ -44,7 +44,7 @@ impl SNES {
                 );
                 cpu_cycles += self.cpu.step(&mut self.abus) as u128;
                 let (_, apu_io) = self.apu.step(self.abus.apu_io());
-                self.abus.copy_smp_io(apu_io);
+                self.abus.write_smp_io(apu_io);
             } else {
                 hit_breakpoint = true;
                 break;
