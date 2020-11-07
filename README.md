@@ -5,4 +5,5 @@ This is my ongoing SNES-emulator project written in Rust. So far I've implemente
 The stuff I've used as reference so far:\
 [65c816 opcodes](http://6502.org/tutorials/65c816opcodes.html)\
 [nocash specs](http://problemkaputt.de/fullsnes.htm)\
+[SFC Development Wiki](https://wiki.superfamicom.org/)\
 [Geiger's Snes9x Debugger](https://www.romhacking.net/utilities/241/)
