@@ -5,7 +5,7 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "(Windows) Client Release",
+            "name": "(CppVSDbg) Client Release",
             "type": "cppvsdbg",
             "request": "launch",
             "program": "${workspaceFolder}/super-rustycom-client/target/release/super_rustycom_client.exe",
@@ -17,7 +17,16 @@
             "preLaunchTask": "Build Release Client"
         },
         {
-            "name": "(Windows) Client Debug",
+            "name": "(LLDB) Client Release",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/super-rustycom-client/target/release/super_rustycom_client",
+            "args": [],
+            "cwd": "${workspaceFolder}/super-rustycom-client/target/release",
+            "preLaunchTask": "Build Release Client"
+        },
+        {
+            "name": "(CppVSDbg) Client Debug",
             "type": "cppvsdbg",
             "request": "launch",
             "program": "${workspaceFolder}/super-rustycom-client/target/debug/super_rustycom_client.exe",
@@ -26,6 +35,15 @@
             "cwd": "${workspaceFolder}/super-rustycom-client/target/debug",
             "environment": [],
             "externalConsole": true,
+            "preLaunchTask": "Build Debug Client"
+        },
+        {
+            "name": "(LLDB) Client Debug",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/super-rustycom-client/target/debug/super_rustycom_client",
+            "args": [],
+            "cwd": "${workspaceFolder}/super-rustycom-client/target/debug",
             "preLaunchTask": "Build Debug Client"
         }
     ]
