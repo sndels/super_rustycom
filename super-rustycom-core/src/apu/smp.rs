@@ -19,6 +19,7 @@ pub struct SPC700 {
     /// `B`reak
     ///
     /// `H`alf carry
+    /// Indicates a carry from the lower BCD nibble to the upper nibble
     ///
     /// `I`nterrupt
     ///
@@ -71,6 +72,7 @@ impl SPC700 {
     pub fn step(&mut self, bus: &mut Bus) -> u8 {
         // Addressing macros return a reference to the byte at the addressed location
         // mut_-versions return mutable reference
+        // TODO: Go through wrapping rules for dp, absolute and writes, see anomie
         macro_rules! mut_dp {
             // !ad
             ($addr:expr) => {{
@@ -95,13 +97,6 @@ impl SPC700 {
             ($addr:expr, $reg:expr) => {{
                 let page = (self.psw.p() as u16) << 8;
                 bus.byte(((page | $addr as u16) + $reg as u16) & (page | 0x00FF))
-            }};
-        }
-        macro_rules! mut_dp_word {
-            // !ad
-            ($addr:expr) => {{
-                let page = (self.psw.p() as u16) << 8;
-                bus.write_word(page | ($addr as u16))
             }};
         }
         macro_rules! dp_word {
@@ -134,28 +129,32 @@ impl SPC700 {
             };
         }
         macro_rules! mut_ind_y {
-            // [addr]+Y
+            // [ad]+Y
             ($addr:expr ) => {
+                // TODO: Does this honor current direct page?
                 bus.mut_byte(bus.word($addr as u16).wrapping_add(self.y as u16))
             };
         }
         macro_rules! ind_y {
             // [ad]+Y
             ($addr:expr ) => {
+                // TODO: Does this honor current direct page?
                 bus.byte(bus.word($addr as u16).wrapping_add(self.y as u16))
             };
         }
         macro_rules! mut_x_ind {
-            // [addr+X]
+            // [ad+X]
             ($addr:expr ) => {
-                // TODO: Does this wrap with page?
-                // Need to do cast after wrapping add if so
-                bus.mut_byte(bus.word(($addr as u16) + (self.x as u16)))
+                // TODO: Does this honor current direct page?
+                // TODO: Does this really with page?
+                bus.mut_byte(bus.word($addr.wrapping_add(self.x) as u16))
             };
         }
         macro_rules! x_ind {
-            // [addr+X]
+            // [ad+X]
             ($addr:expr ) => {
+                // TODO: Does this honor current direct page?
+                // TODO: Does this really with page?
                 bus.byte(bus.word($addr.wrapping_add(self.x) as u16))
             };
         }
@@ -165,7 +164,7 @@ impl SPC700 {
             // reg = byte, affects N, Z
             ($reg:expr, $byte:expr, $op_length:expr, $op_cycles:expr) => {{
                 *$reg = $byte;
-                self.psw.set_n_z($byte);
+                self.psw.set_n_z_byte($byte);
                 self.pc = self.pc.wrapping_add($op_length);
                 $op_cycles
             }};
@@ -215,7 +214,7 @@ impl SPC700 {
             // nocash and ferris do
             ($lhs:expr, $rhs:expr) => {{
                 let result = *$lhs | $rhs;
-                self.psw.set_n_z(result);
+                self.psw.set_n_z_byte(result);
                 *$lhs = result;
             }};
         }
@@ -223,7 +222,7 @@ impl SPC700 {
             // lhs = lhs & rhs, afects N,Z
             ($lhs:expr, $rhs:expr) => {{
                 let result = *$lhs & $rhs;
-                self.psw.set_n_z(result);
+                self.psw.set_n_z_byte(result);
                 *$lhs = result;
             }};
         }
@@ -231,7 +230,7 @@ impl SPC700 {
             // lhs = lhs ^ rhs, afects N,Z
             ($lhs:expr, $rhs:expr) => {{
                 let result = *$lhs ^ $rhs;
-                self.psw.set_n_z(result);
+                self.psw.set_n_z_byte(result);
                 *$lhs = result;
             }};
         }
@@ -239,33 +238,37 @@ impl SPC700 {
             // lhs - rhs, afects N,Z,C
             ($lhs:expr, $rhs:expr) => {{
                 let result = ($lhs as u16) + (!$rhs as u16);
-                self.psw.set_n_z_c(result);
+                self.psw.set_n_z_c_byte(result);
             }};
         }
         macro_rules! set_adc_sbc_flags8 {
             ($lhs:expr, $rhs:expr, $result:expr) => {{
-                self.psw.set_n_z_c($result);
+                self.psw.set_n_z_c_byte($result);
                 let result8 = $result as u8;
                 self.psw.set_v(
                     ($lhs < 0x80 && $rhs < 0x80 && result8 > 0x7F)
                         || ($lhs > 0x7F && $rhs > 0x7F && result8 < 0x80),
                 );
-                // TODO: H
+                // BCD carry from lower nibble to upper
+                self.psw.set_h(($lhs & 0x0F) + ($rhs & 0x0F) > 0x0F);
             }};
         }
         macro_rules! addw_subw_end {
             ($rhs:expr, $result:expr) => {{
-                self.psw.set_n($result & 0x8000 > 0);
-                self.psw.set_z($result == 0x0000);
-                self.psw.set_c($result > 0xFFFF);
+                self.psw.set_n_z_c_word($result);
                 let result16 = $result as u16;
+
                 self.psw.set_v(
                     (self.ya < 0x8000 && $rhs < 0x8000 && result16 > 0x7FFF)
                         || (self.ya > 0x7FFF && $rhs > 0x7FFF && result16 < 0x8000),
                 );
-                // TODO: H
+                // BCD carry from lower nibble to upper
+                self.psw
+                    .set_h((self.ya & 0x00FF) + ($rhs & 0x00FF) > 0x00FF);
+
                 self.y = ($result >> 8) as u8;
                 self.a = $result as u8;
+
                 self.pc = self.pc.wrapping_add(2);
                 5
             }};
@@ -290,7 +293,7 @@ impl SPC700 {
             // tgt << 1, bit0 is 0, affects N,Z,C
             ($tgt:expr) => {{
                 let result = (*$tgt as u16) << 1;
-                self.psw.set_n_z_c(result);
+                self.psw.set_n_z_c_byte(result);
                 *$tgt = result as u8;
             }};
         }
@@ -298,7 +301,7 @@ impl SPC700 {
             // tgt << 1, bit0 is C, affects N,Z,C
             ($tgt:expr) => {{
                 let result = ((*$tgt as u16) << 1) | (self.psw.c() as u16);
-                self.psw.set_n_z_c(result);
+                self.psw.set_n_z_c_byte(result);
                 *$tgt = result as u8;
             }};
         }
@@ -306,7 +309,7 @@ impl SPC700 {
             // tgt >> 1, bit0 is 0, affects N,Z,C
             ($tgt:expr) => {{
                 let result = *$tgt >> 1;
-                self.psw.set_n_z(result);
+                self.psw.set_n_z_byte(result);
                 self.psw.set_c(*$tgt & 0x01 > 0);
                 *$tgt = result;
             }};
@@ -315,7 +318,7 @@ impl SPC700 {
             // tgt >> 1, bit0 is C, affects N,Z,C
             ($tgt:expr) => {{
                 let result = ((self.psw.c() as u8) << 7) | (*$tgt >> 1);
-                self.psw.set_n_z(result);
+                self.psw.set_n_z_byte(result);
                 self.psw.set_c(*$tgt & 0x01 > 0);
                 *$tgt = result as u8;
             }};
@@ -324,7 +327,7 @@ impl SPC700 {
             // tgt += 1, affects N,Z
             ($tgt:expr) => {{
                 let result = $tgt.wrapping_add(1);
-                self.psw.set_n_z(result);
+                self.psw.set_n_z_byte(result);
                 *$tgt = result as u8;
             }};
         }
@@ -332,17 +335,42 @@ impl SPC700 {
             // tgt -= 1, affects N,Z
             ($tgt:expr) => {{
                 let result = $tgt.wrapping_sub(1);
-                self.psw.set_n_z(result);
+                self.psw.set_n_z_byte(result);
                 *$tgt = result as u8;
+            }};
+        }
+        macro_rules! incw_decw {
+            // Expects wrapping_add/wrapping_sub as `op`, affects N,Z
+            ($dp:expr, $op:ident) => {{
+                let page = (self.psw.p() as u16) << 8;
+                let addr = page | ($dp as u16);
+                let result = bus.word(addr).$op(1);
+                self.psw.set_n_z_word(result);
+                bus.write_word(addr, result);
+                self.pc = self.pc.wrapping_add(2);
+                6
+            }};
+        }
+        macro_rules! br {
+            ($cond:expr, $rel:expr, $op_length:expr, $base_cycles:expr) => {{
+                let cycles = if $cond {
+                    // Treat as unsigned
+                    self.pc = self.pc.wrapping_sub(0xFE).wrapping_add($rel as u16);
+                    $base_cycles
+                } else {
+                    self.pc = self.pc.wrapping_add($op_length);
+                    $base_cycles - 2
+                };
+                cycles
             }};
         }
 
         let op_code = bus.byte(self.pc);
         // Pre-fetch operands for brevity
-        let b0 = bus.byte(self.pc.wrapping_add(1));
-        let b1 = bus.byte(self.pc.wrapping_add(2));
-        let op8 = b0;
-        let op16 = ((b1 as u16) << 8) | b0 as u16;
+        let op0 = bus.byte(self.pc.wrapping_add(2));
+        let op1 = bus.byte(self.pc.wrapping_add(1));
+        let op8 = op1;
+        let op16 = ((op0 as u16) << 8) | op1 as u16;
 
         let op_length = match op_code {
             // MOV A,#nn
@@ -363,9 +391,9 @@ impl SPC700 {
             0x9D => mov_reg_byte!(&mut self.x, self.sp, 1, 2),
             // MOV SP,X
             0xBD => mov_reg_byte!(&mut self.sp, self.x, 1, 2),
-            // MOV A,!dp
+            // MOV A,dp
             0xE4 => mov_reg_byte!(&mut self.a, dp!(op8), 2, 3),
-            // MOV A,!dp+X
+            // MOV A,dp+X
             0xF4 => mov_reg_byte!(&mut self.a, dp!(op8, self.x), 2, 4),
             // MOV A,!abs
             0xE5 => mov_reg_byte!(&mut self.a, abs!(op16), 3, 4),
@@ -381,39 +409,44 @@ impl SPC700 {
                 self.x = self.x.wrapping_add(1);
                 4
             }
-            // MOV A,[!dp+Y]
+            // MOV A,[dp+Y]
             0xF7 => mov_reg_byte!(&mut self.a, ind_y!(op8), 2, 6),
-            // MOV A,[!dp+X]
+            // MOV A,[dp+X]
             0xE7 => mov_reg_byte!(&mut self.a, x_ind!(op8), 2, 6),
-            // MOV X,!dp
+            // MOV X,dp
             0xF8 => mov_reg_byte!(&mut self.x, dp!(op8), 2, 3),
-            // MOV X,!dp+Y
+            // MOV X,dp+Y
             0xF9 => mov_reg_byte!(&mut self.x, dp!(op8, self.y), 2, 4),
             // MOV X,!abs
             0xE9 => mov_reg_byte!(&mut self.x, abs!(op16), 3, 4),
-            // MOV Y,!dp
+            // MOV Y,dp
             0xEB => mov_reg_byte!(&mut self.y, dp!(op8), 2, 3),
-            // MOV Y,!dp+X
+            // MOV Y,dp+X
             0xFB => mov_reg_byte!(&mut self.y, dp!(op8, self.x), 2, 4),
             // MOV Y,!abs
             0xEC => mov_reg_byte!(&mut self.y, abs!(op16), 3, 4),
-            // MOVW YA,!dp
-            0xBA => unimplemented!(), // len 2, cycles 5
-            // MOV !dp,#nn
-            0x8F => mov_addr_byte!(mut_dp!(b1), b0, 3, 5),
-            // MOV !dp,!dp
-            0xFA => mov_addr_byte!(mut_dp!(b1), dp!(b0), 3, 5),
-            // MOV !dp,A
+            // MOVW YA,dp  affects N,Z
+            0xBA => {
+                let page = (self.psw.p() as u16) << 8;
+                self.ya = bus.word(page | (op8 as u16));
+                self.pc = self.pc.wrapping_add(2);
+                5
+            }
+            // MOV dp,#nn
+            0x8F => mov_addr_byte!(mut_dp!(op0), op1, 3, 5),
+            // MOV dp,dp
+            0xFA => mov_addr_byte!(mut_dp!(op0), dp!(op1), 3, 5),
+            // MOV dp,A
             0xC4 => mov_addr_byte!(mut_dp!(op8), self.a, 2, 4),
-            // MOV !dp,X
+            // MOV dp,X
             0xD8 => mov_addr_byte!(mut_dp!(op8), self.x, 2, 4),
-            // MOV !dp,Y
+            // MOV dp,Y
             0xCB => mov_addr_byte!(mut_dp!(op8), self.y, 2, 4),
-            // MOV !dp+X,A
+            // MOV dp+X,A
             0xD4 => mov_addr_byte!(mut_dp!(op8, self.x), self.a, 2, 5),
-            // MOV !dp+X,Y
+            // MOV dp+X,Y
             0xDB => mov_addr_byte!(mut_dp!(op8, self.x), self.y, 2, 5),
-            // MOV !dp+Y,X
+            // MOV dp+Y,X
             0xD9 => mov_addr_byte!(mut_dp!(op8, self.y), self.x, 2, 5),
             // MOV !abs,A
             0xC5 => mov_addr_byte!(mut_abs!(op16), self.a, 3, 5),
@@ -437,8 +470,13 @@ impl SPC700 {
             0xD7 => mov_addr_byte!(mut_ind_y!(op8), self.a, 2, 7),
             // MOV [dp+X],A
             0xC7 => mov_addr_byte!(mut_x_ind!(op8), self.a, 2, 7),
-            // MOVW aa,YA
-            0xDA => unimplemented!(), // len 5
+            // MOVW dp,YA
+            0xDA => {
+                let page = (self.psw.p() as u16) << 8;
+                bus.write_word(page | (op8 as u16), self.ya);
+                self.pc = self.pc.wrapping_add(2);
+                5
+            }
             // PUSH A
             0x2D => push!(self.a),
             // PUSH X
@@ -474,9 +512,9 @@ impl SPC700 {
             // AND A,[dp]+Y
             0x37 => op!(and, &mut self.a, ind_y!(op8), 2, 6),
             // AND dp,dp
-            0x29 => op!(and, mut_dp!(b0), dp!(b1), 3, 6),
+            0x29 => op!(and, mut_dp!(op0), dp!(op1), 3, 6),
             // AND dp,#nn
-            0x38 => op!(and, mut_dp!(b0), b1, 3, 5),
+            0x38 => op!(and, mut_dp!(op0), op1, 3, 5),
             // AND (X),(Y)
             0x39 => op!(and, mut_dp!(self.x), dp!(self.y), 1, 5),
             // OR A,#nn
@@ -498,9 +536,9 @@ impl SPC700 {
             // OR A,[dp]+Y
             0x17 => op!(or, &mut self.a, ind_y!(op8), 2, 6),
             // OR dp,dp
-            0x09 => op!(or, mut_dp!(b0), dp!(b1), 3, 6),
+            0x09 => op!(or, mut_dp!(op0), dp!(op1), 3, 6),
             // OR dp,#nn
-            0x18 => op!(or, mut_dp!(b0), b1, 3, 5),
+            0x18 => op!(or, mut_dp!(op0), op1, 3, 5),
             // OR (X),(Y)
             0x19 => op!(or, mut_dp!(self.x), dp!(self.y), 1, 5),
             // EOR A,#nn
@@ -522,9 +560,9 @@ impl SPC700 {
             // EOR A,[dp]+Y
             0x57 => op!(eor, &mut self.a, ind_y!(op8), 2, 6),
             // EOR dp,dp
-            0x49 => op!(eor, mut_dp!(b0), dp!(b1), 3, 6),
+            0x49 => op!(eor, mut_dp!(op0), dp!(op1), 3, 6),
             // EOR dp,#nn
-            0x58 => op!(eor, mut_dp!(b0), b1, 3, 5),
+            0x58 => op!(eor, mut_dp!(op0), op1, 3, 5),
             // EOR (X),(Y)
             0x59 => op!(eor, mut_dp!(self.x), dp!(self.y), 1, 5),
             // ADC A,#nn
@@ -546,9 +584,9 @@ impl SPC700 {
             // ADC A,[dp]+Y
             0x97 => op!(adc, &mut self.a, ind_y!(op8), 2, 6),
             // ADC dp,dp
-            0x89 => op!(adc, mut_dp!(b0), dp!(b1), 3, 6),
+            0x89 => op!(adc, mut_dp!(op0), dp!(op1), 3, 6),
             // ADC dp,#nn
-            0x98 => op!(adc, mut_dp!(b0), b1, 3, 5),
+            0x98 => op!(adc, mut_dp!(op0), op1, 3, 5),
             // ADC (X),(Y)
             0x99 => op!(adc, mut_dp!(self.x), dp!(self.y), 1, 5),
             // SBC A,#nn
@@ -570,9 +608,9 @@ impl SPC700 {
             // SBC A,[dp]+Y
             0xB7 => op!(sbc, &mut self.a, ind_y!(op8), 2, 6),
             // SBC dp,dp
-            0xA9 => op!(sbc, mut_dp!(b0), dp!(b1), 3, 6),
+            0xA9 => op!(sbc, mut_dp!(op0), dp!(op1), 3, 6),
             // SBC dp,#nn
-            0xB8 => op!(sbc, mut_dp!(b0), b1, 3, 5),
+            0xB8 => op!(sbc, mut_dp!(op0), op1, 3, 5),
             // SBC (X),(Y)
             0xB9 => op!(sbc, mut_dp!(self.x), dp!(self.y), 1, 5),
             // CMP A,#nn
@@ -594,9 +632,9 @@ impl SPC700 {
             // CMP A,[dp]+Y
             0x77 => op!(cmp, self.a, ind_y!(op8), 2, 6),
             // CMP dp,dp
-            0x69 => op!(cmp, dp!(b0), dp!(b1), 3, 6),
+            0x69 => op!(cmp, dp!(op0), dp!(op1), 3, 6),
             // CMP dp,#nn
-            0x78 => op!(cmp, dp!(b0), b1, 3, 5),
+            0x78 => op!(cmp, dp!(op0), op1, 3, 5),
             // CMP (X),(Y)
             0x79 => op!(cmp, dp!(self.x), dp!(self.y), 1, 5),
             // CMP X,#nn
@@ -670,7 +708,7 @@ impl SPC700 {
             // XCN A  affects N,Z
             0x9F => {
                 let result = (self.a << 4) | (self.a >> 4);
-                self.psw.set_n_z(result);
+                self.psw.set_n_z_byte(result);
                 self.a = result;
                 self.pc = self.pc.wrapping_add(1);
                 5
@@ -692,9 +730,7 @@ impl SPC700 {
                 let rhs = dp_word!(op8);
                 let result = (self.ya as u32) + (!rhs as u32);
 
-                self.psw.set_n(result & 0x8000 > 0);
-                self.psw.set_z(result == 0x0000);
-                self.psw.set_c(result > 0xFFFF);
+                self.psw.set_n_z_c_word(result);
 
                 self.y = (result >> 8) as u8;
                 self.a = result as u8;
@@ -702,19 +738,114 @@ impl SPC700 {
                 self.pc = self.pc.wrapping_add(2);
                 5
             }
-            // MOVW YA,dp  affects N,Z
-            0xBA => {
-                let page = (self.psw.p() as u16) << 8;
-                self.ya = bus.word(page | (op8 as u16));
-                self.pc = self.pc.wrapping_add(2);
-                5
+            // INCW dp
+            0x3A => incw_decw!(op8, wrapping_add),
+            // DECW dp
+            0x1A => incw_decw!(op8, wrapping_sub),
+            // MUL  affects N,Z
+            0xCF => {
+                let result = (self.y as u16) * (self.a as u16);
+                self.psw.set_n_z_word(result);
+                self.ya = result;
+                self.pc = self.pc.wrapping_add(1);
+                9
             }
-            // MOVW dp,YA
-            0xBA => {
-                let page = (self.psw.p() as u16) << 8;
-                bus.write_word(page | (op8 as u16), self.ya);
-                self.pc = self.pc.wrapping_add(2);
-                5
+            // DIV  affects N,V,H,Z
+            0x9E => {
+                let result_div = self.ya / (self.x as u16);
+                let result_mod = (self.ya % (self.x as u16)) as u8;
+
+                // From anomie
+                self.psw.set_n_z_byte(result_div as u8);
+                self.psw.set_v(result_div > 0xFF);
+                self.psw.set_h((self.x & 0x0F) <= (self.y & 0x0f));
+
+                self.a = result_div as u8;
+                self.y = result_mod;
+
+                self.pc = self.pc.wrapping_add(1);
+                12
+            }
+            // DAA
+            0xDF => {
+                // From anomie
+                if (self.a > 0x99) || self.psw.c() {
+                    let result = (self.a as u16) + 0x0060;
+                    self.psw.set_c_byte(result);
+                    self.a = result as u8;
+                }
+                if ((self.a & 0x0F) > 0x09) || self.psw.h() {
+                    self.a = self.a.wrapping_add(0x06);
+                }
+                self.psw.set_n_byte(self.a);
+                self.psw.set_z_byte(self.a);
+
+                self.pc = self.pc.wrapping_add(1);
+                2
+            }
+            // DAS
+            0xBE => {
+                // From anomie
+                if (self.a > 0x99) || self.psw.c() {
+                    let result = (self.a as u16) + !0x0060;
+                    self.psw.set_c_byte(result);
+                    self.a = result as u8;
+                }
+                if ((self.a & 0x0F) > 0x09) || self.psw.h() {
+                    self.a = self.a.wrapping_sub(0x06);
+                }
+                self.psw.set_n_byte(self.a);
+                self.psw.set_z_byte(self.a);
+
+                self.pc = self.pc.wrapping_add(1);
+                2
+            }
+            // BRA rel
+            0x2F => br!(true, op8, 2, 4),
+            // BEQ rel
+            0xF0 => br!(self.psw.z(), op8, 2, 4),
+            // BNE rel
+            0xD0 => br!(!self.psw.z(), op8, 2, 4),
+            // BCS rel
+            0xB0 => br!(self.psw.c(), op8, 2, 4),
+            // BCC rel
+            0x90 => br!(!self.psw.c(), op8, 2, 4),
+            // BVS rel
+            0x70 => br!(self.psw.v(), op8, 2, 4),
+            // BVS rel
+            0x50 => br!(!self.psw.v(), op8, 2, 4),
+            // BMI rel
+            0x30 => br!(self.psw.n(), op8, 2, 4),
+            // BPL rel
+            0x10 => br!(!self.psw.n(), op8, 2, 4),
+            // TODO: BBS, BBC
+            // CBNE dp,rel
+            // Note different operator order
+            0x2E => br!(self.a != dp!(op1), op0, 3, 7),
+            // CBNE dp+X,rel
+            // Note different operator order
+            0xDE => br!(self.a != dp!(op1, self.x), op0, 3, 8),
+            // DBNZ Y,rel
+            0xFE => {
+                self.y = self.y.wrapping_sub(1);
+                br!(self.y != 0, op8, 2, 6)
+            }
+            // DBNZ dp,rel
+            // Note different operator order
+            0x6E => {
+                let tgt = mut_dp!(op1);
+                *tgt = tgt.wrapping_sub(1);
+                br!(*tgt != 0, op0, 3, 7)
+            }
+            // JMP !abs
+            0x5F => {
+                self.pc = bus.word(op16);
+                3
+            }
+            // JMP [!abs+X]
+            0x1F => {
+                self.pc = bus.word(op16.wrapping_add(self.x as u16));
+                6
             }
             _ => unimplemented!(),
         };
@@ -797,18 +928,32 @@ impl StatusReg {
         self.value & P_C > 0
     }
 
-    pub fn set_n_z(&mut self, value: u8) {
-        self.set_n((value & 0x80) > 0);
-        self.set_z(value == 0x00);
+    pub fn set_n_z_byte(&mut self, value: u8) {
+        self.set_n_byte(value);
+        self.set_z_byte(value);
     }
 
-    pub fn set_n_z_c(&mut self, value: u16) {
-        self.set_n_z(value as u8);
-        self.set_c(value > 0xFF);
+    pub fn set_n_z_word(&mut self, value: u16) {
+        self.set_n_word(value);
+        self.set_z_word(value);
     }
 
-    pub fn set_n(&mut self, value: bool) {
-        set_bit!(&mut self.value, P_N, value);
+    pub fn set_n_z_c_byte(&mut self, value: u16) {
+        self.set_n_z_byte(value as u8);
+        self.set_c_byte(value);
+    }
+
+    pub fn set_n_z_c_word(&mut self, value: u32) {
+        self.set_n_z_word(value as u16);
+        self.set_c_word(value);
+    }
+
+    pub fn set_n_byte(&mut self, value: u8) {
+        set_bit!(&mut self.value, P_N, (value & 0x80) > 0);
+    }
+
+    pub fn set_n_word(&mut self, value: u16) {
+        set_bit!(&mut self.value, P_N, (value & 0x8000) > 0);
     }
 
     pub fn set_v(&mut self, value: bool) {
@@ -831,11 +976,23 @@ impl StatusReg {
         set_bit!(&mut self.value, P_I, value);
     }
 
-    pub fn set_z(&mut self, value: bool) {
-        set_bit!(&mut self.value, P_Z, value);
+    pub fn set_z_byte(&mut self, value: u8) {
+        set_bit!(&mut self.value, P_Z, value == 0x00);
+    }
+
+    pub fn set_z_word(&mut self, value: u16) {
+        set_bit!(&mut self.value, P_Z, value == 0x0000);
     }
 
     pub fn set_c(&mut self, value: bool) {
         set_bit!(&mut self.value, P_C, value);
+    }
+
+    pub fn set_c_byte(&mut self, value: u16) {
+        set_bit!(&mut self.value, P_C, value > 0xFF);
+    }
+
+    pub fn set_c_word(&mut self, value: u32) {
+        set_bit!(&mut self.value, P_C, value > 0xFFFF);
     }
 }

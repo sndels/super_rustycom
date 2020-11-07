@@ -1,5 +1,4 @@
 use crate::apu_io::ApuIo;
-use log::error;
 
 /// 64 kB of RAM including the IPL ROM at $FFC0-FFFF and mirrored I/O-ports at $00F0-$00FF
 const RAM_SIZE: usize = 64 * 1024;
