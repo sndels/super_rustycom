@@ -7,7 +7,7 @@
             "command": "cargo",
             "args": [
                 "build",
-                "--release"
+                "--release",
             ],
             "options": {
                 "cwd": "${workspaceRoot}/super-rustycom-client"
@@ -21,7 +21,14 @@
             "group": "build",
             "command": "cargo",
             "args": [
-                "build"
+                "+nightly",
+                "rustc",
+                "--",
+                // Print expanded macros
+                // "-Zunstable-options",
+                // "--pretty=expanded",
+                // "-Ztrace-macros",
+                "-Zmacro-backtrace",
             ],
             "options": {
                 "cwd": "${workspaceRoot}/super-rustycom-client"

@@ -1,5 +1,7 @@
 use super::bus::Bus;
 
+use log::error;
+
 pub struct SPC700 {
     /// 8bit accumulator
     a: u8,
@@ -386,22 +388,17 @@ impl SPC700 {
             // Branches with relative address based on cond
             // Not taking the branch takes 2 less cycles
             ($cond:expr, $rel:expr, $op_length:expr, $base_cycles:expr) => {{
-                let cycles = if $cond {
-                    // PC gets incremented when reading operands
+                // PC gets incremented when reading op code and operands
+                self.pc = self.pc.wrapping_add($op_length);
+                if $cond {
                     // Do sign extend as rel is signed
-                    self.pc = self
-                        .pc
-                        .wrapping_add($op_length - 1)
-                        .wrapping_add(($rel as i16) as u16);
+                    self.pc = self.pc.wrapping_add(($rel as i8) as u16);
                     $base_cycles
                 } else {
-                    self.pc = self.pc.wrapping_add($op_length);
                     $base_cycles - 2
-                };
-                cycles
+                }
             }};
         }
-
         macro_rules! call {
             // Pushes PC to stack and sets it to addr
             // Takes 8 cycles
@@ -418,8 +415,6 @@ impl SPC700 {
         let op1 = bus.byte(self.pc.wrapping_add(1));
         let op8 = op1;
         let op16 = ((op0 as u16) << 8) | op1 as u16;
-
-        let da = format!("{:02X}{:02X}{:02X}", op_code, op1, op0);
 
         let op_length = match op_code {
             // MOV A,#nn
