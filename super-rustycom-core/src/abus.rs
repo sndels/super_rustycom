@@ -153,7 +153,7 @@ impl ABus {
             }
             mmap::APU_IO_FIRST..=mmap::APU_IO_LAST => {
                 // APU IO
-                let port = if addr < 0x2144 { addr } else { addr - 4 } as u8;
+                let port = (if addr < 0x2144 { addr } else { addr - 4 } as u8) & 0x0F;
                 self.apu_io_r.read(port)
             }
             mmap::WMDATA => {
@@ -306,7 +306,7 @@ impl ABus {
             }
             mmap::APU_IO_FIRST..=mmap::APU_IO_LAST => {
                 // APU IO
-                let port = if addr < 0x2144 { addr } else { addr - 4 } as u8;
+                let port = (if addr < 0x2144 { addr } else { addr - 4 } as u8) & 0x0F;
                 self.apu_io_w.write(port, value);
             }
             mmap::WMDATA => {

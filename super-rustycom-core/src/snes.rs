@@ -16,7 +16,7 @@ impl SNES {
         SNES {
             cpu: W65C816S::new(&mut abus),
             abus: abus,
-            apu: APU::new(),
+            apu: APU::default(),
         }
     }
 
@@ -61,6 +61,8 @@ impl SNES {
         for _ in 0..instructions {
             disassemble_func(&self.cpu, &mut self.abus);
             self.cpu.step(&mut self.abus);
+            let (_, apu_io) = self.apu.step(self.abus.apu_io());
+            self.abus.write_smp_io(apu_io);
         }
     }
 }

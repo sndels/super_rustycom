@@ -11,15 +11,15 @@ pub struct APU {
 }
 
 impl APU {
-    pub fn new() -> APU {
+    pub fn default() -> APU {
         APU {
-            smp: SPC700::new(),
-            bus: Bus::new(),
+            smp: SPC700::default(),
+            bus: Bus::default(),
         }
     }
 
     /// Steps the entire APU and returns SMP cycles evaluated as well as the state of the IO ports
-    pub fn step(&mut self, io: ApuIo) -> (u8, ApuIo) {
+    pub fn step(&mut self, io: ApuIo) -> (Option<u8>, ApuIo) {
         self.bus.write_cpu_io(io);
         let cycles = self.smp.step(&mut self.bus);
         let io = self.bus.apu_io();

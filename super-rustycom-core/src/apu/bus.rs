@@ -10,7 +10,7 @@ pub struct Bus {
 }
 
 impl Bus {
-    pub fn new() -> Bus {
+    pub fn default() -> Bus {
         let mut ram = Box::new([0; RAM_SIZE]);
         // Entrypoint
         ram[0x00] = 0xC0;

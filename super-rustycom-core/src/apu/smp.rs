@@ -31,10 +31,12 @@ pub struct SPC700 {
     ya: u16,
     /// Program counter
     pc: u16,
+    /// Mode, i.e. running, sleeping or stopped
+    mode: Mode,
 }
 
 impl SPC700 {
-    pub fn new() -> SPC700 {
+    pub fn default() -> SPC700 {
         SPC700 {
             a: 0x00,
             x: 0x00,
@@ -42,7 +44,8 @@ impl SPC700 {
             sp: 0x00,
             psw: StatusReg::new(),
             ya: 0x0000,
-            pc: 0x0000,
+            pc: 0xFFC0,
+            mode: Mode::Running,
         }
     }
 
@@ -69,7 +72,11 @@ impl SPC700 {
     }
 
     /// Executes the instruction pointed by `PC` and returns the cycles it took
-    pub fn step(&mut self, bus: &mut Bus) -> u8 {
+    pub fn step(&mut self, bus: &mut Bus) -> Option<u8> {
+        if self.mode != Mode::Running {
+            // TODO: Handle mode changes back to running
+            return None;
+        }
         // Addressing macros return a reference to the byte at the addressed location
         // mut_-versions return mutable reference
         // TODO: Go through wrapping rules for dp, absolute and writes, see anomie
@@ -177,20 +184,44 @@ impl SPC700 {
                 $op_cycles
             }};
         }
-        macro_rules! push {
-            // Push byte to stack
+        macro_rules! push_byte {
             ($byte:expr) => {{
-                *bus.mut_byte(0x0010 & (self.sp as u16)) = $byte;
+                *bus.mut_byte(0x0100 & (self.sp as u16)) = $byte;
                 self.sp = self.sp.wrapping_sub(1);
+            }};
+        }
+        macro_rules! push_word {
+            ($word:expr) => {{
+                bus.write_word(0x0100 & (self.sp.wrapping_sub(1) as u16), $word);
+                self.sp = self.sp.wrapping_sub(2);
+            }};
+        }
+        macro_rules! pop_byte {
+            () => {{
+                self.sp = self.sp.wrapping_add(1);
+                bus.byte(0x0100 & (self.sp as u16))
+            }};
+        }
+        macro_rules! pop_word {
+            () => {{
+                let word = bus.word(0x0100 & (self.sp.wrapping_add(1) as u16));
+                self.sp = self.sp.wrapping_add(2);
+                word
+            }};
+        }
+        macro_rules! push {
+            // Push `reg` to stack
+            ($reg:expr) => {{
+                push_byte!($reg);
                 self.pc = self.pc.wrapping_add(1);
                 4
             }};
         }
-        macro_rules! pull {
-            // Pull byte from stack
+        macro_rules! pop {
+            // Pop byte from stack to `reg`
             ($reg:expr) => {{
-                self.sp = self.sp.wrapping_add(1);
-                *$reg = bus.byte(0x0010 & (self.sp as u16));
+                *$reg = pop_byte!();
+                self.pc = self.pc.wrapping_add(1);
                 4
             }};
         }
@@ -237,7 +268,7 @@ impl SPC700 {
         macro_rules! cmp {
             // lhs - rhs, afects N,Z,C
             ($lhs:expr, $rhs:expr) => {{
-                let result = ($lhs as u16) + (!$rhs as u16);
+                let result = ($lhs as u16) + (!$rhs as u16) + 1;
                 self.psw.set_n_z_c_byte(result);
             }};
         }
@@ -352,10 +383,16 @@ impl SPC700 {
             }};
         }
         macro_rules! br {
+            // Branches with relative address based on cond
+            // Not taking the branch takes 2 less cycles
             ($cond:expr, $rel:expr, $op_length:expr, $base_cycles:expr) => {{
                 let cycles = if $cond {
-                    // Treat as unsigned
-                    self.pc = self.pc.wrapping_sub(0xFE).wrapping_add($rel as u16);
+                    // PC gets incremented when reading operands
+                    // Do sign extend as rel is signed
+                    self.pc = self
+                        .pc
+                        .wrapping_add($op_length - 1)
+                        .wrapping_add(($rel as i16) as u16);
                     $base_cycles
                 } else {
                     self.pc = self.pc.wrapping_add($op_length);
@@ -365,12 +402,24 @@ impl SPC700 {
             }};
         }
 
+        macro_rules! call {
+            // Pushes PC to stack and sets it to addr
+            // Takes 8 cycles
+            ($addr:expr) => {{
+                push_word!(self.pc);
+                self.pc = $addr;
+                8
+            }};
+        }
+
         let op_code = bus.byte(self.pc);
         // Pre-fetch operands for brevity
         let op0 = bus.byte(self.pc.wrapping_add(2));
         let op1 = bus.byte(self.pc.wrapping_add(1));
         let op8 = op1;
         let op16 = ((op0 as u16) << 8) | op1 as u16;
+
+        let da = format!("{:02X}{:02X}{:02X}", op_code, op1, op0);
 
         let op_length = match op_code {
             // MOV A,#nn
@@ -486,13 +535,13 @@ impl SPC700 {
             // PUSH Y
             0x0D => push!(self.psw.value),
             // PULL A
-            0xAE => pull!(&mut self.a),
+            0xAE => pop!(&mut self.a),
             // PULL X
-            0xCE => pull!(&mut self.x),
+            0xCE => pop!(&mut self.x),
             // PULL Y
-            0xEE => pull!(&mut self.y),
+            0xEE => pop!(&mut self.y),
             // PULL Y
-            0x8E => pull!(&mut self.psw.value),
+            0x8E => pop!(&mut self.psw.value),
             // AND A,#nn
             0x28 => op!(and, &mut self.a, op8, 2, 2),
             // AND A,(X)
@@ -847,11 +896,115 @@ impl SPC700 {
                 self.pc = bus.word(op16.wrapping_add(self.x as u16));
                 6
             }
+            // CALL !abs
+            0x3F => call!(op16),
+            // PCALL uu
+            0x4F => {
+                self.pc = 0xFF00 | (op8 as u16);
+                6
+            }
+            // TCALL X
+            // Call to $FFDE-((OPCODE >> 4) * 2)
+            0x01 | 0x11 | 0x21 | 0x31 | 0x41 | 0x51 | 0x61 | 0x71 | 0x81 | 0x91 | 0xA1 | 0xB1
+            | 0xC1 | 0xD1 | 0xE1 | 0xF1 => call!(0xFFDE - (((op_code >> 4) * 2) as u16)),
+            // RET
+            0x6F => {
+                self.pc = pop_word!();
+                5
+            }
+            // RET1
+            0x7F => {
+                self.psw.value = pop_byte!();
+                self.pc = pop_word!();
+                6
+            }
+            // BRK
+            0x0F => {
+                push_word!(self.pc.wrapping_add(1));
+                push_byte!(self.psw.value);
+                self.psw.set_b(true);
+                self.psw.set_i(false);
+                self.pc = 0xFFDE;
+                8
+            }
+            // CLRC
+            0x60 => {
+                self.psw.set_c(false);
+                self.pc = self.pc.wrapping_add(1);
+                2
+            }
+            // SETC
+            0x80 => {
+                self.psw.set_c(true);
+                self.pc = self.pc.wrapping_add(1);
+                2
+            }
+            // NOTC
+            0xED => {
+                self.psw.set_c(!self.psw.c());
+                self.pc = self.pc.wrapping_add(1);
+                3
+            }
+            // CLRV, also clears H
+            0xE0 => {
+                self.psw.set_v(false);
+                self.psw.set_h(false);
+                self.pc = self.pc.wrapping_add(1);
+                2
+            }
+            // CLRP
+            0x20 => {
+                self.psw.set_p(false);
+                self.pc = self.pc.wrapping_add(1);
+                2
+            }
+            // SETP
+            0x40 => {
+                self.psw.set_p(true);
+                self.pc = self.pc.wrapping_add(1);
+                2
+            }
+            // EI
+            0xA0 => {
+                self.psw.set_i(true);
+                self.pc = self.pc.wrapping_add(1);
+                3
+            }
+            // DI
+            0xC0 => {
+                self.psw.set_i(false);
+                self.pc = self.pc.wrapping_add(1);
+                3
+            }
+            // NOP
+            0x00 => {
+                self.pc = self.pc.wrapping_add(1);
+                2
+            }
+            // SLEEP
+            0xEF => {
+                self.pc = self.pc.wrapping_add(1);
+                self.mode = Mode::Sleeping;
+                0
+            }
+            // STOP
+            0xFF => {
+                self.pc = self.pc.wrapping_add(1);
+                self.mode = Mode::Stopped;
+                0
+            }
             _ => unimplemented!(),
         };
         self.ya = ((self.y as u16) << 8) | (self.a as u16);
-        op_length
+        Some(op_length)
     }
+}
+
+#[derive(PartialEq)]
+enum Mode {
+    Running,
+    Sleeping,
+    Stopped,
 }
 
 /// The status register in SPC700
