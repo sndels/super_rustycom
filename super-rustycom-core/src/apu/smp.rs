@@ -29,8 +29,6 @@ pub struct SPC700 {
     ///
     /// `C`arry
     psw: StatusReg,
-    /// Combination of `Y` and `A` ($YYAA)
-    ya: u16,
     /// Program counter
     pc: u16,
     /// Mode, i.e. running, sleeping or stopped
@@ -45,7 +43,6 @@ impl SPC700 {
             y: 0x00,
             sp: 0x00,
             psw: StatusReg::new(),
-            ya: 0x0000,
             pc: 0xFFC0,
             mode: Mode::Running,
         }
@@ -66,8 +63,9 @@ impl SPC700 {
     pub fn psw(&self) -> &StatusReg {
         &self.psw
     }
+    /// Combination "register" `Y``A`
     pub fn ya(&self) -> u16 {
-        self.ya
+        ((self.y as u16) << 8) | (self.a as u16)
     }
     pub fn pc(&self) -> u16 {
         self.pc
@@ -113,6 +111,12 @@ impl SPC700 {
             ($addr:expr) => {{
                 let page = (self.psw.p() as u16) << 8;
                 bus.word(page | ($addr as u16))
+            }};
+        }
+        macro_rules! abs13 {
+            // aaa.b
+            ($addr:expr) => {{
+                bus.byte($addr & 0x1FFF)
             }};
         }
         macro_rules! mut_abs {
@@ -292,12 +296,12 @@ impl SPC700 {
                 let result16 = $result as u16;
 
                 self.psw.set_v(
-                    (self.ya < 0x8000 && $rhs < 0x8000 && result16 > 0x7FFF)
-                        || (self.ya > 0x7FFF && $rhs > 0x7FFF && result16 < 0x8000),
+                    (self.ya() < 0x8000 && $rhs < 0x8000 && result16 > 0x7FFF)
+                        || (self.ya() > 0x7FFF && $rhs > 0x7FFF && result16 < 0x8000),
                 );
                 // BCD carry from lower nibble to upper
                 self.psw
-                    .set_h((self.ya & 0x00FF) + ($rhs & 0x00FF) > 0x00FF);
+                    .set_h((self.ya() & 0x00FF) + ($rhs & 0x00FF) > 0x00FF);
 
                 self.y = ($result >> 8) as u8;
                 self.a = $result as u8;
@@ -408,6 +412,13 @@ impl SPC700 {
                 8
             }};
         }
+        macro_rules! write_ya {
+            // We need to update YA as well as Y, A
+            ($value:expr) => {{
+                self.y = ($value >> 8) as u8;
+                self.a = $value as u8;
+            }};
+        }
 
         let op_code = bus.byte(self.pc);
         // Pre-fetch operands for brevity
@@ -472,7 +483,9 @@ impl SPC700 {
             // MOVW YA,dp  affects N,Z
             0xBA => {
                 let page = (self.psw.p() as u16) << 8;
-                self.ya = bus.word(page | (op8 as u16));
+                let word = bus.word(page | (op8 as u16));
+                write_ya!(word);
+                self.psw.set_n_z_word(word);
                 self.pc = self.pc.wrapping_add(2);
                 5
             }
@@ -517,7 +530,7 @@ impl SPC700 {
             // MOVW dp,YA
             0xDA => {
                 let page = (self.psw.p() as u16) << 8;
-                bus.write_word(page | (op8 as u16), self.ya);
+                bus.write_word(page | (op8 as u16), self.ya());
                 self.pc = self.pc.wrapping_add(2);
                 5
             }
@@ -760,19 +773,19 @@ impl SPC700 {
             // ADDW YA,dp  affects N,V,H,Z,C
             0x7A => {
                 let rhs = dp_word!(op8);
-                let result = (self.ya as u32) + (rhs as u32) + (self.psw.c() as u32);
+                let result = (self.ya() as u32) + (rhs as u32) + (self.psw.c() as u32);
                 addw_subw_end!(rhs, result)
             }
             // SUBW YA,dp  affects N,V,H,Z,C
             0x9A => {
                 let rhs = dp_word!(op8);
-                let result = (self.ya as u32) + (!rhs as u32) + (self.psw.c() as u32);
+                let result = (self.ya() as u32) + (!rhs as u32) + (self.psw.c() as u32);
                 addw_subw_end!(rhs, result)
             }
             // CMPW YA,dp  affects N,Z,C
             0x5A => {
                 let rhs = dp_word!(op8);
-                let result = (self.ya as u32) + (!rhs as u32);
+                let result = (self.ya() as u32) + (!rhs as u32);
 
                 self.psw.set_n_z_c_word(result);
 
@@ -790,14 +803,14 @@ impl SPC700 {
             0xCF => {
                 let result = (self.y as u16) * (self.a as u16);
                 self.psw.set_n_z_word(result);
-                self.ya = result;
+                write_ya!(result);
                 self.pc = self.pc.wrapping_add(1);
                 9
             }
             // DIV  affects N,V,H,Z
             0x9E => {
-                let result_div = self.ya / (self.x as u16);
-                let result_mod = (self.ya % (self.x as u16)) as u8;
+                let result_div = self.ya() / (self.x as u16);
+                let result_mod = (self.ya() % (self.x as u16)) as u8;
 
                 // From anomie
                 self.psw.set_n_z_byte(result_div as u8);
@@ -862,7 +875,18 @@ impl SPC700 {
             0x30 => br!(self.psw.n(), op8, 2, 4),
             // BPL rel
             0x10 => br!(!self.psw.n(), op8, 2, 4),
-            // TODO: BBS, BBC
+            // BBC d.bit,rel, branches if bit ? in d is cleared
+            // bit is defined by op_code
+            0x13 | 0x33 | 0x53 | 0x73 | 0x93 | 0xB3 | 0xD3 | 0xF3 => {
+                let bit = ((op_code >> 4) - 1) / 2;
+                br!(((dp!(op0) >> bit) & 0x01) == 0, op1, 3, 7)
+            }
+            // BBS d.bit,rel, branches if bit ? in d is set
+            // bit is defined by op_code
+            0x03 | 0x23 | 0x43 | 0x63 | 0x83 | 0xA3 | 0xC3 | 0xE3 => {
+                let bit = (op_code >> 4) / 2;
+                br!(((dp!(op0) >> bit) & 0x01) == 1, op1, 3, 7)
+            }
             // CBNE dp,rel
             // Note different operator order
             0x2E => br!(self.a != dp!(op1), op0, 3, 7),
@@ -898,7 +922,7 @@ impl SPC700 {
                 self.pc = 0xFF00 | (op8 as u16);
                 6
             }
-            // TCALL X
+            // TCALL ?
             // Call to $FFDE-((OPCODE >> 4) * 2)
             0x01 | 0x11 | 0x21 | 0x31 | 0x41 | 0x51 | 0x61 | 0x71 | 0x81 | 0x91 | 0xA1 | 0xB1
             | 0xC1 | 0xD1 | 0xE1 | 0xF1 => call!(0xFFDE - (((op_code >> 4) * 2) as u16)),
@@ -971,6 +995,76 @@ impl SPC700 {
                 self.pc = self.pc.wrapping_add(1);
                 3
             }
+            // SET1 dp,bit
+            // bit is defined by op_code
+            0x02 | 0x22 | 0x42 | 0x62 | 0x82 | 0xA2 | 0xC2 | 0xE2 => {
+                let bit = (op_code >> 4) / 2;
+                let byte = mut_dp!(op8);
+                *byte = *byte | (0x1 << bit);
+                self.pc = self.pc.wrapping_add(2);
+                4
+            }
+            // CLR1 dp,bit
+            // bit is defined by op_code
+            0x12 | 0x32 | 0x52 | 0x72 | 0x92 | 0xB2 | 0xD2 | 0xF2 => {
+                let bit = ((op_code >> 4) - 1) / 2;
+                let byte = mut_dp!(op8);
+                *byte = *byte & !(0x1 << bit);
+                self.pc = self.pc.wrapping_add(2);
+                4
+            }
+            // TCLR1 !abs
+            0x4E => {
+                let byte = mut_abs!(op16);
+                self.psw.set_n_z_byte(self.a.wrapping_sub(*byte));
+                *byte = *byte & !self.a;
+                self.pc = self.pc.wrapping_add(3);
+                6
+            }
+            // TSET1 !abs
+            0x0E => {
+                let byte = mut_abs!(op16);
+                self.psw.set_n_z_byte(self.a.wrapping_sub(*byte));
+                *byte = *byte | self.a;
+                self.pc = self.pc.wrapping_add(3);
+                6
+            }
+            // AND1 C,/m.b
+            0x6A => {
+                let bit = (op16 >> 13) as u8;
+                let byte = abs13!(op16);
+                let bit_set = (byte >> bit) & 0x1 == 0x1;
+                self.psw.set_c(self.psw.c() & !bit_set);
+                self.pc = self.pc.wrapping_add(3);
+                4
+            }
+            // AND1 C,m.b
+            0x4A => {
+                let bit = (op16 >> 13) as u8;
+                let byte = abs13!(op16);
+                let bit_set = (byte >> bit) & 0x1 == 0x1;
+                self.psw.set_c(self.psw.c() & bit_set);
+                self.pc = self.pc.wrapping_add(3);
+                4
+            }
+            // OR1 C,/m.b
+            0x2A => {
+                let bit = (op16 >> 13) as u8;
+                let byte = abs13!(op16);
+                let bit_set = (byte >> bit) & 0x1 == 0x1;
+                self.psw.set_c(self.psw.c() | !bit_set);
+                self.pc = self.pc.wrapping_add(3);
+                4
+            }
+            // OR1 C,m.b
+            0x0A => {
+                let bit = (op16 >> 13) as u8;
+                let byte = abs13!(op16);
+                let bit_set = (byte >> bit) & 0x1 == 0x1;
+                self.psw.set_c(self.psw.c() | bit_set);
+                self.pc = self.pc.wrapping_add(3);
+                4
+            }
             // NOP
             0x00 => {
                 self.pc = self.pc.wrapping_add(1);
@@ -990,7 +1084,6 @@ impl SPC700 {
             }
             _ => unimplemented!(),
         };
-        self.ya = ((self.y as u16) << 8) | (self.a as u16);
         Some(op_length)
     }
 }

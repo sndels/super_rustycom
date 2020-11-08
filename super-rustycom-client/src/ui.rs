@@ -75,7 +75,7 @@ impl UI {
         // Drop one line since we have the column header
         let end_byte = start_byte + window_lines.saturating_sub(1) * 0x0010;
 
-        let wram = snes.abus.wram();
+        let wram = snes.apu.bus.ram();
         let wram_text = {
             let mut wram_text = vec![String::from(
                 "      00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F",
