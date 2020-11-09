@@ -4,7 +4,7 @@ use log::info;
 use minifb::{Key, MouseButton, MouseMode, Window};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub enum State {
+pub enum KeyState {
     JustPressed,
     Held,
     JustReleased,
@@ -25,12 +25,12 @@ impl InputState {
     }
 
     #[allow(dead_code)]
-    pub fn key_state(&self, key: Key) -> State {
+    pub fn key_state(&self, key: Key) -> KeyState {
         self.keyboard.key_state(key)
     }
 
     #[allow(dead_code)]
-    pub fn mouse_button_state(&self, button: MouseButton) -> State {
+    pub fn mouse_button_state(&self, button: MouseButton) -> KeyState {
         self.mouse.button_state(button)
     }
 
@@ -51,7 +51,7 @@ impl InputState {
 }
 
 struct KeyboardState {
-    keys: HashMap<Key, State>,
+    keys: HashMap<Key, KeyState>,
 }
 
 impl KeyboardState {
@@ -61,11 +61,11 @@ impl KeyboardState {
         }
     }
 
-    pub fn key_state(&self, key: Key) -> State {
+    pub fn key_state(&self, key: Key) -> KeyState {
         if let Some(&state) = self.keys.get(&key) {
             state
         } else {
-            State::Up
+            KeyState::Up
         }
     }
 
@@ -76,13 +76,13 @@ impl KeyboardState {
             let previous_pressed: HashSet<Key> = self
                 .keys
                 .iter()
-                .filter(|(_, &state)| state == State::JustPressed || state == State::Held)
+                .filter(|(_, &state)| state == KeyState::JustPressed || state == KeyState::Held)
                 .map(|(&key, _)| key)
                 .collect();
             let previous_released: HashSet<Key> = self
                 .keys
                 .iter()
-                .filter(|(_, &state)| state == State::JustReleased)
+                .filter(|(_, &state)| state == KeyState::JustReleased)
                 .map(|(&key, _)| key)
                 .collect();
             let released = previous_pressed.difference(&new_pressed);
@@ -91,12 +91,12 @@ impl KeyboardState {
             for &key in &new_pressed {
                 if let Some(state) = self.keys.get_mut(&key) {
                     match state {
-                        State::Up | State::JustReleased => *state = State::JustPressed,
-                        State::JustPressed => *state = State::Held,
+                        KeyState::Up | KeyState::JustReleased => *state = KeyState::JustPressed,
+                        KeyState::JustPressed => *state = KeyState::Held,
                         _ => (),
                     }
                 } else {
-                    self.keys.insert(key, State::JustPressed);
+                    self.keys.insert(key, KeyState::JustPressed);
                 }
             }
 
@@ -104,14 +104,14 @@ impl KeyboardState {
             for key in released {
                 let state = self.keys.get_mut(&key).unwrap();
                 match state {
-                    State::JustPressed | State::Held => *state = State::JustReleased,
+                    KeyState::JustPressed | KeyState::Held => *state = KeyState::JustReleased,
                     _ => (),
                 }
             }
             for key in previous_released {
                 if !new_pressed.contains(&key) {
                     let state = self.keys.get_mut(&key).unwrap();
-                    *state = State::Up;
+                    *state = KeyState::Up;
                 }
             }
             info!("keys {:?}", self.keys);
@@ -120,7 +120,7 @@ impl KeyboardState {
 }
 
 struct MouseState {
-    buttons: (State, State, State),
+    buttons: (KeyState, KeyState, KeyState),
     scroll: (f32, f32),
     pos: (usize, usize),
 }
@@ -128,13 +128,13 @@ struct MouseState {
 impl MouseState {
     pub fn new() -> MouseState {
         MouseState {
-            buttons: (State::Up, State::Up, State::Up),
+            buttons: (KeyState::Up, KeyState::Up, KeyState::Up),
             scroll: (0f32, 0f32),
             pos: (0, 0),
         }
     }
 
-    pub fn button_state(&self, button: MouseButton) -> State {
+    pub fn button_state(&self, button: MouseButton) -> KeyState {
         match button {
             MouseButton::Left => self.buttons.0,
             MouseButton::Middle => self.buttons.1,
@@ -167,14 +167,14 @@ impl MouseState {
                 if window.get_mouse_down($button) {
                     info!("{} down", stringify!($button));
                     match $state {
-                        State::Up | State::JustReleased => $state = State::JustPressed,
-                        State::JustPressed => $state = State::Held,
+                        KeyState::Up | KeyState::JustReleased => $state = KeyState::JustPressed,
+                        KeyState::JustPressed => $state = KeyState::Held,
                         _ => (),
                     }
                 } else {
                     match $state {
-                        State::JustPressed | State::Held => $state = State::JustReleased,
-                        State::JustReleased => $state = State::Up,
+                        KeyState::JustPressed | KeyState::Held => $state = KeyState::JustReleased,
+                        KeyState::JustReleased => $state = KeyState::Up,
                         _ => (),
                     }
                 }
