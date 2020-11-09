@@ -130,6 +130,8 @@ fn main() {
         let clock_ticks = time_source.elapsed_ticks();
         let diff_ticks = clock_ticks.saturating_sub(emulated_clock_ticks);
 
+        input_state.update(&window);
+
         // Handle debugger state and run the emulator
         let mut new_disassembly = Vec::new();
         match debugger.state {
@@ -185,8 +187,6 @@ fn main() {
             config.resolution.width = w_buffer;
             config.resolution.height = h_buffer;
         }
-
-        input_state.update(&window);
 
         debug_data.update_history(new_disassembly, SHOWN_HISTORY_LINES);
 
