@@ -75,6 +75,14 @@ impl SPC700 {
             // TODO: Handle mode changes back to running
             return None;
         }
+
+        let op_code = bus.byte(self.pc);
+        // Pre-fetch operands for brevity
+        let op0 = bus.byte(self.pc.wrapping_add(2));
+        let op1 = bus.byte(self.pc.wrapping_add(1));
+        let op8 = op1;
+        let op16 = ((op0 as u16) << 8) | op1 as u16;
+
         // Addressing macros return a reference to the byte at the addressed location
         // mut_-versions return mutable reference
         // TODO: Go through wrapping rules for dp, absolute and writes, see anomie
@@ -426,13 +434,21 @@ impl SPC700 {
                 self.a = $value as u8;
             }};
         }
-
-        let op_code = bus.byte(self.pc);
-        // Pre-fetch operands for brevity
-        let op0 = bus.byte(self.pc.wrapping_add(2));
-        let op1 = bus.byte(self.pc.wrapping_add(1));
-        let op8 = op1;
-        let op16 = ((op0 as u16) << 8) | op1 as u16;
+        macro_rules! bit_set {
+            ($bit:expr, $byte:expr) => {
+                ($byte >> $bit) & 0x1 == 0x1
+            };
+        }
+        macro_rules! bit_op {
+            ($op:tt, $complement:expr, $op_length:expr) => {{
+                let bit = (op16 >> 13) as u8;
+                let byte = abs13!(op16);
+                let bit_mask = if $complement { !bit_set!(byte, bit) } else { bit_set!(byte, bit) };
+                self.psw.set_c(self.psw.c() $op bit_mask);
+                self.pc = self.pc.wrapping_add(3);
+                $op_length
+            }};
+        }
 
         let op_length = match op_code {
             // MOV A,#nn
@@ -1039,56 +1055,20 @@ impl SPC700 {
                 6
             }
             // AND1 C,/m.b
-            0x6A => {
-                let bit = (op16 >> 13) as u8;
-                let byte = abs13!(op16);
-                let bit_set = (byte >> bit) & 0x1 == 0x1;
-                self.psw.set_c(self.psw.c() & !bit_set);
-                self.pc = self.pc.wrapping_add(3);
-                4
-            }
+            0x6A => bit_op!(&, true,4),
             // AND1 C,m.b
-            0x4A => {
-                let bit = (op16 >> 13) as u8;
-                let byte = abs13!(op16);
-                let bit_set = (byte >> bit) & 0x1 == 0x1;
-                self.psw.set_c(self.psw.c() & bit_set);
-                self.pc = self.pc.wrapping_add(3);
-                4
-            }
+            0x4A => bit_op!(&, false,4),
             // OR1 C,/m.b
-            0x2A => {
-                let bit = (op16 >> 13) as u8;
-                let byte = abs13!(op16);
-                let bit_set = (byte >> bit) & 0x1 == 0x1;
-                self.psw.set_c(self.psw.c() | !bit_set);
-                self.pc = self.pc.wrapping_add(3);
-                5
-            }
+            0x2A => bit_op!(|, true,5),
             // OR1 C,m.b
-            0x0A => {
-                let bit = (op16 >> 13) as u8;
-                let byte = abs13!(op16);
-                let bit_set = (byte >> bit) & 0x1 == 0x1;
-                self.psw.set_c(self.psw.c() | bit_set);
-                self.pc = self.pc.wrapping_add(3);
-                5
-            }
+            0x0A => bit_op!(|, false,5),
             // EOR1 C,m.b
-            0x8A => {
-                let bit = (op16 >> 13) as u8;
-                let byte = abs13!(op16);
-                let bit_set = (byte >> bit) & 0x1 == 0x1;
-                self.psw.set_c(self.psw.c() ^ bit_set);
-                self.pc = self.pc.wrapping_add(3);
-                5
-            }
+            0x8A => bit_op!(^, false,5),
             // NOT1 m.b
             0xEA => {
                 let bit = (op16 >> 13) as u8;
                 let byte = mut_abs13!(op16);
-                let bit_set = (*byte >> bit) & 0x1 == 0x1;
-                if bit_set {
+                if bit_set!(*byte, bit) {
                     *byte = *byte & !(0x1 << bit);
                 } else {
                     *byte = *byte | (0x1 << bit);
@@ -1108,8 +1088,7 @@ impl SPC700 {
             0xCA => {
                 let bit = (op16 >> 13) as u8;
                 let byte = mut_abs13!(op16);
-                let bit_set = self.psw.c();
-                if bit_set {
+                if self.psw.c() {
                     *byte = *byte & !(0x1 << bit);
                 } else {
                     *byte = *byte | (0x1 << bit);
