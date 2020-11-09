@@ -1,5 +1,5 @@
 use crate::config::Config;
-use crate::debugger::{disassemble_current, status_str};
+use crate::debugger::{cpu_status_str, disassemble_current, smp_status_str};
 use crate::draw_data::DrawData;
 use crate::framebuffer::Framebuffer;
 use crate::text::TextRenderer;
@@ -36,6 +36,7 @@ impl UI {
         self.draw_history(data, snes);
         self.draw_mem(snes);
         self.draw_cpu(snes, config);
+        self.draw_smp(snes, config);
 
         let debug_draw_millis = t_debug_draw.elapsed().as_nanos() as f32 * 1e-6;
 
@@ -74,7 +75,7 @@ impl UI {
         // Drop one line since we have the column header
         let end_byte = start_byte + window_lines.saturating_sub(1) * 0x0010;
 
-        let wram = snes.abus.wram();
+        let wram = snes.apu.bus.ram();
         let wram_text = {
             let mut wram_text = vec![String::from(
                 "      00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F",
@@ -103,11 +104,21 @@ impl UI {
     }
 
     fn draw_cpu(&mut self, snes: &SNES, config: &Config) {
-        let text = status_str(&snes.cpu);
+        let text = cpu_status_str(&snes.cpu);
         let (w, h) = self.text_renderer.window_size(text.iter());
         let start_x = config.resolution.width.saturating_sub(w);
         // Top right corner
         let window = self.fb.absolute_window(start_x, 0, w, h);
+        self.text_renderer.draw(&text, 0xFFFFFFFF, window);
+    }
+
+    fn draw_smp(&mut self, snes: &SNES, config: &Config) {
+        let text = smp_status_str(&snes.apu.smp);
+        let (w, h) = self.text_renderer.window_size(text.iter());
+        let start_x = config.resolution.width.saturating_sub(w);
+        let start_y = config.resolution.height.saturating_sub(h);
+        // Top right corner
+        let window = self.fb.absolute_window(start_x, start_y, w, h);
         self.text_renderer.draw(&text, 0xFFFFFFFF, window);
     }
 

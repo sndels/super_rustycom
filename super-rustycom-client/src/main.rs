@@ -124,6 +124,7 @@ fn main() {
     let mut emulated_clock_ticks = 0;
 
     // Run
+    debugger.state = DebugState::Run;
     while window.is_open() && !window.is_key_down(Key::Escape) {
         // Update ticks that should have passed
         let clock_ticks = time_source.elapsed_ticks();
