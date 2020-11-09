@@ -1,4 +1,6 @@
 pub mod abus;
+pub mod apu;
+mod apu_io;
 pub mod cpu;
 mod dma;
 mod joypad;
