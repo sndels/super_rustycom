@@ -14,7 +14,7 @@ use std::time::Instant;
 use crate::config::Config;
 use crate::debugger::{disassemble_current, DebugState, Debugger};
 use crate::draw_data::DrawData;
-use crate::input::InputState;
+use crate::input::{InputState, KeyState};
 use crate::time_source::TimeSource;
 use crate::ui::UI;
 use clap::clap_app;
@@ -131,6 +131,11 @@ fn main() {
         let diff_ticks = clock_ticks.saturating_sub(emulated_clock_ticks);
 
         input_state.update(&window);
+
+        // Give debugger control on space
+        if input_state.key_state(Key::Space) == KeyState::JustPressed {
+            debugger.state = DebugState::Active;
+        }
 
         // Handle debugger state and run the emulator
         let mut new_disassembly = Vec::new();
