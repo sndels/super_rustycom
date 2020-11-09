@@ -1,3 +1,4 @@
+use crate::apu_io::ApuIo;
 use crate::dma::Dma;
 use crate::joypad::JoyIo;
 use crate::mmap;
@@ -45,22 +46,9 @@ pub struct ABus {
     vtime: u16,
     /// Memory-2 waitstate control
     memsel: u8,
-    /// CPU<->APU communication port 0
-    ///
-    /// CPU writes to low bits and reads from high, APU vice versa
-    apu_io0: u16,
-    /// CPU<->APU communication port 1
-    ///
-    /// CPU writes to low bits and reads from high, APU vice versa
-    apu_io1: u16,
-    /// CPU<->APU communication port 2
-    ///
-    /// CPU writes to low bits and reads from high, APU vice versa
-    apu_io2: u16,
-    /// CPU<->APU communication port 3
-    ///
-    /// CPU writes to low bits and reads from high, APU vice versa
-    apu_io3: u16,
+    /// APU communication
+    apu_io_r: ApuIo,
+    apu_io_w: ApuIo,
     /// Lower 8bit of WRAM address used by WMDATA reads
     wm_add_l: u8,
     /// Middle 8bit of WRAM address used by WMDATA reads
@@ -93,10 +81,8 @@ impl ABus {
             htime: 0x01FF,
             vtime: 0x01FF,
             memsel: 0x00,
-            apu_io0: 0x0000,
-            apu_io1: 0x0000,
-            apu_io2: 0x0000,
-            apu_io3: 0x0000,
+            apu_io_r: ApuIo::default(),
+            apu_io_w: ApuIo::default(),
             wm_add_l: 0x00,
             wm_add_m: 0x00,
             wm_add_h: 0x00,
@@ -123,10 +109,8 @@ impl ABus {
             htime: 0x01FF,
             vtime: 0x01FF,
             memsel: 0x00,
-            apu_io0: 0x0000,
-            apu_io1: 0x0000,
-            apu_io2: 0x0000,
-            apu_io3: 0x0000,
+            apu_io_r: ApuIo::default(),
+            apu_io_w: ApuIo::default(),
             wm_add_l: 0x00,
             wm_add_m: 0x00,
             wm_add_h: 0x00,
@@ -149,6 +133,14 @@ impl ABus {
         &self.cgram
     }
 
+    pub fn apu_io(&self) -> ApuIo {
+        self.apu_io_w
+    }
+
+    pub fn write_smp_io(&mut self, io: ApuIo) {
+        self.apu_io_r = io;
+    }
+
     fn cpu_read_sys(&mut self, addr: usize) -> u8 {
         match addr {
             mmap::WRAM_MIRR_FIRST..=mmap::WRAM_MIRR_LAST => self.wram[addr],
@@ -161,14 +153,8 @@ impl ABus {
             }
             mmap::APU_IO_FIRST..=mmap::APU_IO_LAST => {
                 // APU IO
-                let apu_port = if addr < 0x2144 { addr } else { addr - 4 };
-                match apu_port {
-                    mmap::APUI00 => (self.apu_io0 >> 8) as u8,
-                    mmap::APUI01 => (self.apu_io1 >> 8) as u8,
-                    mmap::APUI02 => (self.apu_io2 >> 8) as u8,
-                    mmap::APUI03 => (self.apu_io3 >> 8) as u8,
-                    _ => unreachable!(),
-                }
+                let port = (if addr < 0x2144 { addr } else { addr - 4 } as u8) & 0x0F;
+                self.apu_io_r.read(port)
             }
             mmap::WMDATA => {
                 // Get current address
@@ -320,14 +306,8 @@ impl ABus {
             }
             mmap::APU_IO_FIRST..=mmap::APU_IO_LAST => {
                 // APU IO
-                let apu_port = if addr < 0x2144 { addr } else { addr - 4 };
-                match apu_port {
-                    mmap::APUI00 => self.apu_io0 = (self.apu_io0 & 0xFF00) | value as u16,
-                    mmap::APUI01 => self.apu_io1 = (self.apu_io1 & 0xFF00) | value as u16,
-                    mmap::APUI02 => self.apu_io2 = (self.apu_io2 & 0xFF00) | value as u16,
-                    mmap::APUI03 => self.apu_io3 = (self.apu_io3 & 0xFF00) | value as u16,
-                    _ => unreachable!(),
-                }
+                let port = (if addr < 0x2144 { addr } else { addr - 4 } as u8) & 0x0F;
+                self.apu_io_w.write(port, value);
             }
             mmap::WMDATA => {
                 let wram_addr = ((self.wm_add_h as usize) << 16)
@@ -396,29 +376,6 @@ impl ABus {
                 self.rom.write_ws2_hi_rom8(bank, bank_addr, value);
             }
             _ => unreachable!(),
-        }
-    }
-
-    pub fn apu_read8(&mut self, reg: u8) -> u8 {
-        match reg {
-            0x00 => self.apu_io0 as u8,
-            0x01 => self.apu_io1 as u8,
-            0x02 => self.apu_io2 as u8,
-            0x03 => self.apu_io3 as u8,
-            _ => {
-                error!("APU read from invalid IO register ${:02X}!", reg);
-                0
-            }
-        }
-    }
-
-    pub fn apu_write8(&mut self, reg: u8, value: u8) {
-        match reg {
-            0x00 => self.apu_io0 = ((value as u16) << 8 | 0x00FF) & self.apu_io0,
-            0x01 => self.apu_io1 = ((value as u16) << 8 | 0x00FF) & self.apu_io1,
-            0x02 => self.apu_io2 = ((value as u16) << 8 | 0x00FF) & self.apu_io2,
-            0x03 => self.apu_io3 = ((value as u16) << 8 | 0x00FF) & self.apu_io3,
-            _ => error!("APU write to invalid IO register ${:02X}!", reg),
         }
     }
 
