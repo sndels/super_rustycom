@@ -104,12 +104,11 @@ fn main() {
         "Super Rustycom",
         config.resolution.width,
         config.resolution.height,
-        {
-            let mut options = WindowOptions::default();
-            options.scale = minifb::Scale::X2;
-            options.scale_mode = minifb::ScaleMode::AspectRatioStretch;
-            options.resize = true;
-            options
+        WindowOptions {
+            scale: minifb::Scale::X2,
+            scale_mode: minifb::ScaleMode::AspectRatioStretch,
+            resize: true,
+            ..WindowOptions::default()
         },
     ));
 
