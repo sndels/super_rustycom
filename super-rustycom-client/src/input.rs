@@ -70,52 +70,50 @@ impl KeyboardState {
     }
 
     pub fn update(&mut self, window: &Window) {
-        if let Some(keys) = window.get_keys() {
-            // Get state needed for updates before self.keys is mutated
-            let new_pressed: HashSet<Key> = keys.into_iter().collect();
-            let previous_pressed: HashSet<Key> = self
-                .keys
-                .iter()
-                .filter(|(_, &state)| state == KeyState::JustPressed || state == KeyState::Held)
-                .map(|(&key, _)| key)
-                .collect();
-            let previous_released: HashSet<Key> = self
-                .keys
-                .iter()
-                .filter(|(_, &state)| state == KeyState::JustReleased)
-                .map(|(&key, _)| key)
-                .collect();
-            let released = previous_pressed.difference(&new_pressed);
+        // Get state needed for updates before self.keys is mutated
+        let new_pressed: HashSet<Key> = window.get_keys().into_iter().collect();
+        let previous_pressed: HashSet<Key> = self
+            .keys
+            .iter()
+            .filter(|(_, &state)| state == KeyState::JustPressed || state == KeyState::Held)
+            .map(|(&key, _)| key)
+            .collect();
+        let previous_released: HashSet<Key> = self
+            .keys
+            .iter()
+            .filter(|(_, &state)| state == KeyState::JustReleased)
+            .map(|(&key, _)| key)
+            .collect();
+        let released = previous_pressed.difference(&new_pressed);
 
-            // Handle transitions for pressed modes
-            for &key in &new_pressed {
-                if let Some(state) = self.keys.get_mut(&key) {
-                    match state {
-                        KeyState::Up | KeyState::JustReleased => *state = KeyState::JustPressed,
-                        KeyState::JustPressed => *state = KeyState::Held,
-                        _ => (),
-                    }
-                } else {
-                    self.keys.insert(key, KeyState::JustPressed);
-                }
-            }
-
-            // Handle transitions for released modes
-            for key in released {
-                let state = self.keys.get_mut(&key).unwrap();
+        // Handle transitions for pressed modes
+        for &key in &new_pressed {
+            if let Some(state) = self.keys.get_mut(&key) {
                 match state {
-                    KeyState::JustPressed | KeyState::Held => *state = KeyState::JustReleased,
+                    KeyState::Up | KeyState::JustReleased => *state = KeyState::JustPressed,
+                    KeyState::JustPressed => *state = KeyState::Held,
                     _ => (),
                 }
+            } else {
+                self.keys.insert(key, KeyState::JustPressed);
             }
-            for key in previous_released {
-                if !new_pressed.contains(&key) {
-                    let state = self.keys.get_mut(&key).unwrap();
-                    *state = KeyState::Up;
-                }
-            }
-            info!("keys {:?}", self.keys);
         }
+
+        // Handle transitions for released modes
+        for key in released {
+            let state = self.keys.get_mut(&key).unwrap();
+            match state {
+                KeyState::JustPressed | KeyState::Held => *state = KeyState::JustReleased,
+                _ => (),
+            }
+        }
+        for key in previous_released {
+            if !new_pressed.contains(&key) {
+                let state = self.keys.get_mut(&key).unwrap();
+                *state = KeyState::Up;
+            }
+        }
+        info!("keys {:?}", self.keys);
     }
 }
 
