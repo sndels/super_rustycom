@@ -1,6 +1,5 @@
 use log::{error, info};
 use serde::{Deserialize, Serialize};
-use serde_json;
 
 use std::{
     fs::File,
@@ -26,7 +25,7 @@ pub struct Config {
     pub resolution: Resolution,
 }
 
-static CONFIG_PATH: &str = "config.json";
+static CONFIG_PATH: &str = "config.yaml";
 
 impl Config {
     pub fn new() -> Config {
@@ -40,7 +39,7 @@ impl Config {
         match File::open(CONFIG_PATH) {
             Ok(config_file) => {
                 let reader = BufReader::new(config_file);
-                match serde_json::from_reader(reader) {
+                match serde_yaml::from_reader(reader) {
                     Ok(config) => return config,
                     Err(why) => {
                         error!("{}", why);
@@ -64,7 +63,7 @@ impl Config {
             }
         };
         let writer = BufWriter::new(config_file);
-        if let Err(why) = serde_json::to_writer(writer, &self) {
+        if let Err(why) = serde_yaml::to_writer(writer, &self) {
             error!("{}", why);
         }
     }
