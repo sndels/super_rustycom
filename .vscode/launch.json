@@ -11,10 +11,9 @@
             "program": "${workspaceFolder}/super-rustycom-client/target/release/super_rustycom_client.exe",
             "args": [],
             "stopAtEntry": false,
-            "cwd": "${workspaceFolder}/super-rustycom-client/target/release",
+            "cwd": "${workspaceFolder}",
             "environment": [],
-            "externalConsole": true,
-            "preLaunchTask": "Build Release Client"
+            "console": "integratedTerminal",
         },
         {
             "name": "(LLDB) Client Release",
@@ -22,8 +21,7 @@
             "request": "launch",
             "program": "${workspaceFolder}/super-rustycom-client/target/release/super_rustycom_client",
             "args": [],
-            "cwd": "${workspaceFolder}/super-rustycom-client/target/release",
-            "preLaunchTask": "Build Release Client"
+            "cwd": "${workspaceFolder}",
         },
         {
             "name": "(CppVSDbg) Client Debug",
@@ -32,10 +30,9 @@
             "program": "${workspaceFolder}/super-rustycom-client/target/debug/super_rustycom_client.exe",
             "args": [],
             "stopAtEntry": false,
-            "cwd": "${workspaceFolder}/super-rustycom-client/target/debug",
+            "cwd": "${workspaceFolder}",
             "environment": [],
-            "externalConsole": true,
-            "preLaunchTask": "Build Debug Client"
+            "console": "integratedTerminal",
         },
         {
             "name": "(LLDB) Client Debug",
@@ -43,8 +40,7 @@
             "request": "launch",
             "program": "${workspaceFolder}/super-rustycom-client/target/debug/super_rustycom_client",
             "args": [],
-            "cwd": "${workspaceFolder}/super-rustycom-client/target/debug",
-            "preLaunchTask": "Build Debug Client"
+            "cwd": "${workspaceFolder}",
         }
     ]
 }
