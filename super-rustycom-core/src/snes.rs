@@ -15,7 +15,7 @@ impl SNES {
         let mut abus = ABus::new(rom_bytes);
         SNES {
             cpu: W65C816S::new(&mut abus),
-            abus: abus,
+            abus,
             apu: APU::default(),
         }
     }

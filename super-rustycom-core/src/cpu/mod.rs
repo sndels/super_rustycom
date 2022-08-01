@@ -378,20 +378,20 @@ impl W65C816S {
             op::CPY_C0 => op!(imm, op_cpy, 3 - self.p.x as u16, 3 - x),
             op::CPY_C4 => op!(dir, op_cpy, 2, 4 + x + dl_zero),
             op::CPY_CC => op!(abs, op_cpy, 3, 5 - x),
-            op::DEC_3A => inc_dec!(self.p.m, *&mut self.a, wrapping_sub),
+            op::DEC_3A => inc_dec!(self.p.m, self.a, wrapping_sub),
             op::DEC_C6 => op!(dir, op_dec, 2, 7 - 2 * m + dl_zero),
             op::DEC_CE => op!(abs, op_dec, 3, 8 - 2 * m),
             op::DEC_D6 => op!(dir_x, op_dec, 2, 8 - 2 * m + dl_zero),
             op::DEC_DE => op!(abs_x, op_dec, 3, 9 - 2 * m),
-            op::DEX => inc_dec!(self.p.x, *&mut self.x, wrapping_sub),
-            op::DEY => inc_dec!(self.p.x, *&mut self.y, wrapping_sub),
-            op::INC_1A => inc_dec!(self.p.m, *&mut self.a, wrapping_add),
+            op::DEX => inc_dec!(self.p.x, self.x, wrapping_sub),
+            op::DEY => inc_dec!(self.p.x, self.y, wrapping_sub),
+            op::INC_1A => inc_dec!(self.p.m, self.a, wrapping_add),
             op::INC_E6 => op!(dir, op_inc, 2, 7 - 2 * m + dl_zero),
             op::INC_EE => op!(abs, op_inc, 3, 8 - 2 * m),
             op::INC_F6 => op!(dir_x, op_inc, 2, 8 - 2 * m + dl_zero),
             op::INC_FE => op!(abs_x, op_inc, 3, 9 - 2 * m),
-            op::INX => inc_dec!(self.p.x, *&mut self.x, wrapping_add),
-            op::INY => inc_dec!(self.p.x, *&mut self.y, wrapping_add),
+            op::INX => inc_dec!(self.p.x, self.x, wrapping_add),
+            op::INY => inc_dec!(self.p.x, self.y, wrapping_add),
             op::AND_21 => op!(dir_x_ptr16, op_and, 2, 7 - m + dl_zero),
             op::AND_23 => op!(stack, op_and, 2, 5 - m),
             op::AND_25 => op!(dir, op_and, 2, 4 - m + dl_zero),
@@ -639,13 +639,13 @@ impl W65C816S {
                 }
                 7 - e
             }
-            op::CLC => cl_se!(*&mut self.p.c, false),
-            op::CLD => cl_se!(*&mut self.p.d, false),
-            op::CLI => cl_se!(*&mut self.p.i, false),
-            op::CLV => cl_se!(*&mut self.p.v, false),
-            op::SEC => cl_se!(*&mut self.p.c, true),
-            op::SED => cl_se!(*&mut self.p.d, true),
-            op::SEI => cl_se!(*&mut self.p.i, true),
+            op::CLC => cl_se!(self.p.c, false),
+            op::CLD => cl_se!(self.p.d, false),
+            op::CLI => cl_se!(self.p.i, false),
+            op::CLV => cl_se!(self.p.v, false),
+            op::SEC => cl_se!(self.p.c, true),
+            op::SED => cl_se!(self.p.d, true),
+            op::SEI => cl_se!(self.p.i, true),
             op::REP => {
                 let data_addr = self.imm(addr, abus);
                 let mask = abus.cpu_read8(data_addr.0);
@@ -1165,12 +1165,11 @@ impl W65C816S {
     /// Pulls two bytes from stack, decrementing the stack pointer accordingly
     fn pull16(&mut self, abus: &mut ABus) -> u16 {
         self.increment_s(1);
-        let value: u16;
-        if self.e {
-            value = abus.page_wrapping_cpu_read16(self.s as u32);
+        let value = if self.e {
+            abus.page_wrapping_cpu_read16(self.s as u32)
         } else {
-            value = abus.bank_wrapping_cpu_read16(self.s as u32);
-        }
+            abus.bank_wrapping_cpu_read16(self.s as u32)
+        };
         self.increment_s(1);
         value
     }
@@ -1179,12 +1178,11 @@ impl W65C816S {
     #[allow(dead_code)]
     fn pull24(&mut self, abus: &mut ABus) -> u32 {
         self.increment_s(1);
-        let value: u32;
-        if self.e {
-            value = abus.page_wrapping_cpu_read24(self.s as u32);
+        let value = if self.e {
+            abus.page_wrapping_cpu_read24(self.s as u32)
         } else {
-            value = abus.bank_wrapping_cpu_read24(self.s as u32);
-        }
+            abus.bank_wrapping_cpu_read24(self.s as u32)
+        };
         self.increment_s(2);
         value
     }
@@ -1447,12 +1445,11 @@ impl W65C816S {
         } else {
             // 16-bit accumulator
             let acc16 = self.a;
-            let data: u16;
-            match data_addr.1 {
-                WrappingMode::Bank => data = abus.bank_wrapping_cpu_read16(data_addr.0),
-                WrappingMode::AddrSpace => data = abus.addr_wrapping_cpu_read16(data_addr.0),
+            let data = match data_addr.1 {
+                WrappingMode::Bank => abus.bank_wrapping_cpu_read16(data_addr.0),
+                WrappingMode::AddrSpace => abus.addr_wrapping_cpu_read16(data_addr.0),
                 WrappingMode::Page => unreachable!(),
-            }
+            };
             self.a = self.add_sub16(acc16, data, false);
         }
     }
@@ -1473,12 +1470,11 @@ impl W65C816S {
         } else {
             // 16-bit accumulator
             let acc16 = self.a;
-            let data: u16;
-            match data_addr.1 {
-                WrappingMode::Bank => data = abus.bank_wrapping_cpu_read16(data_addr.0),
-                WrappingMode::AddrSpace => data = abus.addr_wrapping_cpu_read16(data_addr.0),
+            let data = match data_addr.1 {
+                WrappingMode::Bank => abus.bank_wrapping_cpu_read16(data_addr.0),
+                WrappingMode::AddrSpace => abus.addr_wrapping_cpu_read16(data_addr.0),
                 WrappingMode::Page => unreachable!(),
-            }
+            };
             self.a = self.add_sub16(acc16, data, true);
         }
     }
@@ -1499,12 +1495,11 @@ impl W65C816S {
         } else {
             // 16-bit accumulator
             let acc16 = self.a;
-            let data: u16;
-            match data_addr.1 {
-                WrappingMode::Bank => data = abus.bank_wrapping_cpu_read16(data_addr.0),
-                WrappingMode::AddrSpace => data = abus.addr_wrapping_cpu_read16(data_addr.0),
+            let data = match data_addr.1 {
+                WrappingMode::Bank => abus.bank_wrapping_cpu_read16(data_addr.0),
+                WrappingMode::AddrSpace => abus.addr_wrapping_cpu_read16(data_addr.0),
                 WrappingMode::Page => unreachable!(),
-            }
+            };
             self.compare16(acc16, data);
         }
     }
@@ -1525,12 +1520,11 @@ impl W65C816S {
         } else {
             // 16-bit X register
             let x16 = self.x;
-            let data: u16;
-            match data_addr.1 {
-                WrappingMode::Bank => data = abus.bank_wrapping_cpu_read16(data_addr.0),
-                WrappingMode::AddrSpace => data = abus.addr_wrapping_cpu_read16(data_addr.0),
+            let data = match data_addr.1 {
+                WrappingMode::Bank => abus.bank_wrapping_cpu_read16(data_addr.0),
+                WrappingMode::AddrSpace => abus.addr_wrapping_cpu_read16(data_addr.0),
                 WrappingMode::Page => unreachable!(),
-            }
+            };
             self.compare16(x16, data);
         }
     }
@@ -1551,12 +1545,11 @@ impl W65C816S {
         } else {
             // 16-bit Y register
             let y16 = self.y;
-            let data: u16;
-            match data_addr.1 {
-                WrappingMode::Bank => data = abus.bank_wrapping_cpu_read16(data_addr.0),
-                WrappingMode::AddrSpace => data = abus.addr_wrapping_cpu_read16(data_addr.0),
+            let data = match data_addr.1 {
+                WrappingMode::Bank => abus.bank_wrapping_cpu_read16(data_addr.0),
+                WrappingMode::AddrSpace => abus.addr_wrapping_cpu_read16(data_addr.0),
                 WrappingMode::Page => unreachable!(),
-            }
+            };
             self.compare16(y16, data);
         }
     }
@@ -1634,13 +1627,12 @@ impl W65C816S {
             self.p.z = self.a as u8 == 0;
         } else {
             // 16-bit accumulator
-            let data: u16;
-            match data_addr.1 {
-                WrappingMode::Bank => data = abus.bank_wrapping_cpu_read16(data_addr.0),
-                WrappingMode::AddrSpace => data = abus.addr_wrapping_cpu_read16(data_addr.0),
+            let data = match data_addr.1 {
+                WrappingMode::Bank => abus.bank_wrapping_cpu_read16(data_addr.0),
+                WrappingMode::AddrSpace => abus.addr_wrapping_cpu_read16(data_addr.0),
                 WrappingMode::Page => unreachable!(),
-            }
-            self.a = self.a & data;
+            };
+            self.a &= data;
             self.p.n = self.a > 0x7FFF;
             self.p.z = self.a == 0;
         }
@@ -1659,13 +1651,12 @@ impl W65C816S {
             self.p.z = self.a as u8 == 0;
         } else {
             // 16-bit accumulator
-            let data: u16;
-            match data_addr.1 {
-                WrappingMode::Bank => data = abus.bank_wrapping_cpu_read16(data_addr.0),
-                WrappingMode::AddrSpace => data = abus.addr_wrapping_cpu_read16(data_addr.0),
+            let data = match data_addr.1 {
+                WrappingMode::Bank => abus.bank_wrapping_cpu_read16(data_addr.0),
+                WrappingMode::AddrSpace => abus.addr_wrapping_cpu_read16(data_addr.0),
                 WrappingMode::Page => unreachable!(),
-            }
-            self.a = self.a ^ data;
+            };
+            self.a ^= data;
             self.p.n = self.a > 0x7FFF;
             self.p.z = self.a == 0;
         }
@@ -1684,13 +1675,12 @@ impl W65C816S {
             self.p.z = self.a as u8 == 0;
         } else {
             // 16-bit accumulator
-            let data: u16;
-            match data_addr.1 {
-                WrappingMode::Bank => data = abus.bank_wrapping_cpu_read16(data_addr.0),
-                WrappingMode::AddrSpace => data = abus.addr_wrapping_cpu_read16(data_addr.0),
+            let data = match data_addr.1 {
+                WrappingMode::Bank => abus.bank_wrapping_cpu_read16(data_addr.0),
+                WrappingMode::AddrSpace => abus.addr_wrapping_cpu_read16(data_addr.0),
                 WrappingMode::Page => unreachable!(),
-            }
-            self.a = self.a | data;
+            };
+            self.a |= data;
             self.p.n = self.a > 0x7FFF;
             self.p.z = self.a == 0;
         }
@@ -1711,12 +1701,11 @@ impl W65C816S {
             self.p.z = result == 0;
         } else {
             // 16-bit accumulator
-            let data: u16;
-            match data_addr.1 {
-                WrappingMode::Bank => data = abus.bank_wrapping_cpu_read16(data_addr.0),
-                WrappingMode::AddrSpace => data = abus.addr_wrapping_cpu_read16(data_addr.0),
+            let data = match data_addr.1 {
+                WrappingMode::Bank => abus.bank_wrapping_cpu_read16(data_addr.0),
+                WrappingMode::AddrSpace => abus.addr_wrapping_cpu_read16(data_addr.0),
                 WrappingMode::Page => unreachable!(),
-            }
+            };
             let result = self.a & data;
             self.p.n = data > 0x7FFF;
             self.p.v = data & 0x4000 > 0;
@@ -1903,12 +1892,11 @@ impl W65C816S {
             self.p.n = data > 0x7F;
             self.p.z = data == 0;
         } else {
-            let data: u16;
-            match data_addr.1 {
-                WrappingMode::Bank => data = abus.bank_wrapping_cpu_read16(data_addr.0),
-                WrappingMode::AddrSpace => data = abus.addr_wrapping_cpu_read16(data_addr.0),
+            let data = match data_addr.1 {
+                WrappingMode::Bank => abus.bank_wrapping_cpu_read16(data_addr.0),
+                WrappingMode::AddrSpace => abus.addr_wrapping_cpu_read16(data_addr.0),
                 WrappingMode::Page => unreachable!(),
-            }
+            };
             self.a = data;
             self.p.n = data > 0x7FFF;
             self.p.z = data == 0;
@@ -1926,12 +1914,11 @@ impl W65C816S {
             self.p.n = data > 0x7F;
             self.p.z = data == 0;
         } else {
-            let data: u16;
-            match data_addr.1 {
-                WrappingMode::Bank => data = abus.bank_wrapping_cpu_read16(data_addr.0),
-                WrappingMode::AddrSpace => data = abus.addr_wrapping_cpu_read16(data_addr.0),
+            let data = match data_addr.1 {
+                WrappingMode::Bank => abus.bank_wrapping_cpu_read16(data_addr.0),
+                WrappingMode::AddrSpace => abus.addr_wrapping_cpu_read16(data_addr.0),
                 WrappingMode::Page => unreachable!(),
-            }
+            };
             self.x = data;
             self.p.n = data > 0x7FFF;
             self.p.z = data == 0;
@@ -1949,12 +1936,11 @@ impl W65C816S {
             self.p.n = data > 0x7F;
             self.p.z = data == 0;
         } else {
-            let data: u16;
-            match data_addr.1 {
-                WrappingMode::Bank => data = abus.bank_wrapping_cpu_read16(data_addr.0),
-                WrappingMode::AddrSpace => data = abus.addr_wrapping_cpu_read16(data_addr.0),
+            let data = match data_addr.1 {
+                WrappingMode::Bank => abus.bank_wrapping_cpu_read16(data_addr.0),
+                WrappingMode::AddrSpace => abus.addr_wrapping_cpu_read16(data_addr.0),
                 WrappingMode::Page => unreachable!(),
-            }
+            };
             self.y = data;
             self.p.n = data > 0x7FFF;
             self.p.z = data == 0;

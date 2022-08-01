@@ -16,7 +16,7 @@ impl UI {
     pub fn new(config: &Config) -> UI {
         UI {
             text_renderer: TextRenderer::new(),
-            fb: Framebuffer::new(&config),
+            fb: Framebuffer::new(config),
         }
     }
 
@@ -51,9 +51,9 @@ impl UI {
         let disassembly = data
             .disassembled_history()
             .iter()
-            .cloned()
             // Drop history that doesn't fit while leaving room for current pointer
             .skip(history_len.saturating_sub(window_lines) + 1)
+            .cloned()
             .chain(
                 [format!(
                     "> {}",

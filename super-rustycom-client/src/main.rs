@@ -146,8 +146,8 @@ fn main() {
             }
             DebugState::Step => {
                 // Go through steps
-                snes.run_steps(debugger.steps, |cpu, mut abus| {
-                    new_disassembly.push(disassemble_current(&cpu, &mut abus))
+                snes.run_steps(debugger.steps, |cpu, abus| {
+                    new_disassembly.push(disassemble_current(cpu, abus))
                 });
                 // Reset debugger state
                 debugger.steps = 0;
@@ -157,15 +157,12 @@ fn main() {
             }
             DebugState::Run => {
                 let t_run = Instant::now();
-                let (ticks, hit_breakpoint) = snes.run(
-                    diff_ticks,
-                    debugger.breakpoint,
-                    |cpu, mut abus, ops_left| {
+                let (ticks, hit_breakpoint) =
+                    snes.run(diff_ticks, debugger.breakpoint, |cpu, abus, ops_left| {
                         if ops_left < HISTORY_CYCLE_COUNT {
-                            new_disassembly.push(disassemble_current(&cpu, &mut abus))
+                            new_disassembly.push(disassemble_current(cpu, abus))
                         }
-                    },
-                );
+                    });
 
                 if hit_breakpoint {
                     debugger.state = DebugState::Active;

@@ -101,7 +101,7 @@ impl KeyboardState {
 
         // Handle transitions for released modes
         for key in released {
-            let state = self.keys.get_mut(&key).unwrap();
+            let state = self.keys.get_mut(key).unwrap();
             match state {
                 KeyState::JustPressed | KeyState::Held => *state = KeyState::JustReleased,
                 _ => (),
@@ -177,7 +177,7 @@ impl MouseState {
                     }
                 }
             };
-        };
+        }
 
         button_handler!(MouseButton::Left, self.buttons.0);
         button_handler!(MouseButton::Middle, self.buttons.1);

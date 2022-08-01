@@ -46,8 +46,8 @@ impl Debugger {
             error!("{}", why);
             return;
         }
-        let arg_vec = command_str.trim().split_whitespace().collect::<Vec<&str>>();
-        if arg_vec.len() > 0 {
+        let arg_vec = command_str.split_whitespace().collect::<Vec<&str>>();
+        if !arg_vec.is_empty() {
             match arg_vec[0] {
                 "disassemble" | "da" => {
                     self.disassemble = !self.disassemble;
@@ -62,28 +62,28 @@ impl Debugger {
                         match arg_vec[1] {
                             "rom" => unimplemented!(),
                             "wram" => {
-                                if dump_memory("wramdump.bin", &abus.wram()) {
+                                if dump_memory("wramdump.bin", abus.wram()) {
                                     println!("WRAM dumped");
                                 } else {
                                     println!("Dumping WRAM failed!");
                                 }
                             }
                             "vram" => {
-                                if dump_memory("vramdump.bin", &abus.vram()) {
+                                if dump_memory("vramdump.bin", abus.vram()) {
                                     println!("VRAM dumped");
                                 } else {
                                     println!("Dumping VRAM failed!");
                                 }
                             }
                             "oam" => {
-                                if dump_memory("oamdump.bin", &abus.oam()) {
+                                if dump_memory("oamdump.bin", abus.oam()) {
                                     println!("OAM dumped");
                                 } else {
                                     println!("Dumping OAM failed!");
                                 }
                             }
                             "cgram" => {
-                                if dump_memory("cgrmdump.bin", &abus.cgram()) {
+                                if dump_memory("cgrmdump.bin", abus.cgram()) {
                                     println!("CGRAM dumped");
                                 } else {
                                     println!("Dumping CGRAM failed!");
@@ -92,22 +92,22 @@ impl Debugger {
                             &_ => println!("Invalid parameter \"{}\"", arg_vec[1]),
                         }
                     } else {
-                        if dump_memory("wramdump.bin", &abus.wram()) {
+                        if dump_memory("wramdump.bin", abus.wram()) {
                             println!("WRAM dumped");
                         } else {
                             println!("Dumping WRAM failed!");
                         }
-                        if dump_memory("vramdump.bin", &abus.vram()) {
+                        if dump_memory("vramdump.bin", abus.vram()) {
                             println!("VRAM dumped");
                         } else {
                             println!("Dumping VRAM failed!");
                         }
-                        if dump_memory("oamdump.bin", &abus.oam()) {
+                        if dump_memory("oamdump.bin", abus.oam()) {
                             println!("OAM dumped");
                         } else {
                             println!("Dumping OAM failed!");
                         }
-                        if dump_memory("cgrmdump.bin", &abus.cgram()) {
+                        if dump_memory("cgrmdump.bin", abus.cgram()) {
                             println!("CGRAM dumped");
                         } else {
                             println!("Dumping CGRAM failed!");
@@ -190,6 +190,9 @@ fn dump_memory(file_path: &str, buf: &[u8]) -> bool {
     true
 }
 
+// TODO:
+// This shouldn't have any side-effects. Implement separate read and assume
+// memory with side-effects is never needed (for simplicity)?
 pub fn disassemble_current(cpu: &W65C816S, abus: &mut ABus) -> String {
     disassemble(cpu.current_address(), cpu, abus)
 }
@@ -487,8 +490,8 @@ enum AddrMode {
     StackPtr16Y,
 }
 
-#[cfg_attr(rustfmt, rustfmt_skip)]
-const OPNAMES: [&'static str; 256] = [
+#[rustfmt::skip]
+const OPNAMES: [&str; 256] = [
     "BRK", "ORA", "COP", "ORA", "TSB", "ORA", "ASL", "ORA", "PHP", "ORA", "ASL",
     "PHD", "TSB", "ORA", "ASL", "ORA", "BPL", "ORA", "ORA", "ORA", "TRB", "ORA",
     "ASL", "ORA", "CLC", "ORA", "INC", "TCS", "TRB", "ORA", "ASL", "ORA", "JSR",
@@ -515,7 +518,7 @@ const OPNAMES: [&'static str; 256] = [
     "SBC", "INC", "SBC"
 ];
 
-#[cfg_attr(rustfmt, rustfmt_skip)]
+#[rustfmt::skip]
 const ADDR_MODES: [AddrMode; 256] = [
     AddrMode::Imp, AddrMode::DirXPtr16, AddrMode::Imm8, AddrMode::Stack, AddrMode::Dir,
     AddrMode::Dir, AddrMode::Dir, AddrMode::DirPtr24, AddrMode::Imp, AddrMode::ImmM,

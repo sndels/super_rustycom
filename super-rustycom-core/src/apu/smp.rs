@@ -1025,7 +1025,7 @@ impl SPC700 {
             0x02 | 0x22 | 0x42 | 0x62 | 0x82 | 0xA2 | 0xC2 | 0xE2 => {
                 let bit = (op_code >> 4) / 2;
                 let byte = mut_dp!(op8);
-                *byte = *byte | (0x1 << bit);
+                *byte |= 0x1 << bit;
                 self.pc = self.pc.wrapping_add(2);
                 4
             }
@@ -1034,7 +1034,7 @@ impl SPC700 {
             0x12 | 0x32 | 0x52 | 0x72 | 0x92 | 0xB2 | 0xD2 | 0xF2 => {
                 let bit = ((op_code >> 4) - 1) / 2;
                 let byte = mut_dp!(op8);
-                *byte = *byte & !(0x1 << bit);
+                *byte &= !(0x1 << bit);
                 self.pc = self.pc.wrapping_add(2);
                 4
             }
@@ -1042,7 +1042,7 @@ impl SPC700 {
             0x4E => {
                 let byte = mut_abs!(op16);
                 self.psw.set_n_z_byte(self.a.wrapping_sub(*byte));
-                *byte = *byte & !self.a;
+                *byte &= !self.a;
                 self.pc = self.pc.wrapping_add(3);
                 6
             }
@@ -1050,7 +1050,7 @@ impl SPC700 {
             0x0E => {
                 let byte = mut_abs!(op16);
                 self.psw.set_n_z_byte(self.a.wrapping_sub(*byte));
-                *byte = *byte | self.a;
+                *byte |= self.a;
                 self.pc = self.pc.wrapping_add(3);
                 6
             }
@@ -1069,9 +1069,9 @@ impl SPC700 {
                 let bit = (op16 >> 13) as u8;
                 let byte = mut_abs13!(op16);
                 if bit_set!(*byte, bit) {
-                    *byte = *byte & !(0x1 << bit);
+                    *byte &= !(0x1 << bit);
                 } else {
-                    *byte = *byte | (0x1 << bit);
+                    *byte |= 0x1 << bit;
                 }
                 self.pc = self.pc.wrapping_add(3);
                 5
@@ -1089,9 +1089,9 @@ impl SPC700 {
                 let bit = (op16 >> 13) as u8;
                 let byte = mut_abs13!(op16);
                 if self.psw.c() {
-                    *byte = *byte & !(0x1 << bit);
+                    *byte &= !(0x1 << bit);
                 } else {
-                    *byte = *byte | (0x1 << bit);
+                    *byte |= 0x1 << bit;
                 }
                 self.pc = self.pc.wrapping_add(3);
                 6
@@ -1162,6 +1162,7 @@ macro_rules! set_bit {
 }
 
 impl StatusReg {
+    // TODO: Is this broken or is 0x00 correct?
     /// Initializes a new instance with default values (`m`, `x` and `i` are set)
     pub fn new() -> StatusReg {
         StatusReg { value: 0x00 }

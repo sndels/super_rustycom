@@ -2,6 +2,40 @@
     "version": "2.0.0",
     "tasks": [
         {
+            "label": "Run clippy (client)",
+            "group": "build",
+            "command": "cargo",
+            "args": [
+                "clippy",
+            ],
+            "options": {
+                "cwd": "${workspaceRoot}/super-rustycom-client",
+                "env": {
+                    "RUSTFLAGS": "-g"
+                }
+            },
+            "problemMatcher": [
+                "$rustc"
+            ]
+        },
+        {
+            "label": "Run clippy (core)",
+            "group": "build",
+            "command": "cargo",
+            "args": [
+                "clippy",
+            ],
+            "options": {
+                "cwd": "${workspaceRoot}/super-rustycom-core",
+                "env": {
+                    "RUSTFLAGS": "-g"
+                }
+            },
+            "problemMatcher": [
+                "$rustc"
+            ]
+        },
+        {
             "label": "Build Release Client",
             "group": "build",
             "command": "cargo",
