@@ -1,3 +1,4 @@
 target/
-**/*.rs.bk
 super-rustycom-core/Cargo.lock
+config.yaml
+emu.log
