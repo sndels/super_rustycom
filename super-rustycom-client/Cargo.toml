@@ -9,8 +9,11 @@ super-rustycom-core = { path = "../super-rustycom-core" }
 clap = "3.2.16"
 chrono = "0.4.19"
 fern = "0.6.1"
+glium = "0.31"
+imgui = { git = "https://github.com/imgui-rs/imgui-rs", rev = "592af95" }
+imgui-glium-renderer = { git = "https://github.com/imgui-rs/imgui-rs", rev = "592af95" }
+imgui-winit-support = { git = "https://github.com/imgui-rs/imgui-rs", rev = "592af95" }
 itertools = "0.10.3"
 log = "0.4.17"
-minifb = "0.23.0"
 serde = { version = "1.0.140", features = ["derive"] }
 serde_yaml = "0.9.2"

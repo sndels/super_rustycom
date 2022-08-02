@@ -1,31 +1,21 @@
 mod config;
 mod debugger;
 mod draw_data;
-mod framebuffer;
-mod input;
-mod text;
+mod macros;
 mod time_source;
 mod ui;
+mod window;
 
-use std::fs::File;
-use std::io::prelude::*;
-use std::time::Instant;
-
-use crate::config::Config;
-use crate::debugger::{disassemble_current, DebugState, Debugger};
-use crate::draw_data::DrawData;
-use crate::input::{InputState, KeyState};
-use crate::time_source::TimeSource;
-use crate::ui::UI;
 use clap::{arg, Command};
 use log::{error, info};
-use minifb::{Key, Window, WindowOptions};
+use std::{fs::File, io::prelude::*};
 use super_rustycom_core::snes::SNES;
 
-const SHOWN_HISTORY_LINES: usize = 50;
-// Cpu cycles to gather disassembly for
-// Might be overkill without long interrupts but is still fast
-const HISTORY_CYCLE_COUNT: usize = 1000;
+use crate::{
+    config::Config,
+    debugger::{DebugState, Debugger},
+    window::Window,
+};
 
 fn unwrap<T, E>(result: Result<T, E>) -> T
 where
@@ -96,115 +86,17 @@ fn main() {
     };
 
     // Init hardware
-    let mut snes = SNES::new(rom_bytes);
+    let snes = SNES::new(rom_bytes);
     let mut debugger = Debugger::new();
-
-    // Init drawing
-    let mut window = unwrap(Window::new(
-        "Super Rustycom",
-        config.resolution.width,
-        config.resolution.height,
-        WindowOptions {
-            scale: minifb::Scale::X2,
-            scale_mode: minifb::ScaleMode::AspectRatioStretch,
-            resize: true,
-            ..WindowOptions::default()
-        },
-    ));
-
-    let mut ui = UI::new(&config);
-
-    let mut input_state = InputState::new();
-
-    let mut debug_data = DrawData::new();
-
-    // Init time source
-    let time_source = TimeSource::new();
-    let mut emulated_clock_ticks = 0;
-
-    // Run
     debugger.state = if args.contains_id("pause") {
         DebugState::Active
     } else {
         DebugState::Run
     };
-    while window.is_open() && !window.is_key_down(Key::Escape) {
-        // Update ticks that should have passed
-        let clock_ticks = time_source.elapsed_ticks();
-        let diff_ticks = clock_ticks.saturating_sub(emulated_clock_ticks);
 
-        input_state.update(&window);
-
-        // Give debugger control on space
-        if input_state.key_state(Key::Space) == KeyState::JustPressed {
-            debugger.state = DebugState::Active;
-        }
-
-        // Handle debugger state and run the emulator
-        let mut new_disassembly = Vec::new();
-        match debugger.state {
-            DebugState::Active => {
-                debugger.take_command(&mut snes.cpu, &mut snes.abus);
-                // Update cycle count to prevent warping
-                emulated_clock_ticks = time_source.elapsed_ticks();
-            }
-            DebugState::Step => {
-                // Go through steps
-                snes.run_steps(debugger.steps, |cpu, abus| {
-                    new_disassembly.push(disassemble_current(cpu, abus))
-                });
-                // Reset debugger state
-                debugger.steps = 0;
-                debugger.state = DebugState::Active;
-                // Update cycle count to prevent warping on pauses
-                emulated_clock_ticks = time_source.elapsed_ticks();
-            }
-            DebugState::Run => {
-                let t_run = Instant::now();
-                let (ticks, hit_breakpoint) =
-                    snes.run(diff_ticks, debugger.breakpoint, |cpu, abus, ops_left| {
-                        if ops_left < HISTORY_CYCLE_COUNT {
-                            new_disassembly.push(disassemble_current(cpu, abus))
-                        }
-                    });
-
-                if hit_breakpoint {
-                    debugger.state = DebugState::Active;
-                }
-
-                let emulated_nanos = TimeSource::to_nanos(ticks);
-                let spent_nanos = t_run.elapsed().as_nanos();
-                debug_data.extra_nanos = emulated_nanos.saturating_sub(spent_nanos);
-                debug_data.missing_nanos = spent_nanos.saturating_sub(emulated_nanos);
-
-                // Update actual number of emulated cycles
-                emulated_clock_ticks += ticks;
-            }
-            DebugState::Quit => break,
-        }
-
-        let (w_window, h_window) = window.get_size();
-        // We use double scale for output
-        let w_buffer = w_window / 2;
-        let h_buffer = h_window / 2;
-        if w_buffer != config.resolution.width || h_buffer != config.resolution.height {
-            ui.resize(w_buffer, h_buffer);
-            config.resolution.width = w_buffer;
-            config.resolution.height = h_buffer;
-        }
-
-        debug_data.update_history(new_disassembly, SHOWN_HISTORY_LINES);
-
-        ui.draw(&debug_data, &mut snes, &config);
-
-        if let Err(why) = window.update_with_buffer(
-            ui.buffer(),
-            config.resolution.width,
-            config.resolution.height,
-        ) {
-            error!("{}", why);
-        }
-    }
+    // TODO: Give mutable config, update window size for write out
+    let window = Window::new("Super Rustycom", &config, snes, debugger);
+    window.main_loop();
 
     config.save();
 }
