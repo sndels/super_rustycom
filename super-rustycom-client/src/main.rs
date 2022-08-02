@@ -17,7 +17,7 @@ use crate::draw_data::DrawData;
 use crate::input::{InputState, KeyState};
 use crate::time_source::TimeSource;
 use crate::ui::UI;
-use clap::clap_app;
+use clap::{arg, Command};
 use log::{error, info};
 use minifb::{Key, Window, WindowOptions};
 use super_rustycom_core::snes::SNES;
@@ -63,13 +63,10 @@ fn setup_logger() -> Result<(), fern::InitError> {
 }
 
 fn main() {
-    let args = clap_app!(super_rustycom_client =>
-        (version: "0.1.0")
-        (author: "sndels <sndels@iki.fi>")
-        (about: "Very WIP Super Nintendo emulation")
-        (@arg ROM: --rom +takes_value "Sets the rom file to use, previous file used if not given")
-    )
-    .get_matches();
+    let args = Command::new("super_rustycom_client")
+        .about("Very WIP Super Nintendo emulation")
+        .args(&[arg!(--rom [FILE] "Sets the rom file to use, previous file used if not given")])
+        .get_matches();
 
     if let Err(why) = setup_logger() {
         panic!("{}", why);
@@ -78,7 +75,7 @@ fn main() {
     let mut config = Config::load();
 
     // Get ROM path from first argument
-    if let Some(rom_path) = args.value_of("ROM") {
+    if let Some(rom_path) = args.value_of("rom") {
         config.rom_path = rom_path.to_string();
     }
     if config.rom_path.is_empty() {
