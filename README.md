@@ -28,6 +28,10 @@ The stuff I've used as reference so far:\
 
 Included debug build task requires nightly for macro debug toys.
 
+## Test roms
+
+Tests ROMs are written with [cc65](https://cc65.github.io/) as the intended toolchain.
+
 ## Running
 
 Run with `super_rustycom(.exe) --rom {rom_path}`. Subsequent runs don't require the argument to load the same rom as the previous one is loaded from config.json as a fallback.

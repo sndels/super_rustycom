@@ -2,3 +2,7 @@ target/
 super-rustycom-core/Cargo.lock
 config.yaml
 emu.log
+
+*.bak
+*.sym
+*.o
