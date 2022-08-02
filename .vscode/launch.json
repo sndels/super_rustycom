@@ -28,7 +28,9 @@
             "type": "cppvsdbg",
             "request": "launch",
             "program": "${workspaceFolder}/super-rustycom-client/target/debug/super_rustycom_client.exe",
-            "args": [],
+            "args": [
+                "--pause"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],
