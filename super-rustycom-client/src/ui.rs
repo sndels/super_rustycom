@@ -25,7 +25,7 @@ pub struct UIState {
     pub is_any_item_active: bool,
 }
 
-const MEMORY_WINDOW_SIZE: [f32; 2] = [388.0, 394.0];
+const MEMORY_WINDOW_SIZE: [f32; 2] = [388.0, 344.0];
 static mut WRAM_START_BYTE: u16 = 0;
 static mut APU_RAM_START_BYTE: u16 = 0;
 
@@ -36,8 +36,7 @@ impl UI {
 
         let mut platform = WinitPlatform::init(&mut context);
 
-        let hidpi_factor = platform.hidpi_factor();
-        let font_size = (13.0 * hidpi_factor) as f32;
+        let font_size = 13.0 as f32;
         context.fonts().add_font(&[FontSource::DefaultFontData {
             config: Some(FontConfig {
                 size_pixels: font_size,
@@ -45,7 +44,7 @@ impl UI {
             }),
         }]);
 
-        context.io_mut().font_global_scale = (1.0 / hidpi_factor) as f32;
+        context.io_mut().font_global_scale = 1.0;
 
         {
             let style = context.style_mut();
@@ -128,7 +127,7 @@ impl UI {
                     frame_ui,
                     snes.apu.bus.ram(),
                     "APU RAM",
-                    [DISASSEMBLY_WINDOW_SIZE[0] + MEMORY_WINDOW_SIZE[0], 0.0],
+                    [DISASSEMBLY_WINDOW_SIZE[0], MEMORY_WINDOW_SIZE[1]],
                     &mut APU_RAM_START_BYTE,
                 );
             }
@@ -252,9 +251,9 @@ fn mem_window(
     position: [f32; 2],
     start_byte: &mut u16,
 ) {
-    let shown_row_count: usize = 20;
+    let shown_row_count: usize = 16;
     // Drop one line since we have the column header
-    let end_byte = (*start_byte as usize) + shown_row_count.saturating_sub(1) * 0x0010;
+    let end_byte = (*start_byte as usize) + shown_row_count * 0x0010;
 
     let mut text = vec![String::from(
         "      00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F",

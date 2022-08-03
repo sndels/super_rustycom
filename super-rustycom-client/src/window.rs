@@ -1,7 +1,7 @@
 use glium::glutin;
 use glium::{
     glutin::{
-        dpi::LogicalSize,
+        dpi::PhysicalSize,
         event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
         event_loop::{ControlFlow, EventLoop},
         platform::run_return::EventLoopExtRunReturn,
@@ -9,7 +9,6 @@ use glium::{
     },
     Surface,
 };
-use log::error;
 use std::time::Instant;
 use super_rustycom_core::snes::SNES;
 
@@ -41,7 +40,7 @@ impl Window {
         let event_loop = EventLoop::new();
         let window_builder = WindowBuilder::new()
             .with_title(title.to_owned())
-            .with_inner_size(LogicalSize::new(
+            .with_inner_size(PhysicalSize::new(
                 config.resolution.width as f64,
                 config.resolution.height as f64,
             ));
