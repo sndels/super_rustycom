@@ -215,232 +215,320 @@ fn disassemble(
     let operand8 = operand24 as u8;
 
     // DRY macros
-    macro_rules! str_operand8 {
-        () => {{
-            format!("{0:02X}", operand8)
-        }};
-    }
-
-    macro_rules! str_operand16 {
-        () => {{
-            format!("{0:02X} {1:02X}", operand16 & 0xFF, operand16 >> 8)
-        }};
-    }
-
-    macro_rules! str_operand24 {
+    macro_rules! str_noperand {
         () => {{
             format!(
-                "{0:02X} {1:02X} {2:02X}",
-                operand24 & 0xFF,
-                (operand24 >> 8) & 0xFF,
-                operand24 >> 16
+                "${:02X}:{:04X} {:02X}          {}",
+                addr >> 16,
+                addr & 0xFFFF,
+                opcode,
+                opname
             )
         }};
     }
 
-    macro_rules! str_full_addr {
-        ($address:expr) => {{
-            format!("[${0:02X}:{1:04X}]", $address >> 16, $address & 0xFFFF)
+    macro_rules! str_operand8 {
+        ($disassembly_fmt:literal, $address:expr) => {{
+            if include_effective_addr {
+                format!(
+                    concat!(
+                        "${:02X}:{:04X} {:02X} {:02X}       ",
+                        $disassembly_fmt,
+                        " [${:02X}:{:04X}]"
+                    ),
+                    addr >> 16,
+                    addr & 0xFFFF,
+                    opcode,
+                    operand8,
+                    opname,
+                    operand8,
+                    $address >> 16,
+                    $address & 0xFFFF,
+                )
+            } else {
+                format!(
+                    concat!("${:02X}:{:04X} {:02X} {:02X}       ", $disassembly_fmt),
+                    addr >> 16,
+                    addr & 0xFFFF,
+                    opcode,
+                    operand8,
+                    opname,
+                    operand8,
+                )
+            }
+        }};
+        ($disassembly_fmt:literal) => {{
+            format!(
+                concat!("${:02X}:{:04X} {:02X} {:02X}       ", $disassembly_fmt),
+                addr >> 16,
+                addr & 0xFFFF,
+                opcode,
+                operand8,
+                opname,
+                operand8,
+            )
         }};
     }
 
-    let raw_header = format!(
-        "${0:02X}:{1:04X} {2:02X}",
-        addr >> 16,
-        addr & 0xFFFF,
-        opcode
-    );
-    let (bytes_str, disassembled_str, effective_str, op_length) = match opmode {
+    macro_rules! str_operand16 {
+        ($disassembly_fmt:literal, $address:expr) => {{
+            if include_effective_addr {
+                format!(
+                    concat!(
+                        "${:02X}:{:04X} {:02X} {:02X} {:02X}    ",
+                        $disassembly_fmt,
+                        " [${:02X}:{:04X}]"
+                    ),
+                    addr >> 16,
+                    addr & 0xFFFF,
+                    opcode,
+                    operand16 & 0xFF,
+                    operand16 >> 8,
+                    opname,
+                    operand16,
+                    $address >> 16,
+                    $address & 0xFFFF,
+                )
+            } else {
+                format!(
+                    concat!("${:02X}:{:04X} {:02X} {:02X} {:02X}    ", $disassembly_fmt),
+                    addr >> 16,
+                    addr & 0xFFFF,
+                    opcode,
+                    operand16 & 0xFF,
+                    operand16 >> 8,
+                    opname,
+                    operand16,
+                )
+            }
+        }};
+        ($disassembly_fmt:literal) => {{
+            format!(
+                concat!("${:02X}:{:04X} {:02X} {:02X} {:02X}    ", $disassembly_fmt),
+                addr >> 16,
+                addr & 0xFFFF,
+                opcode,
+                operand16 & 0xFF,
+                operand16 >> 8,
+                opname,
+                operand16,
+            )
+        }};
+    }
+
+    macro_rules! str_operand24 {
+        ($disassembly_fmt:literal, $address:expr) => {{
+            if include_effective_addr {
+                format!(
+                    concat!(
+                        "${:02X}:{:04X} {:02X} {:02X} {:02X} {:02X} ",
+                        $disassembly_fmt,
+                        " [${:02X}:{:04X}]"
+                    ),
+                    addr >> 16,
+                    addr & 0xFFFF,
+                    opcode,
+                    operand24 & 0xFF,
+                    (operand24 >> 8) & 0xFF,
+                    operand24 >> 16,
+                    opname,
+                    operand24,
+                    $address >> 16,
+                    $address & 0xFFFF,
+                )
+            } else {
+                format!(
+                    concat!(
+                        "${:02X}:{:04X} {:02X} {:02X} {:02X} {:02X} ",
+                        $disassembly_fmt
+                    ),
+                    addr >> 16,
+                    addr & 0xFFFF,
+                    opcode,
+                    operand24 & 0xFF,
+                    (operand24 >> 8) & 0xFF,
+                    operand24 >> 16,
+                    opname,
+                    operand24,
+                )
+            }
+        }};
+        ($disassembly_fmt:literal) => {{
+            format!(
+                concat!(
+                    "${:02X}:{:04X} {:02X} {:02X} {:02X} {:02X} ",
+                    $disassembly_fmt
+                ),
+                addr >> 16,
+                addr & 0xFFFF,
+                opcode,
+                operand24 & 0xFF,
+                (operand24 >> 8) & 0xFF,
+                operand24 >> 16,
+                opname,
+                operand24,
+            )
+        }};
+    }
+
+    match opmode {
         AddrMode::Abs => (
-            str_operand16!(),
-            format!("{0} ${1:04X}", opname, operand16),
-            str_full_addr!(cpu.peek_abs(addr, abus).0),
+            str_operand16!("{} ${:04X}    ", cpu.peek_abs(addr, abus).0),
             3,
         ),
         AddrMode::AbsX => (
-            str_operand16!(),
-            format!("{0} ${1:04X},X", opname, operand16),
-            str_full_addr!(cpu.peek_abs_x(addr, abus).0),
+            str_operand16!("{} ${:04X},X  ", cpu.peek_abs_x(addr, abus).0),
             3,
         ),
         AddrMode::AbsY => (
-            str_operand16!(),
-            format!("{0} ${1:04X},Y", opname, operand16),
-            str_full_addr!(cpu.peek_abs_y(addr, abus).0),
+            str_operand16!("{} ${:04X},Y  ", cpu.peek_abs_y(addr, abus).0),
             3,
         ),
         AddrMode::AbsPtr16 => (
-            str_operand16!(),
-            format!("{0} (${1:04X})", opname, operand16),
-            str_full_addr!(cpu.peek_abs_ptr16(addr, abus).0),
+            str_operand16!("{} (${:04X}  )", cpu.peek_abs_ptr16(addr, abus).0),
             3,
         ),
         AddrMode::AbsPtr24 => (
-            str_operand16!(),
-            format!("{0} [${1:04X}]", opname, operand16),
-            str_full_addr!(cpu.peek_abs_ptr24(addr, abus).0),
+            str_operand16!("{} [${:04X}]  ", cpu.peek_abs_ptr24(addr, abus).0),
             3,
         ),
         AddrMode::AbsXPtr16 => (
-            str_operand16!(),
-            format!("{0} (${1:04X},X)", opname, operand16),
-            str_full_addr!(cpu.peek_abs_x_ptr16(addr, abus).0),
+            str_operand16!("{} (${:04X},X)", cpu.peek_abs_x_ptr16(addr, abus).0),
             3,
         ),
-        AddrMode::Acc => (String::new(), String::from(opname), String::new(), 1),
+        AddrMode::Acc => (str_noperand!(), 1),
         AddrMode::Dir => (
-            str_operand16!(),
-            format!("{0} ${1:02X}", opname, operand16),
-            str_full_addr!(cpu.peek_dir(addr, abus).0),
+            str_operand16!("{} ${:02X}      ", cpu.peek_dir(addr, abus).0),
             3,
         ),
         AddrMode::DirX => (
-            str_operand16!(),
-            format!("{0} ${1:02X},X", opname, operand16),
-            str_full_addr!(cpu.peek_dir_x(addr, abus).0),
+            str_operand16!("{} ${:02X},X    ", cpu.peek_dir_x(addr, abus).0),
             3,
         ),
         AddrMode::DirY => (
-            str_operand16!(),
-            format!("{0} ${1:02X},Y", opname, operand16),
-            str_full_addr!(cpu.peek_dir_y(addr, abus).0),
+            str_operand16!("{} ${:02X},Y    ", cpu.peek_dir_y(addr, abus).0),
             3,
         ),
         AddrMode::DirPtr16 => (
-            str_operand16!(),
-            format!("{0} (${1:02X})", opname, operand16),
-            str_full_addr!(cpu.peek_dir_ptr16(addr, abus).0),
+            str_operand16!("{} (${:02X})    ", cpu.peek_dir_ptr16(addr, abus).0),
             3,
         ),
         AddrMode::DirPtr24 => (
-            str_operand16!(),
-            format!("{0} [${1:02X}]", opname, operand16),
-            str_full_addr!(cpu.peek_dir_ptr24(addr, abus).0),
+            str_operand16!("{} [${:02X}]    ", cpu.peek_dir_ptr24(addr, abus).0),
             3,
         ),
         AddrMode::DirXPtr16 => (
-            str_operand16!(),
-            format!("{0} (${1:02X},X)", opname, operand16),
-            str_full_addr!(cpu.peek_dir_x_ptr16(addr, abus).0),
+            str_operand16!("{} (${:02X},X)  ", cpu.peek_dir_x_ptr16(addr, abus).0),
             3,
         ),
         AddrMode::DirPtr16Y => (
-            str_operand16!(),
-            format!("{0} (${1:02X}),Y", opname, operand16),
-            str_full_addr!(cpu.peek_dir_ptr16_y(addr, abus).0),
+            str_operand16!("{} (${:02X}),Y  ", cpu.peek_dir_ptr16_y(addr, abus).0),
             3,
         ),
         AddrMode::DirPtr24Y => (
-            str_operand16!(),
-            format!("{0} [${1:02X}],Y", opname, operand16),
-            str_full_addr!(cpu.peek_dir_ptr24_y(addr, abus).0),
+            str_operand16!("{} [${:02X}],Y  ", cpu.peek_dir_ptr24_y(addr, abus).0),
             3,
         ),
-        AddrMode::Imm8 => (
-            str_operand8!(),
-            format!("{0} #${1:02X}", opname, operand8),
-            String::new(),
-            2,
-        ),
-        AddrMode::Imm16 => (
-            str_operand16!(),
-            format!("{0} #${1:04X}", opname, operand16),
-            String::new(),
-            3,
-        ),
+        AddrMode::Imm8 => (str_operand8!("{} #${:02X}     "), 2),
+        AddrMode::Imm16 => (str_operand16!("{} #${:04X}   "), 3),
         AddrMode::ImmM => {
             if cpu.p_m() {
-                (
-                    str_operand8!(),
-                    format!("{0} #${1:02X}", opname, operand8),
-                    String::new(),
-                    2,
-                )
+                (str_operand8!("{} #${:02X}     "), 2)
             } else {
-                (
-                    str_operand16!(),
-                    format!("{0} #${1:04X}", opname, operand16),
-                    String::new(),
-                    3,
-                )
+                (str_operand16!("{} #${:04X}   "), 3)
             }
         }
         AddrMode::ImmX => {
             if cpu.p_x() {
-                (
-                    str_operand8!(),
-                    format!("{0} #${1:02X}", opname, operand8),
-                    String::new(),
-                    2,
-                )
+                (str_operand8!("{} #${:02X}     "), 2)
             } else {
-                (
-                    str_operand16!(),
-                    format!("{0} #${1:04X}", opname, operand16),
-                    String::new(),
-                    3,
-                )
+                (str_operand16!("{} #${:04X}   "), 3)
             }
         }
-        AddrMode::Imp => (String::new(), String::from(opname), String::new(), 1),
-        AddrMode::Long => (
-            str_operand24!(),
-            format!("{0} ${1:06X}", opname, operand24),
-            String::new(),
-            4,
-        ),
+        AddrMode::Imp => (str_noperand!(), 1),
+        AddrMode::Long => (str_operand24!("{} ${:06X}  "), 4),
         AddrMode::LongX => (
-            str_operand24!(),
-            format!("{0} ${1:06X}", opname, operand24),
-            str_full_addr!(cpu.peek_long_x(addr, abus).0),
+            str_operand24!("{} ${:06X}  ", cpu.peek_long_x(addr, abus).0),
             4,
         ),
-        AddrMode::Rel8 => (
-            str_operand8!(),
-            format!("{0} ${1:02X}", opname, operand8),
-            format!("[${0:04X}]", cpu.peek_rel8(addr, abus).0 & 0xFFFF),
-            2,
-        ),
-        AddrMode::Rel16 => (
-            str_operand16!(),
-            format!("{0} ${1:04X}", opname, operand16),
-            format!("[${0:04X}]", cpu.peek_rel16(addr, abus).0 & 0xFFFF),
-            3,
-        ),
-        AddrMode::SrcDst => (
-            str_operand16!(),
-            format!(
-                "{0} #${1:02X},#${2:02X}",
+        AddrMode::Rel8 => {
+            let address = cpu.peek_rel8(addr, abus).0 & 0xFFFF;
+            let disassembly = if include_effective_addr {
+                format!(
+                    "${:02X}:{:04X} {:02X} {:02X}       {} ${:02X}       [${:04X}]",
+                    addr >> 16,
+                    addr & 0xFFFF,
+                    opcode,
+                    operand8,
+                    opname,
+                    operand8,
+                    address & 0xFFFF,
+                )
+            } else {
+                format!(
+                    "${:02X}:{:04X} {:02X} {:02X}       {} ${:02X}",
+                    addr >> 16,
+                    addr & 0xFFFF,
+                    opcode,
+                    operand8,
+                    opname,
+                    operand8,
+                )
+            };
+            (disassembly, 2)
+        }
+        AddrMode::Rel16 => {
+            let address = cpu.peek_rel16(addr, abus).0 & 0xFFFF;
+            let disassembly = if include_effective_addr {
+                format!(
+                    "${:02X}:{:04X} {:02X} {:02X} {:02X}    {} ${:04X}     [${:02X}:{:04X}]",
+                    addr >> 16,
+                    addr & 0xFFFF,
+                    opcode,
+                    operand16 & 0xFF,
+                    operand16 >> 8,
+                    opname,
+                    operand16,
+                    address >> 16,
+                    address & 0xFFFF,
+                )
+            } else {
+                format!(
+                    "${:02X}:{:04X} {:02X} {:02X} {:02X}    {} ${:04X}",
+                    addr >> 16,
+                    addr & 0xFFFF,
+                    opcode,
+                    operand16 & 0xFF,
+                    operand16 >> 8,
+                    opname,
+                    operand16,
+                )
+            };
+            (disassembly, 3)
+        }
+        AddrMode::SrcDst => {
+            let disassembly = format!(
+                "${:02X}:{:04X} {:02X} {:02X} {:02X}    {} #${:02X},#${:02X}",
+                addr >> 16,
+                addr & 0xFFFF,
+                opcode,
+                operand16 & 0xFF,
+                operand16 >> 8,
                 opname,
                 operand16 >> 8,
                 operand16 & 0xFF
-            ),
-            String::new(),
-            3,
-        ),
+            );
+            (disassembly, 3)
+        }
         AddrMode::Stack => (
-            str_operand8!(),
-            format!("{0} ${1:02X},S", opname, operand8),
-            str_full_addr!(cpu.peek_stack(addr, abus).0),
+            str_operand8!("{} ${:02X},S    ", cpu.peek_stack(addr, abus).0),
             2,
         ),
         AddrMode::StackPtr16Y => (
-            str_operand8!(),
-            format!("{0} (${1:02X},S),Y", opname, operand8),
-            str_full_addr!(cpu.peek_stack_ptr16_y(addr, abus).0),
+            str_operand8!("{} (${:02X},S),Y", cpu.peek_stack_ptr16_y(addr, abus).0),
             2,
         ),
-    };
-    let disassembled = if include_effective_addr {
-        format!(
-            " {0:<8} {1:<13} {2:<10}",
-            bytes_str, disassembled_str, effective_str
-        )
-    } else {
-        format!(" {0:<8} {1:<13}", bytes_str, disassembled_str)
-    };
-
-    ([raw_header, disassembled].join(""), op_length)
+    }
 }
 
 fn cpu_status_reg_str(cpu: &W65C816S) -> String {

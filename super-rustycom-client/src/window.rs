@@ -9,6 +9,7 @@ use glium::{
     },
     Surface,
 };
+use log::error;
 use std::time::Instant;
 use super_rustycom_core::snes::SNES;
 
@@ -22,9 +23,6 @@ use crate::{
 };
 
 const SHOWN_HISTORY_LINES: usize = 1000;
-// Cpu cycles to gather disassembly for
-// Might be overkill without long interrupts but is still fast
-const HISTORY_CYCLE_COUNT: usize = 10000;
 
 pub struct Window {
     // Window and GL context
@@ -137,10 +135,6 @@ impl Window {
             // "Tick" update
             match debugger.state {
                 DebugState::Step | DebugState::Run => {
-                    // Update ticks that should have passed
-                    let clock_ticks = time_source.elapsed_ticks();
-                    let diff_ticks = clock_ticks.saturating_sub(emulated_clock_ticks);
-
                     // Handle debugger state and run the emulator
                     let mut new_disassembly = Vec::new();
                     match debugger.state {
@@ -156,12 +150,14 @@ impl Window {
                             emulated_clock_ticks = time_source.elapsed_ticks();
                         }
                         DebugState::Run => {
+                            // Update ticks that should have passed
+                            let clock_ticks = time_source.elapsed_ticks();
+                            let diff_ticks = clock_ticks.saturating_sub(emulated_clock_ticks);
+
                             let t_run = Instant::now();
                             let (ticks, hit_breakpoint) =
-                                snes.run(diff_ticks, debugger.breakpoint, |cpu, abus, ops_left| {
-                                    if ops_left < HISTORY_CYCLE_COUNT {
-                                        new_disassembly.push(disassemble_current(cpu, abus).0)
-                                    }
+                                snes.run(diff_ticks, debugger.breakpoint, |cpu, abus| {
+                                    new_disassembly.push(disassemble_current(cpu, abus).0)
                                 });
 
                             if hit_breakpoint {
