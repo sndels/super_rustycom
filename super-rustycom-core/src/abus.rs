@@ -1,4 +1,5 @@
 use crate::apu_io::ApuIo;
+use crate::cgram::CGRAM;
 use crate::dma::Dma;
 use crate::joypad::JoyIo;
 use crate::mmap;
@@ -14,8 +15,6 @@ const WRAM_SIZE: usize = 128 * 1024;
 const VRAM_SIZE: usize = 64 * 1024;
 /// 544 bytes of Object Attribute Memory used for sprite info
 const OAM_SIZE: usize = 544;
-/// 512 bytes of color palette memory
-const CGRAM_SIZE: usize = 512;
 
 /// Main interface for accessing different memory chunks and common registers
 pub struct ABus {
@@ -27,7 +26,7 @@ pub struct ABus {
     /// Object Attribute Memory, used for sprite info
     oam: Box<[u8]>,
     /// Color palette memory
-    cgram: Box<[u8]>,
+    cgram: CGRAM,
     /// The loaded ROM instance
     rom: Rom,
     /// Combined multiplication and division register
@@ -71,7 +70,7 @@ impl ABus {
             wram: Box::new([0; WRAM_SIZE]),
             vram: Box::new([0; VRAM_SIZE]),
             oam: Box::new([0; OAM_SIZE]),
-            cgram: Box::new([0; CGRAM_SIZE]),
+            cgram: CGRAM::default(),
             rom: Rom::new(rom_bytes),
             mpy_div: MpyDiv::new(),
             ppu_io: PpuIo::new(),
@@ -99,7 +98,7 @@ impl ABus {
             wram: Box::new([0; WRAM_SIZE]),
             vram: Box::new([0; VRAM_SIZE]),
             oam: Box::new([0; OAM_SIZE]),
-            cgram: Box::new([0; CGRAM_SIZE]),
+            cgram: CGRAM::default(),
             rom: Rom::new_empty(),
             mpy_div: MpyDiv::new(),
             ppu_io: PpuIo::new(),
@@ -130,7 +129,7 @@ impl ABus {
         &self.oam
     }
     pub fn cgram(&self) -> &[u8] {
-        &self.cgram
+        &self.cgram.mem()
     }
 
     pub fn apu_io(&self) -> ApuIo {
@@ -149,7 +148,15 @@ impl ABus {
                 if addr < mmap::MPYL {
                     error!("Read ${:06X}: PPU IO write-only for cpu", addr);
                 }
-                self.ppu_io.read(addr)
+                match addr {
+                    mmap::CGADD => {
+                        error!("CGADD is write-only for cpu");
+                        0
+                    }
+                    mmap::RDCGRAM => self.cgram.read_data(),
+
+                    _ => self.ppu_io.read(addr),
+                }
             }
             mmap::APU_IO_FIRST..=mmap::APU_IO_LAST => {
                 // APU IO
@@ -227,7 +234,14 @@ impl ABus {
                 if addr < mmap::MPYL {
                     error!("Read ${:06X}: PPU IO write-only for cpu", addr);
                 }
-                self.ppu_io.peek(addr)
+                match addr {
+                    mmap::CGADD => {
+                        error!("CGADD is write-only for cpu");
+                        0
+                    }
+                    mmap::RDCGRAM => self.cgram.peek_data(),
+                    _ => self.ppu_io.peek(addr),
+                }
             }
             mmap::APU_IO_FIRST..=mmap::APU_IO_LAST => {
                 // APU IO
@@ -414,7 +428,11 @@ impl ABus {
             mmap::PPU_IO_FIRST..=mmap::PPU_IO_LAST => {
                 // PPU IO
                 if addr <= mmap::SETINI {
-                    self.ppu_io.write(addr, value);
+                    match addr {
+                        mmap::CGADD => self.cgram.write_addr(value),
+                        mmap::CGDATA => self.cgram.write_data(value),
+                        _ => self.ppu_io.write(addr, value),
+                    }
                 } else {
                     error!("Write ${:06X}: PPU IO read-only for cpu", addr);
                 }
