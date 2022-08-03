@@ -31,7 +31,7 @@ impl Config {
     pub fn new() -> Config {
         Config {
             rom_path: String::new(),
-            resolution: Resolution::new(800, 600),
+            resolution: Resolution::new(1024, 768),
         }
     }
 

@@ -25,6 +25,10 @@ pub struct UIState {
     pub is_any_item_active: bool,
 }
 
+const MEMORY_WINDOW_SIZE: [f32; 2] = [388.0, 394.0];
+static mut WRAM_START_BYTE: u16 = 0;
+static mut APU_RAM_START_BYTE: u16 = 0;
+
 impl UI {
     pub fn new(display: &glium::Display) -> Self {
         let mut context = imgui::Context::create();
@@ -110,7 +114,24 @@ impl UI {
             let frame_ui = self.context.frame();
 
             disassembly_window(frame_ui, data, snes, debugger);
-            mem_window(frame_ui, snes);
+            unsafe {
+                mem_window(
+                    frame_ui,
+                    snes.abus.wram(),
+                    "WRAM",
+                    [DISASSEMBLY_WINDOW_SIZE[0], 0.0],
+                    &mut WRAM_START_BYTE,
+                );
+            }
+            unsafe {
+                mem_window(
+                    frame_ui,
+                    snes.apu.bus.ram(),
+                    "APU RAM",
+                    [DISASSEMBLY_WINDOW_SIZE[0] + MEMORY_WINDOW_SIZE[0], 0.0],
+                    &mut APU_RAM_START_BYTE,
+                );
+            }
             cpu_window(frame_ui, &resolution, snes);
             smp_window(frame_ui, &resolution, snes);
 
@@ -223,51 +244,61 @@ fn disassembly_window(
         });
 }
 
-const MEMORY_WINDOW_SIZE: [f32; 2] = [388.0, 372.0];
-
-fn mem_window(ui: &mut imgui::Ui, snes: &mut SNES) {
-    let start_byte = 0x0000;
+fn mem_window(
+    ui: &mut imgui::Ui,
+    memory: &[u8],
+    name: &str,
+    position: [f32; 2],
+    start_byte: &mut u16,
+) {
     let shown_row_count: usize = 20;
     // Drop one line since we have the column header
-    let end_byte = start_byte + shown_row_count.saturating_sub(1) * 0x0010;
+    let end_byte = (*start_byte as usize) + shown_row_count.saturating_sub(1) * 0x0010;
 
-    let wram = snes.apu.bus.ram();
-    let wram_text = {
-        let mut wram_text = vec![String::from(
-            "      00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F",
-        )];
-        wram_text.extend(
-            wram[start_byte..end_byte]
-                .chunks(0x10)
-                .into_iter()
-                // Zip line addrs with lines
-                .zip((start_byte..wram.len()).step_by(0x0010))
-                // Create line string with space between bytes
-                .map(|(line, addr)| {
-                    format!(
-                        "${:04X} {}",
-                        addr,
-                        line.iter()
-                            .format_with(" ", |elt, f| f(&format_args!("{:02X}", elt)))
-                    )
-                })
-                .collect_vec(),
-        );
-        wram_text
-    };
+    let mut text = vec![String::from(
+        "      00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F",
+    )];
+    text.extend(
+        memory[*start_byte as usize..end_byte]
+            .chunks(0x10)
+            .into_iter()
+            // Zip line addrs with lines
+            .zip((*start_byte as usize..memory.len()).step_by(0x0010))
+            // Create line string with space between bytes
+            .map(|(line, addr)| {
+                format!(
+                    "${:04X} {}",
+                    addr,
+                    line.iter()
+                        .format_with(" ", |elt, f| f(&format_args!("{:02X}", elt)))
+                )
+            })
+            .collect_vec(),
+    );
 
-    ui.window("Memory")
-        .position(
-            [DISASSEMBLY_WINDOW_SIZE[0], 0.0],
-            imgui::Condition::Appearing,
-        )
+    ui.window(name)
+        .position(position, imgui::Condition::Appearing)
         .size(MEMORY_WINDOW_SIZE, imgui::Condition::Appearing)
         .resizable(false)
         .collapsible(false)
         .movable(false)
         .build(|| {
-            for row in wram_text {
+            for row in text {
                 ui.text(row);
+            }
+
+            {
+                let _width = ui.push_item_width(106.0);
+                let mut addr = *start_byte as i32;
+                let _ = ui
+                    .input_int("Start addr", &mut addr)
+                    .chars_hexadecimal(true)
+                    .step(16)
+                    .step_fast(16)
+                    .display_format("$%04X")
+                    .build();
+                // Each row should be 16 bytes starting at XXX0
+                *start_byte = (addr - addr % 16).max(0) as u16;
             }
         });
 }
