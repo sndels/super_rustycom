@@ -30,4 +30,8 @@ impl DrawData {
                 .drain(0..history_len - history_window);
         }
     }
+
+    pub fn clear_history(&mut self) {
+        self.disassembled_history.clear();
+    }
 }

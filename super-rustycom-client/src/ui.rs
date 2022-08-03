@@ -7,7 +7,7 @@ use std::time::{Duration, Instant};
 use super_rustycom_core::snes::SNES;
 
 use crate::{
-    debugger::{cpu_status_str, disassemble_current, smp_status_str},
+    debugger::{cpu_status_str, disassemble_current, smp_status_str, DebugState, Debugger},
     draw_data::DrawData,
     expect,
 };
@@ -90,8 +90,9 @@ impl UI {
         &mut self,
         window: &glutin::window::Window,
         render_target: &mut glium::Frame,
-        data: &DrawData,
+        data: &mut DrawData,
         snes: &mut SNES,
+        debugger: &mut Debugger,
     ) -> UIState {
         let ui_start = Instant::now();
 
@@ -106,7 +107,7 @@ impl UI {
         {
             let frame_ui = self.context.frame();
 
-            disassembly_window(frame_ui, data, snes);
+            disassembly_window(frame_ui, data, snes, debugger);
             mem_window(frame_ui, snes);
             cpu_window(frame_ui, &resolution, snes);
             smp_window(frame_ui, &resolution, snes);
@@ -129,16 +130,20 @@ impl UI {
     }
 }
 
-const DISASSEMBLY_WINDOW_SIZE: [f32; 2] = [300.0, 372.0];
+const DISASSEMBLY_WINDOW_SIZE: [f32; 2] = [360.0, 416.0];
+const DISASSEMBLY_CHILD_WINDOW_SIZE: [f32; 2] = [DISASSEMBLY_WINDOW_SIZE[0] - 10.0, 312.0];
+static mut DISASSEMBLY_SCROLL_TO_BOTTOM: bool = true;
+static mut DISASSEMBLY_STEPS: i32 = 1;
 
-fn disassembly_window(ui: &mut imgui::Ui, data: &DrawData, snes: &mut SNES) {
-    let history_len = data.disassembled_history().len();
-    let show_history_length = 20;
+fn disassembly_window(
+    ui: &mut imgui::Ui,
+    data: &mut DrawData,
+    snes: &mut SNES,
+    debugger: &mut Debugger,
+) {
     let disassembly = data
         .disassembled_history()
         .iter()
-        // Drop history that doesn't fit while leaving room for current pointer
-        .skip(history_len.saturating_sub(show_history_length) + 1)
         .cloned()
         .chain(
             [format!(
@@ -156,8 +161,63 @@ fn disassembly_window(ui: &mut imgui::Ui, data: &DrawData, snes: &mut SNES) {
         .resizable(false)
         .collapsible(false)
         .build(|| {
-            for row in disassembly {
-                ui.text(row);
+            ui.child_window("History")
+                .size(DISASSEMBLY_CHILD_WINDOW_SIZE)
+                .scroll_bar(true)
+                .build(|| {
+                    for row in disassembly {
+                        ui.text(row);
+                    }
+                    unsafe {
+                        if DISASSEMBLY_SCROLL_TO_BOTTOM {
+                            ui.set_scroll_here_y();
+                        }
+                    }
+                });
+            // TODO: Peek ahead
+
+            if ui.button("Run") {
+                debugger.state = DebugState::Run;
+            }
+
+            ui.same_line();
+            let should_step = ui.button("Step");
+
+            ui.same_line();
+            let steps = unsafe {
+                let _width = ui.push_item_width(40.0);
+                let _ = imgui::Drag::new("##Steps")
+                    .range(1, 1000)
+                    .build(ui, &mut DISASSEMBLY_STEPS);
+                DISASSEMBLY_STEPS
+            };
+
+            if should_step {
+                debugger.state = DebugState::Step;
+                debugger.steps = steps as u32;
+            }
+
+            ui.same_line();
+            if ui.button("Reset") {
+                snes.cpu.reset(&mut snes.abus);
+                data.clear_history();
+                debugger.state = DebugState::Active;
+            }
+
+            {
+                let _width = ui.push_item_width(106.0);
+                let mut bp = debugger.breakpoint as i32;
+                // TODO: Remove +-
+                let _ = ui
+                    .input_int("Breakpoint", &mut bp)
+                    .chars_hexadecimal(true)
+                    .display_format("$%06X")
+                    .build();
+                debugger.breakpoint = bp.max(0).min(0xFFFFFF) as u32;
+            }
+
+            unsafe {
+                ui.checkbox("Scroll to bottom", &mut DISASSEMBLY_SCROLL_TO_BOTTOM);
             }
         });
 }
