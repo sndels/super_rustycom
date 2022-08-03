@@ -148,6 +148,7 @@ fn disassembly_window(
         .size(DISASSEMBLY_WINDOW_SIZE, imgui::Condition::Appearing)
         .resizable(false)
         .collapsible(false)
+        .movable(false)
         .build(|| {
             ui.child_window("Disassembly")
                 .size(DISASSEMBLY_CHILD_WINDOW_SIZE)
@@ -263,6 +264,7 @@ fn mem_window(ui: &mut imgui::Ui, snes: &mut SNES) {
         .size(MEMORY_WINDOW_SIZE, imgui::Condition::Appearing)
         .resizable(false)
         .collapsible(false)
+        .movable(false)
         .build(|| {
             for row in wram_text {
                 ui.text(row);
@@ -281,6 +283,7 @@ fn cpu_window(ui: &mut imgui::Ui, resolution: &glutin::dpi::PhysicalSize<u32>, s
         .size(CPU_WINDOW_SIZE, imgui::Condition::Appearing)
         .resizable(false)
         .collapsible(false)
+        .movable(false)
         .build(|| {
             for row in cpu_status_str(&snes.cpu) {
                 ui.text(row);
@@ -302,6 +305,7 @@ fn smp_window(ui: &mut imgui::Ui, resolution: &glutin::dpi::PhysicalSize<u32>, s
         .size(SMP_WINDOW_SIZE, imgui::Condition::Appearing)
         .resizable(false)
         .collapsible(false)
+        .movable(false)
         .build(|| {
             for row in smp_status_str(&snes.apu.smp) {
                 ui.text(row);
@@ -328,6 +332,7 @@ fn perf_window(
         .size(PERF_WINDOW_SIZE, imgui::Condition::Appearing)
         .resizable(false)
         .collapsible(false)
+        .movable(false)
         .build(|| {
             ui.text(format!("Debug draw took {:>5.2}ms!", ui_millis));
             {
