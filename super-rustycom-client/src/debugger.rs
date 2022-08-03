@@ -194,14 +194,19 @@ fn dump_memory(file_path: &str, buf: &[u8]) -> bool {
 // This shouldn't have any side-effects. Implement separate read and assume
 // memory with side-effects is never needed (for simplicity)?
 pub fn disassemble_current(cpu: &W65C816S, abus: &ABus) -> (String, u32) {
-    disassemble(cpu.current_address(), cpu, abus)
+    disassemble(cpu.current_address(), cpu, abus, true)
 }
 
 pub fn disassemble_peek(cpu: &W65C816S, abus: &ABus, offset: u32) -> (String, u32) {
-    disassemble(cpu.current_address() + offset, cpu, abus)
+    disassemble(cpu.current_address() + offset, cpu, abus, false)
 }
 
-pub fn disassemble(addr: u32, cpu: &W65C816S, abus: &ABus) -> (String, u32) {
+fn disassemble(
+    addr: u32,
+    cpu: &W65C816S,
+    abus: &ABus,
+    include_effective_addr: bool,
+) -> (String, u32) {
     let opcode = abus.cpu_peek8(addr);
     let opname = OPNAMES[opcode as usize];
     let opmode = ADDR_MODES[opcode as usize];
@@ -426,10 +431,14 @@ pub fn disassemble(addr: u32, cpu: &W65C816S, abus: &ABus) -> (String, u32) {
             2,
         ),
     };
-    let disassembled = format!(
-        " {0:<8} {1:<13} {2:<10}",
-        bytes_str, disassembled_str, effective_str
-    );
+    let disassembled = if include_effective_addr {
+        format!(
+            " {0:<8} {1:<13} {2:<10}",
+            bytes_str, disassembled_str, effective_str
+        )
+    } else {
+        format!(" {0:<8} {1:<13}", bytes_str, disassembled_str)
+    };
 
     ([raw_header, disassembled].join(""), op_length)
 }
