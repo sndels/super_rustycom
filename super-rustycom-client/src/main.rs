@@ -55,10 +55,7 @@ fn setup_logger() -> Result<(), fern::InitError> {
 fn main() {
     let args = Command::new("super_rustycom_client")
         .about("Very WIP Super Nintendo emulation")
-        .args(&[
-            arg!(--rom [FILE] "Sets the rom file to use, previous file used if not given"),
-            arg!(--pause "Pauses execution at the reset handler on boot"),
-        ])
+        .args(&[arg!(--rom [FILE] "Sets the rom file to use, previous file used if not given")])
         .get_matches();
 
     if let Err(why) = setup_logger() {
@@ -87,12 +84,7 @@ fn main() {
 
     // Init hardware
     let snes = SNES::new(rom_bytes);
-    let mut debugger = Debugger::new();
-    debugger.state = if args.contains_id("pause") {
-        DebugState::Active
-    } else {
-        DebugState::Run
-    };
+    let debugger = Debugger::new();
 
     // TODO: Give mutable config, update window size for write out
     let window = Window::new("Super Rustycom", &config, snes, debugger);
