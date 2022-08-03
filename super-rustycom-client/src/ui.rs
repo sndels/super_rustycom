@@ -132,6 +132,7 @@ impl UI {
                     &mut APU_RAM_START_BYTE,
                 );
             }
+            palettes_window(frame_ui, snes);
             cpu_window(frame_ui, &resolution, snes);
             smp_window(frame_ui, &resolution, snes);
 
@@ -301,6 +302,51 @@ fn mem_window(
                 *start_byte = (addr - addr % 16).max(0) as u16;
             }
         });
+}
+
+const PALETTES_WINDOW_SIZE: [f32; 2] = [336.0, 340.0];
+
+fn palettes_window(ui: &mut imgui::Ui, snes: &SNES) {
+    ui.window("Palettes")
+        .position(
+            [0.0, DISASSEMBLY_WINDOW_SIZE[1]],
+            imgui::Condition::Appearing,
+        )
+        .size(PALETTES_WINDOW_SIZE, imgui::Condition::Appearing)
+        .resizable(false)
+        .collapsible(false)
+        .movable(false)
+        .build(|| {
+            let cgram = snes.abus.cgram();
+            for (ip, palette) in cgram.iter().chunks(32).into_iter().enumerate() {
+                for (ic, color_chunk) in palette.into_iter().chunks(2).into_iter().enumerate() {
+                    if ic == 0 {
+                        ui.text(format!("{:X}", ip));
+                        ui.same_line();
+                    }
+                    let _no_spacing = ui.push_style_var(imgui::StyleVar::ItemSpacing([0.0, 0.0]));
+
+                    let color_bytes: Vec<u8> = color_chunk.cloned().collect();
+                    let packed_color = ((color_bytes[1] as u16) << 8) | (color_bytes[0] as u16);
+                    ui.color_button(
+                        format!("##palette{}{}", ip, ic),
+                        palette_color(packed_color),
+                    );
+                    if ic < 15 {
+                        ui.same_line();
+                    }
+                }
+            }
+        });
+}
+
+fn palette_color(bgr555: u16) -> [f32; 4] {
+    [
+        ((((bgr555 << 3) & 0b1111_1000) | 0b111) as f32) / 255.0,
+        ((((bgr555 >> 2) & 0b1111_1000) | 0b111) as f32) / 255.0,
+        ((((bgr555 >> 7) & 0b1111_1000) | 0b111) as f32) / 255.0,
+        1.0,
+    ]
 }
 
 const CPU_WINDOW_SIZE: [f32; 2] = [110.0, 236.0];
