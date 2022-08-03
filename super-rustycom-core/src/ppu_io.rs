@@ -219,6 +219,76 @@ impl PpuIo {
         }
     }
 
+    pub fn peek(&self, addr: usize) -> u8 {
+        match addr {
+            mmap::INIDISP => self.ini_disp,
+            mmap::OBSEL => self.ob_sel,
+            mmap::OAMADDL => self.oam_add_l,
+            mmap::OAMADDH => self.oam_add_h,
+            mmap::OAMDATA => self.oam_data.peek(),
+            mmap::BGMODE => self.bg_mode,
+            mmap::MOSAIC => self.mosaic,
+            mmap::BG1SC => self.bg1_sc,
+            mmap::BG2SC => self.bg2_sc,
+            mmap::BG3SC => self.bg3_sc,
+            mmap::BG4SC => self.bg4_sc,
+            mmap::BG12NBA => self.bg12_nba,
+            mmap::BG34NBA => self.bg34_nba,
+            mmap::BG1HOFS => self.bg1_hofs.peek(),
+            mmap::BG1VOFS => self.bg1_vofs.peek(),
+            mmap::BG2HOFS => self.bg2_hofs.peek(),
+            mmap::BG2VOFS => self.bg2_vofs.peek(),
+            mmap::BG3HOFS => self.bg3_hofs.peek(),
+            mmap::BG3VOFS => self.bg3_vofs.peek(),
+            mmap::BG4HOFS => self.bg4_hofs.peek(),
+            mmap::BG4VOFS => self.bg4_vofs.peek(),
+            mmap::VMAIN => self.vm_ain,
+            mmap::VMADDL => self.vm_add_l,
+            mmap::VMADDH => self.vm_add_h,
+            mmap::VMDATAL => self.vm_data_l,
+            mmap::VMDATAH => self.vm_data_h,
+            mmap::M7SEL => self.m7_sel,
+            mmap::M7A => self.m7_a.peek(),
+            mmap::M7B => self.m7_b.peek(),
+            mmap::M7C => self.m7_c.peek(),
+            mmap::M7D => self.m7_d.peek(),
+            mmap::M7X => self.m7_x.peek(),
+            mmap::M7Y => self.m7_y.peek(),
+            mmap::CGADD => self.cg_add,
+            mmap::CGDATA => self.cg_data.peek(),
+            mmap::W12SEL => self.w12_sel,
+            mmap::W34SEL => self.w34_sel,
+            mmap::WOBJSEL => self.wobj_sel,
+            mmap::WH0 => self.wh0,
+            mmap::WH1 => self.wh1,
+            mmap::WH2 => self.wh2,
+            mmap::WH3 => self.wh3,
+            mmap::WBGLOG => self.wbg_log,
+            mmap::WOBJLOG => self.wobj_log,
+            mmap::TM => self.tm,
+            mmap::TS => self.ts,
+            mmap::TMW => self.tmw,
+            mmap::TSW => self.tsw,
+            mmap::CGWSEL => self.cg_wsel,
+            mmap::CGADSUB => self.cg_adsub,
+            mmap::COLDATA => self.col_data,
+            mmap::SETINI => self.setini,
+            mmap::MPYL => self.mpy_l,
+            mmap::MPYM => self.mpy_m,
+            mmap::MPYH => self.mpy_h,
+            mmap::SLHV => self.sl_hv,
+            mmap::RDOAM => self.rd_oam.peek(),
+            mmap::RDVRAML => self.rd_vram_l,
+            mmap::RDVRAMH => self.rd_vram_h,
+            mmap::RDCGRAM => self.rd_cgram.peek(),
+            mmap::OPHCT => self.op_hct.peek(),
+            mmap::OPVCT => self.op_vct.peek(),
+            mmap::STAT77 => self.stat_77,
+            mmap::STAT78 => self.stat_78,
+            _ => unreachable!(),
+        }
+    }
+
     pub fn write(&mut self, addr: usize, value: u8) {
         match addr {
             mmap::INIDISP => self.ini_disp = value,
@@ -304,13 +374,17 @@ impl DoubleReg {
     }
 
     pub fn read(&mut self) -> u8 {
-        let value = if self.high_active {
+        let value = self.peek();
+        self.high_active = !self.high_active;
+        value
+    }
+
+    pub fn peek(&self) -> u8 {
+        if self.high_active {
             (self.value >> 8) as u8
         } else {
             (self.value & 0xFF) as u8
-        };
-        self.high_active = !self.high_active;
-        value
+        }
     }
 
     pub fn write(&mut self, value: u8) {

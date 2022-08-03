@@ -826,10 +826,13 @@ impl W65C816S {
     /// Data is at lo`[$DBHHLL]` hi`[$DBHHLL+1]`. Note that JMP and JSR should use
     /// `PB` instead of `DB`!
     pub fn abs(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
-        (
-            addr_8_16(self.db, abus.fetch_operand16(addr)),
-            WrappingMode::AddrSpace,
-        )
+        self.abs_common(abus.fetch_operand16(addr))
+    }
+    pub fn peek_abs(&self, addr: u32, abus: &ABus) -> (u32, WrappingMode) {
+        self.abs_common(abus.peek_operand16(addr))
+    }
+    fn abs_common(&self, db_addr: u16) -> (u32, WrappingMode) {
+        (addr_8_16(self.db, db_addr), WrappingMode::AddrSpace)
     }
 
     /// Returns the address and wrapping of data the instruction at `addr` points to using
@@ -837,12 +840,10 @@ impl W65C816S {
     ///
     /// Data is at lo`[$DBHHLL+X]` hi`[$DBHHLL+X+1]`
     pub fn abs_x(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
-        // TODO: Combine with abs_y
-        let operand = abus.fetch_operand16(addr);
-        (
-            (addr_8_16(self.db, operand) + self.x as u32) & 0x00FFFFFF,
-            WrappingMode::AddrSpace,
-        )
+        self.abs_n_common(abus.fetch_operand16(addr), self.x)
+    }
+    pub fn peek_abs_x(&self, addr: u32, abus: &ABus) -> (u32, WrappingMode) {
+        self.abs_n_common(abus.peek_operand16(addr), self.x)
     }
 
     /// Returns the address and wrapping of data the instruction at `addr` points to using
@@ -850,10 +851,15 @@ impl W65C816S {
     ///
     /// Data is at lo`[$DBHHLL+Y]` hi`[$DBHHLL+Y+1]`
     pub fn abs_y(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
-        // TODO: Combine with abs_x
-        let operand = abus.fetch_operand16(addr);
+        self.abs_n_common(abus.fetch_operand16(addr), self.y)
+    }
+    pub fn peek_abs_y(&self, addr: u32, abus: &ABus) -> (u32, WrappingMode) {
+        self.abs_n_common(abus.peek_operand16(addr), self.y)
+    }
+
+    fn abs_n_common(&self, db_addr: u16, n_reg: u16) -> (u32, WrappingMode) {
         (
-            (addr_8_16(self.db, operand) + self.y as u32) & 0x00FFFFFF,
+            (addr_8_16(self.db, db_addr) + n_reg as u32) & 0x00FFFFFF,
             WrappingMode::AddrSpace,
         )
     }
@@ -869,6 +875,13 @@ impl W65C816S {
             WrappingMode::Bank,
         )
     }
+    pub fn peek_abs_ptr16(&self, addr: u32, abus: &ABus) -> (u32, WrappingMode) {
+        let pointer = abus.peek_operand16(addr) as u32;
+        (
+            addr_8_16(self.pb, abus.bank_wrapping_cpu_peek16(pointer)),
+            WrappingMode::Bank,
+        )
+    }
 
     /// Returns the address and wrapping of data the instruction at `addr` points to using
     /// \[absolute\] mode
@@ -878,6 +891,10 @@ impl W65C816S {
     pub fn abs_ptr24(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
         let pointer = abus.fetch_operand24(addr) as u32;
         (abus.bank_wrapping_cpu_read24(pointer), WrappingMode::Bank)
+    }
+    pub fn peek_abs_ptr24(&self, addr: u32, abus: &ABus) -> (u32, WrappingMode) {
+        let pointer = abus.peek_operand24(addr) as u32;
+        (abus.bank_wrapping_cpu_peek24(pointer), WrappingMode::Bank)
     }
 
     /// Returns the address and wrapping of data the instruction at `addr` points to using
@@ -891,6 +908,13 @@ impl W65C816S {
             WrappingMode::Bank,
         )
     }
+    pub fn peek_abs_x_ptr16(&self, addr: u32, abus: &ABus) -> (u32, WrappingMode) {
+        let pointer = addr_8_16(self.pb, abus.peek_operand16(addr).wrapping_add(self.x));
+        (
+            addr_8_16(self.pb, abus.bank_wrapping_cpu_peek16(pointer)),
+            WrappingMode::Bank,
+        )
+    }
 
     /// Returns the address and wrapping of data the instruction at `addr` points to using
     /// direct mode
@@ -898,8 +922,14 @@ impl W65C816S {
     /// Data at `[$00][$DL][$LL]` for "old" instructions if in emulation mode and `DL` is `$00`,
     /// otherwise lo`[$00][$D+LL]` hi`[$00][$D+LL+1]`. Math turns out to be the same for both.
     pub fn dir(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
+        self.dir_common(abus.fetch_operand8(addr) as u16)
+    }
+    pub fn peek_dir(&self, addr: u32, abus: &ABus) -> (u32, WrappingMode) {
+        self.dir_common(abus.peek_operand8(addr) as u16)
+    }
+    pub fn dir_common(&self, offset: u16) -> (u32, WrappingMode) {
         (
-            self.d.wrapping_add(abus.fetch_operand8(addr) as u16) as u32,
+            self.d.wrapping_add(offset as u16) as u32,
             WrappingMode::Bank,
         )
     }
@@ -920,6 +950,23 @@ impl W65C816S {
             (
                 self.d
                     .wrapping_add(abus.fetch_operand8(addr) as u16)
+                    .wrapping_add(self.x) as u32,
+                WrappingMode::Bank,
+            )
+        }
+    }
+
+    pub fn peek_dir_x(&self, addr: u32, abus: &ABus) -> (u32, WrappingMode) {
+        // TODO: Combine with dir_y
+        if self.e && (self.d & 0xFF) == 0 {
+            (
+                (self.d | (abus.peek_operand8(addr).wrapping_add(self.x as u8) as u16)) as u32,
+                WrappingMode::Page,
+            )
+        } else {
+            (
+                self.d
+                    .wrapping_add(abus.peek_operand8(addr) as u16)
                     .wrapping_add(self.x) as u32,
                 WrappingMode::Bank,
             )
@@ -947,6 +994,22 @@ impl W65C816S {
             )
         }
     }
+    pub fn peek_dir_y(&self, addr: u32, abus: &ABus) -> (u32, WrappingMode) {
+        // TODO: Combine with dir_x
+        if self.e && (self.d & 0xFF) == 0 {
+            (
+                (self.d | (abus.peek_operand8(addr).wrapping_add(self.y as u8) as u16)) as u32,
+                WrappingMode::Page,
+            )
+        } else {
+            (
+                self.d
+                    .wrapping_add(abus.peek_operand8(addr) as u16)
+                    .wrapping_add(self.y) as u32,
+                WrappingMode::Bank,
+            )
+        }
+    }
 
     /// Returns the address and wrapping of data the instruction at `addr` points to using
     /// (direct) mode
@@ -966,6 +1029,19 @@ impl W65C816S {
             )
         }
     }
+    pub fn peek_dir_ptr16(&self, addr: u32, abus: &ABus) -> (u32, WrappingMode) {
+        let pointer = self.peek_dir(addr, abus).0;
+        if self.e && (self.d & 0xFF) == 0 {
+            let ll = abus.cpu_peek8(pointer);
+            let hh = abus.cpu_peek8((pointer & 0xFF00) | (pointer as u8).wrapping_add(1) as u32);
+            (addr_8_8_8(self.db, hh, ll), WrappingMode::AddrSpace)
+        } else {
+            (
+                addr_8_16(self.db, abus.bank_wrapping_cpu_peek16(pointer)),
+                WrappingMode::AddrSpace,
+            )
+        }
+    }
 
     /// Returns the address and wrapping of data the instruction at `addr` points to using
     /// \[direct\] mode
@@ -977,6 +1053,13 @@ impl W65C816S {
         let pointer = self.dir(addr, abus).0;
         (
             abus.bank_wrapping_cpu_read24(pointer),
+            WrappingMode::AddrSpace,
+        )
+    }
+    pub fn peek_dir_ptr24(&self, addr: u32, abus: &ABus) -> (u32, WrappingMode) {
+        let pointer = self.peek_dir(addr, abus).0;
+        (
+            abus.bank_wrapping_cpu_peek24(pointer),
             WrappingMode::AddrSpace,
         )
     }
@@ -1000,6 +1083,19 @@ impl W65C816S {
             )
         }
     }
+    pub fn peek_dir_x_ptr16(&self, addr: u32, abus: &ABus) -> (u32, WrappingMode) {
+        let pointer = self.peek_dir_x(addr, abus).0;
+        if self.e && (self.d & 0xFF) == 0 {
+            let ll = abus.cpu_peek8(pointer);
+            let hh = abus.cpu_peek8((pointer & 0xFF00) | (pointer as u8).wrapping_add(1) as u32);
+            (addr_8_8_8(self.db, hh, ll), WrappingMode::AddrSpace)
+        } else {
+            (
+                addr_8_16(self.db, abus.bank_wrapping_cpu_peek16(pointer)),
+                WrappingMode::AddrSpace,
+            )
+        }
+    }
 
     /// Returns the address and wrapping of data the instruction at `addr` points to using
     /// (direct),Y mode
@@ -1008,8 +1104,14 @@ impl W65C816S {
     /// `DL` is `$00`, otherwise lo`[$00][$D+LL]` hi`[$00][$D+LL+1]`. Data at lo`[$DBhilo+Y]`
     /// hi`[$DBhilo+Y+1]`.
     pub fn dir_ptr16_y(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
+        self.dir_ptr16_y_common(self.dir_ptr16(addr, abus).0)
+    }
+    pub fn peek_dir_ptr16_y(&self, addr: u32, abus: &ABus) -> (u32, WrappingMode) {
+        self.dir_ptr16_y_common(self.peek_dir_ptr16(addr, abus).0)
+    }
+    fn dir_ptr16_y_common(&self, pointer: u32) -> (u32, WrappingMode) {
         (
-            (self.dir_ptr16(addr, abus).0 + self.y as u32) & 0x00FFFFFF,
+            (pointer + self.y as u32) & 0x00FFFFFF,
             WrappingMode::AddrSpace,
         )
     }
@@ -1020,8 +1122,14 @@ impl W65C816S {
     /// 16bit pointer at lo`[$00][$DH][$LL]` mid`[$00][$DH][$LL+1]` hi`[$00][$DH][$LL+2]`. Data at
     /// lo`[$himidlo+Y]` hi`[$himidlo+Y+1]`.
     pub fn dir_ptr24_y(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
+        self.dir_ptr24_y_common(self.dir_ptr24(addr, abus).0)
+    }
+    pub fn peek_dir_ptr24_y(&self, addr: u32, abus: &ABus) -> (u32, WrappingMode) {
+        self.dir_ptr24_y_common(self.peek_dir_ptr24(addr, abus).0)
+    }
+    fn dir_ptr24_y_common(&self, pointer: u32) -> (u32, WrappingMode) {
         (
-            (self.dir_ptr24(addr, abus).0 + self.y as u32) & 0x00FFFFFF,
+            (pointer + self.y as u32) & 0x00FFFFFF,
             WrappingMode::AddrSpace,
         )
     }
@@ -1051,8 +1159,14 @@ impl W65C816S {
     ///
     /// Data at lo`[$HHMMLL+X]` hi`[$HHMMLL+X+1]`
     pub fn long_x(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
+        self.long_x_common(abus.fetch_operand24(addr))
+    }
+    pub fn peek_long_x(&self, addr: u32, abus: &ABus) -> (u32, WrappingMode) {
+        self.long_x_common(abus.peek_operand24(addr))
+    }
+    fn long_x_common(&self, pointer: u32) -> (u32, WrappingMode) {
         (
-            (abus.fetch_operand24(addr) + self.x as u32) & 0x00FFFFFF,
+            (pointer + self.x as u32) & 0x00FFFFFF,
             WrappingMode::AddrSpace,
         )
     }
@@ -1062,18 +1176,20 @@ impl W65C816S {
     ///
     /// Data at `[$PB][$PC+2+LL]`, where `LL` is treated as a signed integer
     pub fn rel8(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
-        let offset = abus.fetch_operand8(addr);
+        self.rel_8_common(abus.fetch_operand8(addr) as u16)
+    }
+    pub fn peek_rel8(&self, addr: u32, abus: &ABus) -> (u32, WrappingMode) {
+        self.rel_8_common(abus.peek_operand8(addr) as u16)
+    }
+    fn rel_8_common(&self, offset: u16) -> (u32, WrappingMode) {
         if offset < 0x80 {
             (
-                addr_8_16(self.pb, self.pc.wrapping_add(2 + (offset as u16))),
+                addr_8_16(self.pb, self.pc.wrapping_add(2 + offset)),
                 WrappingMode::Bank,
             )
         } else {
             (
-                addr_8_16(
-                    self.pb,
-                    self.pc.wrapping_sub(254).wrapping_add(offset as u16),
-                ),
+                addr_8_16(self.pb, self.pc.wrapping_sub(254).wrapping_add(offset)),
                 WrappingMode::Bank,
             )
         }
@@ -1084,7 +1200,12 @@ impl W65C816S {
     ///
     /// Data at `[$PB][$PC+3+HHLL]`
     pub fn rel16(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
-        let offset = abus.fetch_operand16(addr);
+        self.rel16_common(abus.fetch_operand16(addr) as u16)
+    }
+    pub fn peek_rel16(&self, addr: u32, abus: &ABus) -> (u32, WrappingMode) {
+        self.rel16_common(abus.peek_operand16(addr) as u16)
+    }
+    fn rel16_common(&self, offset: u16) -> (u32, WrappingMode) {
         (
             addr_8_16(self.pb, self.pc.wrapping_add(3).wrapping_add(offset)),
             WrappingMode::Bank,
@@ -1107,10 +1228,13 @@ impl W65C816S {
     ///
     /// Data at lo`[$00][$LL+S]` hi`[$00][$LL+S+1]`
     pub fn stack(&self, addr: u32, abus: &mut ABus) -> (u32, WrappingMode) {
-        (
-            self.s.wrapping_add(abus.fetch_operand8(addr) as u16) as u32,
-            WrappingMode::Bank,
-        )
+        self.stack_common(abus.fetch_operand8(addr) as u16)
+    }
+    pub fn peek_stack(&self, addr: u32, abus: &ABus) -> (u32, WrappingMode) {
+        self.stack_common(abus.peek_operand8(addr) as u16)
+    }
+    fn stack_common(&self, offset: u16) -> (u32, WrappingMode) {
+        (self.s.wrapping_add(offset) as u32, WrappingMode::Bank)
     }
 
     /// Returns the address and wrapping of data the instruction at `addr` points to using
@@ -1122,6 +1246,14 @@ impl W65C816S {
         let pointer = self.s.wrapping_add(abus.fetch_operand8(addr) as u16) as u32;
         (
             (addr_8_16(self.db, abus.bank_wrapping_cpu_read16(pointer)) + self.y as u32)
+                & 0x00FFFFFF,
+            WrappingMode::AddrSpace,
+        )
+    }
+    pub fn peek_stack_ptr16_y(&self, addr: u32, abus: &ABus) -> (u32, WrappingMode) {
+        let pointer = self.s.wrapping_add(abus.peek_operand8(addr) as u16) as u32;
+        (
+            (addr_8_16(self.db, abus.bank_wrapping_cpu_peek16(pointer)) + self.y as u32)
                 & 0x00FFFFFF,
             WrappingMode::AddrSpace,
         )

@@ -219,6 +219,63 @@ impl ABus {
             }
         }
     }
+    fn cpu_peek_sys(&self, addr: usize) -> u8 {
+        match addr {
+            mmap::WRAM_MIRR_FIRST..=mmap::WRAM_MIRR_LAST => self.wram[addr],
+            mmap::PPU_IO_FIRST..=mmap::PPU_IO_LAST => {
+                // PPU IO
+                if addr < mmap::MPYL {
+                    error!("Read ${:06X}: PPU IO write-only for cpu", addr);
+                }
+                self.ppu_io.peek(addr)
+            }
+            mmap::APU_IO_FIRST..=mmap::APU_IO_LAST => {
+                // APU IO
+                let port = (if addr < 0x2144 { addr } else { addr - 4 } as u8) & 0x0F;
+                self.apu_io_r.read(port)
+            }
+            mmap::WMDATA => {
+                let wram_addr = (((self.wm_add_h & 0x1) as usize) << 16)
+                    | ((self.wm_add_m as usize) << 8)
+                    | (self.wm_add_l as usize);
+                self.wram[wram_addr]
+            }
+            mmap::JOYA => self.joy_io.joy_a(),
+            mmap::JOYB => self.joy_io.joy_b(),
+            mmap::RDNMI => self.rd_nmi,
+            mmap::TIMEUP => self.time_up,
+            mmap::HVBJOY => self.hvb_joy,
+            mmap::RDIO => self.joy_io.rd_io(),
+            mmap::RDDIVL => self.mpy_div.get_div_res_low(),
+            mmap::RDDIVH => self.mpy_div.get_div_res_high(),
+            mmap::RDMPYL => self.mpy_div.get_mpy_res_low(),
+            mmap::RDMPYH => self.mpy_div.get_mpy_res_high(),
+            mmap::JOY1L => self.joy_io.joy_1l(),
+            mmap::JOY1H => self.joy_io.joy_1h(),
+            mmap::JOY2L => self.joy_io.joy_2l(),
+            mmap::JOY2H => self.joy_io.joy_2h(),
+            mmap::JOY3L => self.joy_io.joy_3l(),
+            mmap::JOY3H => self.joy_io.joy_3h(),
+            mmap::JOY4L => self.joy_io.joy_4l(),
+            mmap::JOY4H => self.joy_io.joy_4h(),
+            mmap::DMA_FIRST..=mmap::DMA_LAST => {
+                // DMA
+                self.dma.read(addr)
+            }
+            mmap::EXP_FIRST..=mmap::EXP_LAST => {
+                // Expansion
+                warn!("Read ${:06X}: Expansion not implemented", addr);
+                0
+            }
+            _ => {
+                error!(
+                    "System area read ${:04X}: Address unused or write-only",
+                    addr
+                );
+                0
+            }
+        }
+    }
 
     pub fn cpu_read8(&mut self, addr: u32) -> u8 {
         let bank = (addr >> 16) as usize;
@@ -246,20 +303,56 @@ impl ABus {
             _ => unreachable!(),
         }
     }
+    pub fn cpu_peek8(&self, addr: u32) -> u8 {
+        let bank = (addr >> 16) as usize;
+        let bank_addr = (addr & 0x00FFFF) as usize;
+        match bank {
+            mmap::WS1_SYSLR_FIRST_BANK..=mmap::WS1_SYSLR_LAST_BANK => match bank_addr {
+                mmap::SYS_FIRST..=mmap::SYS_LAST => self.cpu_peek_sys(bank_addr),
+                mmap::LOROM_FIRST..=mmap::LOROM_LAST => self.rom.read_ws1_lo_rom8(bank, bank_addr),
+                _ => unreachable!(),
+            },
+            mmap::WS1_HIROM_FIRST_BANK..=mmap::WS1_HIROM_LAST_BANK => {
+                self.rom.read_ws1_hi_rom8(bank, bank_addr)
+            }
+            mmap::WRAM_FIRST_BANK..=mmap::WRAM_LAST_BANK => {
+                self.wram[(bank - mmap::WRAM_FIRST_BANK) * 0x10000 + bank_addr]
+            }
+            mmap::WS2_SYSLR_FIRST_BANK..=mmap::WS2_SYSLR_LAST_BANK => match bank_addr {
+                mmap::SYS_FIRST..=mmap::SYS_LAST => self.cpu_peek_sys(bank_addr),
+                mmap::LOROM_FIRST..=mmap::LOROM_LAST => self.rom.read_ws2_lo_rom8(bank, bank_addr),
+                _ => unreachable!(),
+            },
+            mmap::WS2_HIROM_FIRST_BANK..=mmap::WS2_HIROM_LAST_BANK => {
+                self.rom.read_ws2_hi_rom8(bank, bank_addr)
+            }
+            _ => unreachable!(),
+        }
+    }
 
     pub fn addr_wrapping_cpu_read16(&mut self, addr: u32) -> u16 {
         self.cpu_read8(addr) as u16 | ((self.cpu_read8(addr_wrapping_add(addr, 1)) as u16) << 8)
     }
+    pub fn addr_wrapping_cpu_peek16(&self, addr: u32) -> u16 {
+        self.cpu_peek8(addr) as u16 | ((self.cpu_peek8(addr_wrapping_add(addr, 1)) as u16) << 8)
+    }
 
-    #[allow(dead_code)]
     pub fn addr_wrapping_cpu_read24(&mut self, addr: u32) -> u32 {
         self.cpu_read8(addr) as u32
             | ((self.cpu_read8(addr_wrapping_add(addr, 1)) as u32) << 8)
             | ((self.cpu_read8(addr_wrapping_add(addr, 2)) as u32) << 16)
     }
+    pub fn addr_wrapping_cpu_peek24(&self, addr: u32) -> u32 {
+        self.cpu_peek8(addr) as u32
+            | ((self.cpu_peek8(addr_wrapping_add(addr, 1)) as u32) << 8)
+            | ((self.cpu_peek8(addr_wrapping_add(addr, 2)) as u32) << 16)
+    }
 
     pub fn bank_wrapping_cpu_read16(&mut self, addr: u32) -> u16 {
         self.cpu_read8(addr) as u16 | ((self.cpu_read8(bank_wrapping_add(addr, 1)) as u16) << 8)
+    }
+    pub fn bank_wrapping_cpu_peek16(&self, addr: u32) -> u16 {
+        self.cpu_peek8(addr) as u16 | ((self.cpu_peek8(bank_wrapping_add(addr, 1)) as u16) << 8)
     }
 
     pub fn bank_wrapping_cpu_read24(&mut self, addr: u32) -> u32 {
@@ -267,9 +360,17 @@ impl ABus {
             | ((self.cpu_read8(bank_wrapping_add(addr, 1)) as u32) << 8)
             | ((self.cpu_read8(bank_wrapping_add(addr, 2)) as u32) << 16)
     }
+    pub fn bank_wrapping_cpu_peek24(&self, addr: u32) -> u32 {
+        self.cpu_peek8(addr) as u32
+            | ((self.cpu_peek8(bank_wrapping_add(addr, 1)) as u32) << 8)
+            | ((self.cpu_peek8(bank_wrapping_add(addr, 2)) as u32) << 16)
+    }
 
     pub fn page_wrapping_cpu_read16(&mut self, addr: u32) -> u16 {
         self.cpu_read8(addr) as u16 | ((self.cpu_read8(page_wrapping_add(addr, 1)) as u16) << 8)
+    }
+    pub fn page_wrapping_cpu_peek16(&self, addr: u32) -> u16 {
+        self.cpu_peek8(addr) as u16 | ((self.cpu_peek8(page_wrapping_add(addr, 1)) as u16) << 8)
     }
 
     pub fn page_wrapping_cpu_read24(&mut self, addr: u32) -> u32 {
@@ -277,17 +378,31 @@ impl ABus {
             | ((self.cpu_read8(page_wrapping_add(addr, 1)) as u32) << 8)
             | ((self.cpu_read8(page_wrapping_add(addr, 2)) as u32) << 16)
     }
+    pub fn page_wrapping_cpu_peek24(&self, addr: u32) -> u32 {
+        self.cpu_peek8(addr) as u32
+            | ((self.cpu_peek8(page_wrapping_add(addr, 1)) as u32) << 8)
+            | ((self.cpu_peek8(page_wrapping_add(addr, 2)) as u32) << 16)
+    }
 
     pub fn fetch_operand8(&mut self, addr: u32) -> u8 {
         self.cpu_read8(bank_wrapping_add(addr, 1))
+    }
+    pub fn peek_operand8(&self, addr: u32) -> u8 {
+        self.cpu_peek8(bank_wrapping_add(addr, 1))
     }
 
     pub fn fetch_operand16(&mut self, addr: u32) -> u16 {
         self.bank_wrapping_cpu_read16(bank_wrapping_add(addr, 1))
     }
+    pub fn peek_operand16(&self, addr: u32) -> u16 {
+        self.bank_wrapping_cpu_peek16(bank_wrapping_add(addr, 1))
+    }
 
     pub fn fetch_operand24(&mut self, addr: u32) -> u32 {
         self.bank_wrapping_cpu_read24(bank_wrapping_add(addr, 1))
+    }
+    pub fn peek_operand24(&self, addr: u32) -> u32 {
+        self.bank_wrapping_cpu_peek24(bank_wrapping_add(addr, 1))
     }
 
     fn cpu_write_sys(&mut self, addr: usize, value: u8) {
