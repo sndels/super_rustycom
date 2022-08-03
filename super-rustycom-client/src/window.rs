@@ -147,7 +147,7 @@ impl Window {
                         DebugState::Step => {
                             // Go through steps
                             snes.run_steps(debugger.steps, |cpu, abus| {
-                                new_disassembly.push(disassemble_current(cpu, abus))
+                                new_disassembly.push(disassemble_current(cpu, abus).0)
                             });
                             // Reset debugger state
                             debugger.steps = 0;
@@ -160,7 +160,7 @@ impl Window {
                             let (ticks, hit_breakpoint) =
                                 snes.run(diff_ticks, debugger.breakpoint, |cpu, abus, ops_left| {
                                     if ops_left < HISTORY_CYCLE_COUNT {
-                                        new_disassembly.push(disassemble_current(cpu, abus))
+                                        new_disassembly.push(disassemble_current(cpu, abus).0)
                                     }
                                 });
 

@@ -35,7 +35,7 @@ impl Debugger {
 
     pub fn take_command(&mut self, cpu: &mut W65C816S, abus: &mut ABus) {
         println!("PRG at");
-        println!("{}", disassemble_current(cpu, abus));
+        println!("{}", disassemble_current(cpu, abus).0);
         print!("(debug) ");
         if let Err(why) = io::stdout().flush() {
             error!("{}", why);
@@ -193,11 +193,15 @@ fn dump_memory(file_path: &str, buf: &[u8]) -> bool {
 // TODO:
 // This shouldn't have any side-effects. Implement separate read and assume
 // memory with side-effects is never needed (for simplicity)?
-pub fn disassemble_current(cpu: &W65C816S, abus: &mut ABus) -> String {
+pub fn disassemble_current(cpu: &W65C816S, abus: &mut ABus) -> (String, u32) {
     disassemble(cpu.current_address(), cpu, abus)
 }
 
-fn disassemble(addr: u32, cpu: &W65C816S, abus: &mut ABus) -> String {
+pub fn disassemble_peek(cpu: &W65C816S, abus: &mut ABus, offset: u32) -> (String, u32) {
+    disassemble(cpu.current_address() + offset, cpu, abus)
+}
+
+pub fn disassemble(addr: u32, cpu: &W65C816S, abus: &mut ABus) -> (String, u32) {
     let opcode = abus.cpu_read8(addr);
     let opname = OPNAMES[opcode as usize];
     let opmode = ADDR_MODES[opcode as usize];
@@ -241,87 +245,103 @@ fn disassemble(addr: u32, cpu: &W65C816S, abus: &mut ABus) -> String {
         addr & 0xFFFF,
         opcode
     );
-    let unique_strs: (String, String, String) = match opmode {
+    let (bytes_str, disassembled_str, effective_str, op_length) = match opmode {
         AddrMode::Abs => (
             str_operand16!(),
             format!("{0} ${1:04X}", opname, operand16),
             str_full_addr!(cpu.abs(addr, abus).0),
+            3,
         ),
         AddrMode::AbsX => (
             str_operand16!(),
             format!("{0} ${1:04X},X", opname, operand16),
             str_full_addr!(cpu.abs_x(addr, abus).0),
+            3,
         ),
         AddrMode::AbsY => (
             str_operand16!(),
             format!("{0} ${1:04X},Y", opname, operand16),
             str_full_addr!(cpu.abs_y(addr, abus).0),
+            3,
         ),
         AddrMode::AbsPtr16 => (
             str_operand16!(),
             format!("{0} (${1:04X})", opname, operand16),
             str_full_addr!(cpu.abs_ptr16(addr, abus).0),
+            3,
         ),
         AddrMode::AbsPtr24 => (
             str_operand16!(),
             format!("{0} [${1:04X}]", opname, operand16),
             str_full_addr!(cpu.abs_ptr24(addr, abus).0),
+            3,
         ),
         AddrMode::AbsXPtr16 => (
             str_operand16!(),
             format!("{0} (${1:04X},X)", opname, operand16),
             str_full_addr!(cpu.abs_x_ptr16(addr, abus).0),
+            3,
         ),
-        AddrMode::Acc => (String::new(), String::from(opname), String::new()),
+        AddrMode::Acc => (String::new(), String::from(opname), String::new(), 1),
         AddrMode::Dir => (
             str_operand16!(),
             format!("{0} ${1:02X}", opname, operand16),
             str_full_addr!(cpu.dir(addr, abus).0),
+            3,
         ),
         AddrMode::DirX => (
             str_operand16!(),
             format!("{0} ${1:02X},X", opname, operand16),
             str_full_addr!(cpu.dir_x(addr, abus).0),
+            3,
         ),
         AddrMode::DirY => (
             str_operand16!(),
             format!("{0} ${1:02X},Y", opname, operand16),
             str_full_addr!(cpu.dir_y(addr, abus).0),
+            3,
         ),
         AddrMode::DirPtr16 => (
             str_operand16!(),
             format!("{0} (${1:02X})", opname, operand16),
             str_full_addr!(cpu.dir_ptr16(addr, abus).0),
+            3,
         ),
         AddrMode::DirPtr24 => (
             str_operand16!(),
             format!("{0} [${1:02X}]", opname, operand16),
             str_full_addr!(cpu.dir_ptr24(addr, abus).0),
+            3,
         ),
         AddrMode::DirXPtr16 => (
             str_operand16!(),
             format!("{0} (${1:02X},X)", opname, operand16),
             str_full_addr!(cpu.dir_x_ptr16(addr, abus).0),
+            3,
         ),
         AddrMode::DirPtr16Y => (
             str_operand16!(),
             format!("{0} (${1:02X}),Y", opname, operand16),
             str_full_addr!(cpu.dir_ptr16_y(addr, abus).0),
+            3,
         ),
         AddrMode::DirPtr24Y => (
             str_operand16!(),
             format!("{0} [${1:02X}],Y", opname, operand16),
             str_full_addr!(cpu.dir_ptr24_y(addr, abus).0),
+            3,
         ),
         AddrMode::Imm8 => (
             str_operand8!(),
             format!("{0} #${1:02X}", opname, operand8),
             String::new(),
+            2,
         ),
         AddrMode::Imm16 => (
             str_operand16!(),
             format!("{0} #${1:04X}", opname, operand16),
             String::new(),
+            3,
         ),
         AddrMode::ImmM => {
             if cpu.p_m() {
@@ -329,12 +349,14 @@ fn disassemble(addr: u32, cpu: &W65C816S, abus: &mut ABus) -> String {
                     str_operand8!(),
                     format!("{0} #${1:02X}", opname, operand8),
                     String::new(),
+                    2,
                 )
             } else {
                 (
                     str_operand16!(),
                     format!("{0} #${1:04X}", opname, operand16),
                     String::new(),
+                    3,
                 )
             }
         }
@@ -344,35 +366,41 @@ fn disassemble(addr: u32, cpu: &W65C816S, abus: &mut ABus) -> String {
                     str_operand8!(),
                     format!("{0} #${1:02X}", opname, operand8),
                     String::new(),
+                    2,
                 )
             } else {
                 (
                     str_operand16!(),
                     format!("{0} #${1:04X}", opname, operand16),
                     String::new(),
+                    3,
                 )
             }
         }
-        AddrMode::Imp => (String::new(), String::from(opname), String::new()),
+        AddrMode::Imp => (String::new(), String::from(opname), String::new(), 1),
         AddrMode::Long => (
             str_operand24!(),
             format!("{0} ${1:06X}", opname, operand24),
             String::new(),
+            4,
         ),
         AddrMode::LongX => (
             str_operand24!(),
             format!("{0} ${1:06X}", opname, operand24),
             str_full_addr!(cpu.long_x(addr, abus).0),
+            4,
         ),
         AddrMode::Rel8 => (
             str_operand8!(),
             format!("{0} ${1:02X}", opname, operand8),
             format!("[${0:04X}]", cpu.rel8(addr, abus).0 & 0xFFFF),
+            2,
         ),
         AddrMode::Rel16 => (
             str_operand16!(),
             format!("{0} ${1:04X}", opname, operand16),
             format!("[${0:04X}]", cpu.rel16(addr, abus).0 & 0xFFFF),
+            3,
         ),
         AddrMode::SrcDst => (
             str_operand16!(),
@@ -383,24 +411,27 @@ fn disassemble(addr: u32, cpu: &W65C816S, abus: &mut ABus) -> String {
                 operand16 & 0xFF
             ),
             String::new(),
+            3,
         ),
         AddrMode::Stack => (
             str_operand8!(),
             format!("{0} ${1:02X},S", opname, operand8),
             str_full_addr!(cpu.stack(addr, abus).0),
+            2,
         ),
         AddrMode::StackPtr16Y => (
             str_operand8!(),
             format!("{0} (${1:02X},S),Y", opname, operand8),
             str_full_addr!(cpu.stack_ptr16_y(addr, abus).0),
+            2,
         ),
     };
     let disassembled = format!(
         " {0:<8} {1:<13} {2:<10}",
-        unique_strs.0, unique_strs.1, unique_strs.2
+        bytes_str, disassembled_str, effective_str
     );
 
-    [raw_header, disassembled].join("")
+    ([raw_header, disassembled].join(""), op_length)
 }
 
 fn cpu_status_reg_str(cpu: &W65C816S) -> String {

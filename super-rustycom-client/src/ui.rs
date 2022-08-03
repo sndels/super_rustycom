@@ -7,7 +7,9 @@ use std::time::{Duration, Instant};
 use super_rustycom_core::snes::SNES;
 
 use crate::{
-    debugger::{cpu_status_str, disassemble_current, smp_status_str, DebugState, Debugger},
+    debugger::{
+        cpu_status_str, disassemble_current, disassemble_peek, smp_status_str, DebugState, Debugger,
+    },
     draw_data::DrawData,
     expect,
 };
@@ -130,9 +132,9 @@ impl UI {
     }
 }
 
-const DISASSEMBLY_WINDOW_SIZE: [f32; 2] = [360.0, 416.0];
-const DISASSEMBLY_CHILD_WINDOW_SIZE: [f32; 2] = [DISASSEMBLY_WINDOW_SIZE[0] - 10.0, 312.0];
-static mut DISASSEMBLY_SCROLL_TO_BOTTOM: bool = true;
+const DISASSEMBLY_WINDOW_SIZE: [f32; 2] = [360.0, 424.0];
+const DISASSEMBLY_CHILD_WINDOW_SIZE: [f32; 2] = [DISASSEMBLY_WINDOW_SIZE[0] - 10.0, 320.0];
+static mut DISASSEMBLY_SCROLL_TO_CURRENT: bool = true;
 static mut DISASSEMBLY_STEPS: i32 = 1;
 
 fn disassembly_window(
@@ -141,40 +143,38 @@ fn disassembly_window(
     snes: &mut SNES,
     debugger: &mut Debugger,
 ) {
-    let disassembly = data
-        .disassembled_history()
-        .iter()
-        .cloned()
-        .chain(
-            [format!(
-                "> {}",
-                disassemble_current(&snes.cpu, &mut snes.abus)
-            )]
-            .iter()
-            .cloned(),
-        )
-        .collect::<Vec<String>>();
-
-    ui.window("Disassembly")
+    ui.window("Execution")
         .position([0.0, 0.0], imgui::Condition::Appearing)
         .size(DISASSEMBLY_WINDOW_SIZE, imgui::Condition::Appearing)
         .resizable(false)
         .collapsible(false)
         .build(|| {
-            ui.child_window("History")
+            ui.child_window("Disassembly")
                 .size(DISASSEMBLY_CHILD_WINDOW_SIZE)
                 .scroll_bar(true)
                 .build(|| {
-                    for row in disassembly {
-                        ui.text(row);
+                    for row in data.disassembled_history() {
+                        ui.text(format!("  {}", row));
                     }
+
+                    let (current_str, current_size) =
+                        disassemble_current(&snes.cpu, &mut snes.abus);
+                    ui.text(format!("> {}", current_str));
+
                     unsafe {
-                        if DISASSEMBLY_SCROLL_TO_BOTTOM {
+                        if DISASSEMBLY_SCROLL_TO_CURRENT {
                             ui.set_scroll_here_y();
                         }
                     }
+
+                    let mut peek_offset = current_size;
+                    for _ in 0..20 {
+                        let (disassembled, next_size) =
+                            disassemble_peek(&snes.cpu, &mut snes.abus, peek_offset);
+                        ui.text(disassembled);
+                        peek_offset += next_size;
+                    }
                 });
-            // TODO: Peek ahead
 
             if ui.button("Run") {
                 debugger.state = DebugState::Run;
@@ -217,7 +217,7 @@ fn disassembly_window(
             }
 
             unsafe {
-                ui.checkbox("Scroll to bottom", &mut DISASSEMBLY_SCROLL_TO_BOTTOM);
+                ui.checkbox("Scroll to current", &mut DISASSEMBLY_SCROLL_TO_CURRENT);
             }
         });
 }
