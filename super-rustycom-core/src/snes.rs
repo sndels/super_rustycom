@@ -43,7 +43,7 @@ impl Snes {
         let mut cpu_cycles = 0;
         let mut hit_breakpoint = false;
         while cpu_cycles < target_cpu_cycles {
-            if self.cpu.current_address() != breakpoint {
+            if cpu_cycles == 0 || self.cpu.current_address() != breakpoint {
                 disassemble_func(&self.cpu, &mut self.abus);
                 cpu_cycles += self.cpu.step(&mut self.abus) as u128;
                 let (_, apu_io) = self.apu.step(self.abus.apu_io());
