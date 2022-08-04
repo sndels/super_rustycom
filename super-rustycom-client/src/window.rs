@@ -121,9 +121,6 @@ impl Window {
                             if !ui_state.is_any_item_active {
                                 // We only want to handle keypresses if we're not interacting with imgui
                                 match key {
-                                    VirtualKeyCode::Space => {
-                                        debugger.state = DebugState::Active;
-                                    }
                                     VirtualKeyCode::Escape => {
                                         quit = true;
                                     }
