@@ -238,8 +238,18 @@ fn execution_window(
                         }
                     });
 
-                if ui.button("Run") {
-                    debugger.state = DebugState::Run;
+                match debugger.state {
+                    DebugState::Active => {
+                        if ui.button("Run ") {
+                            debugger.state = DebugState::Run;
+                        }
+                    }
+                    DebugState::Run => {
+                        if ui.button("Stop") {
+                            debugger.state = DebugState::Active;
+                        }
+                    }
+                    _ => (),
                 }
 
                 ui.same_line();
