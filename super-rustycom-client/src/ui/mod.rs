@@ -53,12 +53,12 @@ impl Ui {
         self.wram.draw(ui, snes.abus.wram());
         self.apu_ram.draw(ui, snes.apu.bus.ram());
         self.palettes.draw(ui, snes);
-        self.cpu.draw(ui, snes, &resolution);
-        self.smp.draw(ui, snes, &resolution);
+        self.cpu.draw(ui, snes, resolution);
+        self.smp.draw(ui, snes, resolution);
 
         let ui_millis = ui_start.elapsed().as_nanos() as f32 * 1e-6;
 
-        windows::performance(ui, &resolution, data, ui_millis);
+        windows::performance(ui, resolution, data, ui_millis);
 
         State {
             is_any_item_active: ui.is_any_item_active(),

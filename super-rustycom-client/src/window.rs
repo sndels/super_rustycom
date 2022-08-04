@@ -197,10 +197,10 @@ impl Window {
                 ui.platform.prepare_frame(ui.context.io_mut(), window),
                 "imgui prepare frame failed"
             );
-            let mut frame_ui = ui.context.frame();
+            let frame_ui = ui.context.frame();
 
             ui_state = ui.ui.draw(
-                &mut frame_ui,
+                frame_ui,
                 &window.inner_size(),
                 &mut draw_data,
                 &mut snes,

@@ -60,7 +60,7 @@ impl Execution {
                             }
 
                             let (current_str, current_size) =
-                                disassemble_current(&snes.cpu, &mut snes.abus);
+                                disassemble_current(&snes.cpu, &snes.abus);
                             ui.text(format!("> {}", current_str));
 
                             if *scroll_to_current {
@@ -70,7 +70,7 @@ impl Execution {
                             let mut peek_offset = current_size;
                             for _ in 0..20 {
                                 let (disassembled, next_size) =
-                                    disassemble_peek(&snes.cpu, &mut snes.abus, peek_offset);
+                                    disassemble_peek(&snes.cpu, &snes.abus, peek_offset);
                                 ui.text(disassembled);
                                 peek_offset += next_size;
                             }

@@ -21,7 +21,7 @@ impl Context {
         let mut platform = WinitPlatform::init(&mut context);
 
         // This is where highdpi would go, but we always use physical size
-        let font_size = 13.0 as f32;
+        let font_size = 13.0;
         context.fonts().add_font(&[FontSource::DefaultFontData {
             config: Some(FontConfig {
                 size_pixels: font_size,
