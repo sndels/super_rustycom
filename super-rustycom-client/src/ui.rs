@@ -74,12 +74,56 @@ impl UIContext {
     }
 }
 
-#[derive(Clone)]
 pub struct UI {
-    wram_start_byte: u16,
-    apu_ram_start_byte: u16,
-    disassembly_scroll_to_current: bool,
-    disassembly_steps: i32,
+    execution: Execution,
+    wram: MemWindow,
+    apu_ram: MemWindow,
+    cpu_window_opened: bool,
+    smp_window_opened: bool,
+    palettes_opened: bool,
+}
+
+impl Default for UI {
+    fn default() -> Self {
+        Self {
+            execution: Execution::default(),
+            wram: MemWindow::default(),
+            apu_ram: MemWindow::default(),
+            cpu_window_opened: true,
+            smp_window_opened: false,
+            palettes_opened: true,
+        }
+    }
+}
+
+struct Execution {
+    opened: bool,
+    scroll_to_current: bool,
+    steps: i32,
+}
+
+impl Default for Execution {
+    fn default() -> Self {
+        Self {
+            opened: true,
+            scroll_to_current: true,
+            steps: 1,
+        }
+    }
+}
+
+struct MemWindow {
+    opened: bool,
+    start_byte: u16,
+}
+
+impl Default for MemWindow {
+    fn default() -> Self {
+        Self {
+            opened: false,
+            start_byte: 0x0,
+        }
+    }
 }
 
 #[derive(Default)]
@@ -87,20 +131,15 @@ pub struct UIState {
     pub is_any_item_active: bool,
 }
 
+const MENU_BAR_HEIGHT: f32 = 19.0;
+const TOP_LEFT: [f32; 2] = [0.0, MENU_BAR_HEIGHT];
 const MEMORY_WINDOW_SIZE: [f32; 2] = [388.0, 344.0];
-const DISASSEMBLY_WINDOW_SIZE: [f32; 2] = [360.0, 424.0];
-const DISASSEMBLY_CHILD_WINDOW_SIZE: [f32; 2] = [DISASSEMBLY_WINDOW_SIZE[0] - 10.0, 320.0];
-
-impl Default for UI {
-    fn default() -> Self {
-        Self {
-            wram_start_byte: 0x0,
-            apu_ram_start_byte: 0x0,
-            disassembly_scroll_to_current: true,
-            disassembly_steps: 1,
-        }
-    }
-}
+const EXECUTION_WINDOW_SIZE: [f32; 2] = [360.0, 424.0];
+const EXECUTION_CHILD_WINDOW_SIZE: [f32; 2] = [EXECUTION_WINDOW_SIZE[0] - 10.0, 320.0];
+const CPU_WINDOW_SIZE: [f32; 2] = [110.0, 236.0];
+const SMP_WINDOW_SIZE: [f32; 2] = [CPU_WINDOW_SIZE[0], 152.0];
+const PERF_WINDOW_SIZE: [f32; 2] = [204.0, 47.0];
+const PALETTES_WINDOW_SIZE: [f32; 2] = [336.0, 340.0];
 
 impl UI {
     pub fn draw(
@@ -113,24 +152,14 @@ impl UI {
     ) -> UIState {
         let ui_start = Instant::now();
 
-        self.disassembly_window(ui, data, snes, debugger);
-        mem_window(
-            ui,
-            snes.abus.wram(),
-            "WRAM",
-            [DISASSEMBLY_WINDOW_SIZE[0], 0.0],
-            &mut self.wram_start_byte,
-        );
-        mem_window(
-            ui,
-            snes.apu.bus.ram(),
-            "APU RAM",
-            [DISASSEMBLY_WINDOW_SIZE[0], MEMORY_WINDOW_SIZE[1]],
-            &mut self.apu_ram_start_byte,
-        );
-        palettes_window(ui, snes);
-        cpu_window(ui, &resolution, snes);
-        smp_window(ui, &resolution, snes);
+        self.menu_bar(ui);
+
+        execution_window(ui, snes, data, debugger, &mut self.execution);
+        mem_window(ui, snes.abus.wram(), "WRAM", &mut self.wram);
+        mem_window(ui, snes.apu.bus.ram(), "APU RAM", &mut self.apu_ram);
+        palettes_window(ui, snes, &mut self.palettes_opened);
+        cpu_window(ui, snes, &resolution, &mut self.cpu_window_opened);
+        smp_window(ui, snes, &resolution, &mut self.smp_window_opened);
 
         let ui_millis = ui_start.elapsed().as_nanos() as f32 * 1e-6;
 
@@ -141,22 +170,51 @@ impl UI {
         }
     }
 
-    fn disassembly_window(
-        &mut self,
-        ui: &mut imgui::Ui,
-        data: &mut DrawData,
-        snes: &mut SNES,
-        debugger: &mut Debugger,
-    ) {
+    fn menu_bar(&mut self, ui: &mut imgui::Ui) {
+        macro_rules! toggle {
+            ($pred:expr, $boolean:expr) => {
+                if $pred {
+                    $boolean = !$boolean;
+                }
+            };
+        }
+
+        ui.main_menu_bar(|| {
+            toggle!(ui.menu_item("Execution"), self.execution.opened);
+            ui.menu("CPU", || {
+                toggle!(ui.menu_item("CPU registers"), self.cpu_window_opened);
+                toggle!(ui.menu_item("WRAM"), self.wram.opened);
+            });
+            ui.menu("APU", || {
+                toggle!(ui.menu_item("SMP registers"), self.smp_window_opened);
+                toggle!(ui.menu_item("APU RAM"), self.apu_ram.opened);
+            });
+            ui.menu("PPU", || {
+                toggle!(ui.menu_item("Palettes"), self.palettes_opened);
+            });
+        });
+    }
+}
+
+fn execution_window(
+    ui: &mut imgui::Ui,
+    snes: &mut SNES,
+    data: &mut DrawData,
+    debugger: &mut Debugger,
+    execution: &mut Execution,
+) {
+    if execution.opened {
+        let scroll_to_current = &mut execution.scroll_to_current;
+        let steps = &mut execution.steps;
         ui.window("Execution")
-            .position([0.0, 0.0], imgui::Condition::Appearing)
-            .size(DISASSEMBLY_WINDOW_SIZE, imgui::Condition::Appearing)
+            .position(TOP_LEFT, imgui::Condition::Appearing)
+            .size(EXECUTION_WINDOW_SIZE, imgui::Condition::Appearing)
             .resizable(false)
             .collapsible(false)
-            .movable(false)
+            .opened(&mut execution.opened)
             .build(|| {
                 ui.child_window("Disassembly")
-                    .size(DISASSEMBLY_CHILD_WINDOW_SIZE)
+                    .size(EXECUTION_CHILD_WINDOW_SIZE)
                     .scroll_bar(true)
                     .build(|| {
                         for row in data.disassembled_history() {
@@ -167,7 +225,7 @@ impl UI {
                             disassemble_current(&snes.cpu, &mut snes.abus);
                         ui.text(format!("> {}", current_str));
 
-                        if self.disassembly_scroll_to_current {
+                        if *scroll_to_current {
                             ui.set_scroll_here_y();
                         }
 
@@ -190,10 +248,8 @@ impl UI {
                 ui.same_line();
                 let steps = {
                     let _width = ui.push_item_width(40.0);
-                    let _ = imgui::Drag::new("##Steps")
-                        .range(1, 1000)
-                        .build(ui, &mut self.disassembly_steps);
-                    self.disassembly_steps
+                    let _ = imgui::Drag::new("##Steps").range(1, 1000).build(ui, steps);
+                    *steps
                 };
 
                 if should_step {
@@ -220,104 +276,103 @@ impl UI {
                     debugger.breakpoint = bp.max(0).min(0xFFFFFF) as u32;
                 }
 
-                ui.checkbox("Scroll to current", &mut self.disassembly_scroll_to_current);
+                ui.checkbox("Scroll to current", scroll_to_current);
             });
     }
 }
 
-fn mem_window(
-    ui: &mut imgui::Ui,
-    memory: &[u8],
-    name: &str,
-    position: [f32; 2],
-    start_byte: &mut u16,
-) {
-    let shown_row_count: usize = 16;
-    // Drop one line since we have the column header
-    let end_byte = (*start_byte as usize) + shown_row_count * 0x0010;
+fn mem_window(ui: &mut imgui::Ui, memory: &[u8], name: &str, settings: &mut MemWindow) {
+    if settings.opened {
+        let shown_row_count: usize = 16;
+        // Drop one line since we have the column header
+        let end_byte = (settings.start_byte as usize) + shown_row_count * 0x0010;
 
-    let mut text = vec![String::from(
-        "      00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F",
-    )];
-    text.extend(
-        memory[*start_byte as usize..end_byte]
-            .chunks(0x10)
-            .into_iter()
-            // Zip line addrs with lines
-            .zip((*start_byte as usize..memory.len()).step_by(0x0010))
-            // Create line string with space between bytes
-            .map(|(line, addr)| {
-                format!(
-                    "${:04X} {}",
-                    addr,
-                    line.iter()
-                        .format_with(" ", |elt, f| f(&format_args!("{:02X}", elt)))
-                )
-            })
-            .collect_vec(),
-    );
+        let mut text = vec![String::from(
+            "      00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F",
+        )];
+        text.extend(
+            memory[settings.start_byte as usize..end_byte]
+                .chunks(0x10)
+                .into_iter()
+                // Zip line addrs with lines
+                .zip((settings.start_byte as usize..memory.len()).step_by(0x0010))
+                // Create line string with space between bytes
+                .map(|(line, addr)| {
+                    format!(
+                        "${:04X} {}",
+                        addr,
+                        line.iter()
+                            .format_with(" ", |elt, f| f(&format_args!("{:02X}", elt)))
+                    )
+                })
+                .collect_vec(),
+        );
 
-    ui.window(name)
-        .position(position, imgui::Condition::Appearing)
-        .size(MEMORY_WINDOW_SIZE, imgui::Condition::Appearing)
-        .resizable(false)
-        .collapsible(false)
-        .movable(false)
-        .build(|| {
-            for row in text {
-                ui.text(row);
-            }
+        // Explicit ref to avoid closure trying (and failing) to capture settings as a whole
+        let start_byte = &mut settings.start_byte;
+        ui.window(name)
+            .position(TOP_LEFT, imgui::Condition::Appearing)
+            .size(MEMORY_WINDOW_SIZE, imgui::Condition::Appearing)
+            .resizable(false)
+            .collapsible(false)
+            .opened(&mut settings.opened)
+            .build(|| {
+                for row in text {
+                    ui.text(row);
+                }
 
-            {
-                let _width = ui.push_item_width(106.0);
-                let mut addr = *start_byte as i32;
-                let _ = ui
-                    .input_int("Start addr", &mut addr)
-                    .chars_hexadecimal(true)
-                    .step(16)
-                    .step_fast(16)
-                    .display_format("$%04X")
-                    .build();
-                // Each row should be 16 bytes starting at XXX0
-                *start_byte = (addr - addr % 16).max(0) as u16;
-            }
-        });
+                {
+                    let _width = ui.push_item_width(106.0);
+                    let mut addr = *start_byte as i32;
+                    let _ = ui
+                        .input_int("Start addr", &mut addr)
+                        .chars_hexadecimal(true)
+                        .step(16)
+                        .step_fast(16)
+                        .display_format("$%04X")
+                        .build();
+                    // Each row should be 16 bytes starting at XXX0
+                    *start_byte = (addr - addr % 16).max(0) as u16;
+                }
+            });
+    }
 }
 
-const PALETTES_WINDOW_SIZE: [f32; 2] = [336.0, 340.0];
+fn palettes_window(ui: &mut imgui::Ui, snes: &SNES, opened: &mut bool) {
+    if *opened {
+        ui.window("Palettes")
+            .position(
+                [EXECUTION_WINDOW_SIZE[0], MENU_BAR_HEIGHT],
+                imgui::Condition::Appearing,
+            )
+            .size(PALETTES_WINDOW_SIZE, imgui::Condition::Appearing)
+            .resizable(false)
+            .collapsible(false)
+            .opened(opened)
+            .build(|| {
+                let cgram = snes.abus.cgram();
+                for (ip, palette) in cgram.iter().chunks(32).into_iter().enumerate() {
+                    for (ic, color_chunk) in palette.into_iter().chunks(2).into_iter().enumerate() {
+                        if ic == 0 {
+                            ui.text(format!("{:X}", ip));
+                            ui.same_line();
+                        }
+                        let _no_spacing =
+                            ui.push_style_var(imgui::StyleVar::ItemSpacing([0.0, 0.0]));
 
-fn palettes_window(ui: &mut imgui::Ui, snes: &SNES) {
-    ui.window("Palettes")
-        .position(
-            [0.0, DISASSEMBLY_WINDOW_SIZE[1]],
-            imgui::Condition::Appearing,
-        )
-        .size(PALETTES_WINDOW_SIZE, imgui::Condition::Appearing)
-        .resizable(false)
-        .collapsible(false)
-        .movable(false)
-        .build(|| {
-            let cgram = snes.abus.cgram();
-            for (ip, palette) in cgram.iter().chunks(32).into_iter().enumerate() {
-                for (ic, color_chunk) in palette.into_iter().chunks(2).into_iter().enumerate() {
-                    if ic == 0 {
-                        ui.text(format!("{:X}", ip));
-                        ui.same_line();
-                    }
-                    let _no_spacing = ui.push_style_var(imgui::StyleVar::ItemSpacing([0.0, 0.0]));
-
-                    let color_bytes: Vec<u8> = color_chunk.cloned().collect();
-                    let packed_color = ((color_bytes[1] as u16) << 8) | (color_bytes[0] as u16);
-                    ui.color_button(
-                        format!("##palette{}{}", ip, ic),
-                        palette_color(packed_color),
-                    );
-                    if ic < 15 {
-                        ui.same_line();
+                        let color_bytes: Vec<u8> = color_chunk.cloned().collect();
+                        let packed_color = ((color_bytes[1] as u16) << 8) | (color_bytes[0] as u16);
+                        ui.color_button(
+                            format!("##palette{}{}", ip, ic),
+                            palette_color(packed_color),
+                        );
+                        if ic < 15 {
+                            ui.same_line();
+                        }
                     }
                 }
-            }
-        });
+            });
+    }
 }
 
 fn palette_color(bgr555: u16) -> [f32; 4] {
@@ -329,48 +384,59 @@ fn palette_color(bgr555: u16) -> [f32; 4] {
     ]
 }
 
-const CPU_WINDOW_SIZE: [f32; 2] = [110.0, 236.0];
-
-fn cpu_window(ui: &mut imgui::Ui, resolution: &glutin::dpi::PhysicalSize<u32>, snes: &SNES) {
-    ui.window("CPU state")
-        .position(
-            [resolution.width as f32 - CPU_WINDOW_SIZE[0], 0.0],
-            imgui::Condition::Appearing,
-        )
-        .size(CPU_WINDOW_SIZE, imgui::Condition::Appearing)
-        .resizable(false)
-        .collapsible(false)
-        .movable(false)
-        .build(|| {
-            for row in cpu_status_str(&snes.cpu) {
-                ui.text(row);
-            }
-        });
+fn cpu_window(
+    ui: &mut imgui::Ui,
+    snes: &SNES,
+    resolution: &glutin::dpi::PhysicalSize<u32>,
+    opened: &mut bool,
+) {
+    if *opened {
+        ui.window("CPU state")
+            .position(
+                [
+                    resolution.width as f32 - CPU_WINDOW_SIZE[0],
+                    MENU_BAR_HEIGHT,
+                ],
+                imgui::Condition::Appearing,
+            )
+            .size(CPU_WINDOW_SIZE, imgui::Condition::Appearing)
+            .resizable(false)
+            .collapsible(false)
+            .opened(opened)
+            .build(|| {
+                for row in cpu_status_str(&snes.cpu) {
+                    ui.text(row);
+                }
+            });
+    }
 }
 
-const SMP_WINDOW_SIZE: [f32; 2] = [CPU_WINDOW_SIZE[0], 152.0];
-
-fn smp_window(ui: &mut imgui::Ui, resolution: &glutin::dpi::PhysicalSize<u32>, snes: &SNES) {
-    ui.window("SMP state")
-        .position(
-            [
-                resolution.width as f32 - SMP_WINDOW_SIZE[0],
-                CPU_WINDOW_SIZE[1],
-            ],
-            imgui::Condition::Appearing,
-        )
-        .size(SMP_WINDOW_SIZE, imgui::Condition::Appearing)
-        .resizable(false)
-        .collapsible(false)
-        .movable(false)
-        .build(|| {
-            for row in smp_status_str(&snes.apu.smp) {
-                ui.text(row);
-            }
-        });
+fn smp_window(
+    ui: &mut imgui::Ui,
+    snes: &SNES,
+    resolution: &glutin::dpi::PhysicalSize<u32>,
+    opened: &mut bool,
+) {
+    if *opened {
+        ui.window("SMP state")
+            .position(
+                [
+                    resolution.width as f32 - SMP_WINDOW_SIZE[0],
+                    MENU_BAR_HEIGHT + CPU_WINDOW_SIZE[1],
+                ],
+                imgui::Condition::Appearing,
+            )
+            .size(SMP_WINDOW_SIZE, imgui::Condition::Appearing)
+            .resizable(false)
+            .collapsible(false)
+            .opened(opened)
+            .build(|| {
+                for row in smp_status_str(&snes.apu.smp) {
+                    ui.text(row);
+                }
+            });
+    }
 }
-
-const PERF_WINDOW_SIZE: [f32; 2] = [200.0, 66.0];
 
 fn perf_window(
     ui: &mut imgui::Ui,
@@ -387,8 +453,7 @@ fn perf_window(
             imgui::Condition::Appearing,
         )
         .size(PERF_WINDOW_SIZE, imgui::Condition::Appearing)
-        .resizable(false)
-        .collapsible(false)
+        .no_decoration()
         .movable(false)
         .build(|| {
             ui.text(format!("Debug draw took {:>5.2}ms!", ui_millis));
