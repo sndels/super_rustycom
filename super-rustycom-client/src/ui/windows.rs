@@ -22,7 +22,6 @@ const PALETTES_WINDOW_SIZE: [f32; 2] = [336.0, 340.0];
 pub struct Execution {
     pub opened: bool,
     scroll_to_current: bool,
-    steps: i32,
 }
 
 impl Execution {
@@ -30,7 +29,6 @@ impl Execution {
         Self {
             opened,
             scroll_to_current: true,
-            steps: 1,
         }
     }
 
@@ -43,7 +41,6 @@ impl Execution {
     ) {
         if self.opened {
             let scroll_to_current = &mut self.scroll_to_current;
-            let steps = &mut self.steps;
             ui.window("Execution")
                 .position(TOP_LEFT, imgui::Condition::Appearing)
                 .size(EXECUTION_WINDOW_SIZE, imgui::Condition::Appearing)
@@ -91,18 +88,16 @@ impl Execution {
                     }
 
                     ui.same_line();
-                    let should_step = ui.button("Step");
+                    if ui.button("Step") {
+                        debugger.state = DebugState::Step;
+                    }
 
                     ui.same_line();
-                    let steps = {
+                    {
                         let _width = ui.push_item_width(40.0);
-                        let _ = imgui::Drag::new("##Steps").range(1, 1000).build(ui, steps);
-                        *steps
-                    };
-
-                    if should_step {
-                        debugger.state = DebugState::Step;
-                        debugger.steps = steps as u32;
+                        let _ = imgui::Drag::new("##Steps")
+                            .range(1, 1000)
+                            .build(ui, &mut debugger.steps);
                     }
 
                     ui.same_line();

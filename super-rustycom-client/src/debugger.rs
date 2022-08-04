@@ -25,7 +25,7 @@ impl Debugger {
     pub fn new() -> Debugger {
         Debugger {
             breakpoint: 0x0,
-            steps: 0,
+            steps: 1,
             state: DebugState::Active,
             disassemble: false,
             quit: false,

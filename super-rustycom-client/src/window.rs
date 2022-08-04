@@ -145,8 +145,6 @@ impl Window {
                             snes.run_steps(debugger.steps, |cpu, abus| {
                                 new_disassembly.push(disassemble_current(cpu, abus).0)
                             });
-                            // Reset debugger state
-                            debugger.steps = 0;
                             debugger.state = DebugState::Active;
                             // Update cycle count to prevent warping on pauses
                             emulated_clock_ticks = time_source.elapsed_ticks();
