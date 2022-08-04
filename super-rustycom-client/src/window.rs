@@ -18,7 +18,7 @@ use crate::{
     draw_data::DrawData,
     expect,
     time_source::TimeSource,
-    ui::{UIContext, UIState},
+    ui,
 };
 
 const SHOWN_HISTORY_LINES: usize = 1000;
@@ -28,7 +28,7 @@ pub struct Window {
     event_loop: EventLoop<()>,
     display: glium::Display,
 
-    ui: UIContext,
+    ui: ui::Context,
 
     snes: SNES,
     debugger: Debugger,
@@ -55,7 +55,7 @@ impl Window {
             "Failed to initialize glium display"
         );
 
-        let ui = UIContext::new(&display);
+        let ui = ui::Context::new(&display);
 
         Window {
             event_loop,
@@ -77,7 +77,7 @@ impl Window {
 
         let mut quit = false;
         let mut last_frame_instant = Instant::now();
-        let mut ui_state = UIState::default();
+        let mut ui_state = ui::State::default();
         let time_source = TimeSource::new();
         let mut emulated_clock_ticks = 0;
         let mut draw_data = DrawData::new();
