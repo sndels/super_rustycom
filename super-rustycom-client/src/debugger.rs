@@ -31,6 +31,10 @@ impl Debugger {
             quit: false,
         }
     }
+
+    pub fn reset(&mut self) {
+        *self = Debugger::new();
+    }
 }
 
 #[allow(dead_code)]
