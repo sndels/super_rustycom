@@ -108,11 +108,10 @@ impl Execution {
                     }
 
                     {
-                        let _width = ui.push_item_width(106.0);
+                        let _width = ui.push_item_width(58.0);
                         let mut bp = debugger.breakpoint as i32;
-                        // TODO: Remove +-
                         let _ = ui
-                            .input_int("Breakpoint", &mut bp)
+                            .input_scalar("Breakpoint", &mut bp)
                             .chars_hexadecimal(true)
                             .display_format("$%06X")
                             .build();
