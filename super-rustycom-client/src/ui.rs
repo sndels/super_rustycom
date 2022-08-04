@@ -1,9 +1,9 @@
 use glium::glutin;
-use imgui::{Context, FontConfig, FontSource};
+use imgui::{FontConfig, FontSource};
 use imgui_glium_renderer::Renderer;
 use imgui_winit_support::{HiDpiMode, WinitPlatform};
 use itertools::Itertools;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 use super_rustycom_core::snes::SNES;
 
 use crate::{
@@ -14,28 +14,22 @@ use crate::{
     expect,
 };
 
-pub struct UI {
-    context: Context,
-    platform: WinitPlatform,
-    renderer: Renderer,
+pub struct UIContext {
+    pub ui: UI,
+    pub context: imgui::Context,
+    pub platform: WinitPlatform,
+    pub renderer: Renderer,
 }
 
-#[derive(Default)]
-pub struct UIState {
-    pub is_any_item_active: bool,
-}
-
-const MEMORY_WINDOW_SIZE: [f32; 2] = [388.0, 344.0];
-static mut WRAM_START_BYTE: u16 = 0;
-static mut APU_RAM_START_BYTE: u16 = 0;
-
-impl UI {
+impl UIContext {
     pub fn new(display: &glium::Display) -> Self {
         let mut context = imgui::Context::create();
+
         context.set_ini_filename(None);
 
         let mut platform = WinitPlatform::init(&mut context);
 
+        // This is where highdpi would go, but we always use physical size
         let font_size = 13.0 as f32;
         context.fonts().add_font(&[FontSource::DefaultFontData {
             config: Some(FontConfig {
@@ -43,7 +37,6 @@ impl UI {
                 ..FontConfig::default()
             }),
         }]);
-
         context.io_mut().font_global_scale = 1.0;
 
         {
@@ -68,180 +61,168 @@ impl UI {
         platform.attach_window(
             context.io_mut(),
             display.gl_window().window(),
+            // This with the font settings appears to force the scaling off
             HiDpiMode::Rounded,
         );
 
-        UI {
+        UIContext {
+            ui: UI::default(),
             context,
             platform,
             renderer,
         }
     }
+}
 
-    pub fn handle_event<'b, T: 'static>(
-        &mut self,
-        window: &glutin::window::Window,
-        event: &glutin::event::Event<'b, T>,
-    ) {
-        self.platform
-            .handle_event(self.context.io_mut(), window, event);
+#[derive(Clone)]
+pub struct UI {
+    wram_start_byte: u16,
+    apu_ram_start_byte: u16,
+    disassembly_scroll_to_current: bool,
+    disassembly_steps: i32,
+}
+
+#[derive(Default)]
+pub struct UIState {
+    pub is_any_item_active: bool,
+}
+
+const MEMORY_WINDOW_SIZE: [f32; 2] = [388.0, 344.0];
+const DISASSEMBLY_WINDOW_SIZE: [f32; 2] = [360.0, 424.0];
+const DISASSEMBLY_CHILD_WINDOW_SIZE: [f32; 2] = [DISASSEMBLY_WINDOW_SIZE[0] - 10.0, 320.0];
+
+impl Default for UI {
+    fn default() -> Self {
+        Self {
+            wram_start_byte: 0x0,
+            apu_ram_start_byte: 0x0,
+            disassembly_scroll_to_current: true,
+            disassembly_steps: 1,
+        }
     }
+}
 
-    pub fn update_delta_time(&mut self, delta: Duration) {
-        self.context.io_mut().update_delta_time(delta);
-    }
-
-    pub fn render(
+impl UI {
+    pub fn draw(
         &mut self,
-        window: &glutin::window::Window,
-        render_target: &mut glium::Frame,
+        ui: &mut imgui::Ui,
+        resolution: &glutin::dpi::PhysicalSize<u32>,
         data: &mut DrawData,
         snes: &mut SNES,
         debugger: &mut Debugger,
     ) -> UIState {
         let ui_start = Instant::now();
 
-        expect!(
-            self.platform.prepare_frame(self.context.io_mut(), window),
-            "Failed to prepare imgui gl frame"
+        self.disassembly_window(ui, data, snes, debugger);
+        mem_window(
+            ui,
+            snes.abus.wram(),
+            "WRAM",
+            [DISASSEMBLY_WINDOW_SIZE[0], 0.0],
+            &mut self.wram_start_byte,
         );
-        let resolution = window.inner_size();
+        mem_window(
+            ui,
+            snes.apu.bus.ram(),
+            "APU RAM",
+            [DISASSEMBLY_WINDOW_SIZE[0], MEMORY_WINDOW_SIZE[1]],
+            &mut self.apu_ram_start_byte,
+        );
+        palettes_window(ui, snes);
+        cpu_window(ui, &resolution, snes);
+        smp_window(ui, &resolution, snes);
 
-        let mut state = UIState::default();
+        let ui_millis = ui_start.elapsed().as_nanos() as f32 * 1e-6;
 
-        {
-            let frame_ui = self.context.frame();
+        perf_window(ui, &resolution, data, ui_millis);
 
-            disassembly_window(frame_ui, data, snes, debugger);
-            unsafe {
-                mem_window(
-                    frame_ui,
-                    snes.abus.wram(),
-                    "WRAM",
-                    [DISASSEMBLY_WINDOW_SIZE[0], 0.0],
-                    &mut WRAM_START_BYTE,
-                );
-            }
-            unsafe {
-                mem_window(
-                    frame_ui,
-                    snes.apu.bus.ram(),
-                    "APU RAM",
-                    [DISASSEMBLY_WINDOW_SIZE[0], MEMORY_WINDOW_SIZE[1]],
-                    &mut APU_RAM_START_BYTE,
-                );
-            }
-            palettes_window(frame_ui, snes);
-            cpu_window(frame_ui, &resolution, snes);
-            smp_window(frame_ui, &resolution, snes);
-
-            let ui_millis = ui_start.elapsed().as_nanos() as f32 * 1e-6;
-
-            perf_window(frame_ui, &resolution, data, ui_millis);
-
-            state.is_any_item_active = frame_ui.is_any_item_active();
-
-            self.platform.prepare_render(frame_ui, window);
+        UIState {
+            is_any_item_active: ui.is_any_item_active(),
         }
-
-        expect!(
-            self.renderer.render(render_target, self.context.render()),
-            "Rendering GL window failed"
-        );
-
-        state
     }
-}
 
-const DISASSEMBLY_WINDOW_SIZE: [f32; 2] = [360.0, 424.0];
-const DISASSEMBLY_CHILD_WINDOW_SIZE: [f32; 2] = [DISASSEMBLY_WINDOW_SIZE[0] - 10.0, 320.0];
-static mut DISASSEMBLY_SCROLL_TO_CURRENT: bool = true;
-static mut DISASSEMBLY_STEPS: i32 = 1;
+    fn disassembly_window(
+        &mut self,
+        ui: &mut imgui::Ui,
+        data: &mut DrawData,
+        snes: &mut SNES,
+        debugger: &mut Debugger,
+    ) {
+        ui.window("Execution")
+            .position([0.0, 0.0], imgui::Condition::Appearing)
+            .size(DISASSEMBLY_WINDOW_SIZE, imgui::Condition::Appearing)
+            .resizable(false)
+            .collapsible(false)
+            .movable(false)
+            .build(|| {
+                ui.child_window("Disassembly")
+                    .size(DISASSEMBLY_CHILD_WINDOW_SIZE)
+                    .scroll_bar(true)
+                    .build(|| {
+                        for row in data.disassembled_history() {
+                            ui.text(format!("  {}", row));
+                        }
 
-fn disassembly_window(
-    ui: &mut imgui::Ui,
-    data: &mut DrawData,
-    snes: &mut SNES,
-    debugger: &mut Debugger,
-) {
-    ui.window("Execution")
-        .position([0.0, 0.0], imgui::Condition::Appearing)
-        .size(DISASSEMBLY_WINDOW_SIZE, imgui::Condition::Appearing)
-        .resizable(false)
-        .collapsible(false)
-        .movable(false)
-        .build(|| {
-            ui.child_window("Disassembly")
-                .size(DISASSEMBLY_CHILD_WINDOW_SIZE)
-                .scroll_bar(true)
-                .build(|| {
-                    for row in data.disassembled_history() {
-                        ui.text(format!("  {}", row));
-                    }
+                        let (current_str, current_size) =
+                            disassemble_current(&snes.cpu, &mut snes.abus);
+                        ui.text(format!("> {}", current_str));
 
-                    let (current_str, current_size) =
-                        disassemble_current(&snes.cpu, &mut snes.abus);
-                    ui.text(format!("> {}", current_str));
-
-                    unsafe {
-                        if DISASSEMBLY_SCROLL_TO_CURRENT {
+                        if self.disassembly_scroll_to_current {
                             ui.set_scroll_here_y();
                         }
-                    }
 
-                    let mut peek_offset = current_size;
-                    for _ in 0..20 {
-                        let (disassembled, next_size) =
-                            disassemble_peek(&snes.cpu, &mut snes.abus, peek_offset);
-                        ui.text(disassembled);
-                        peek_offset += next_size;
-                    }
-                });
+                        let mut peek_offset = current_size;
+                        for _ in 0..20 {
+                            let (disassembled, next_size) =
+                                disassemble_peek(&snes.cpu, &mut snes.abus, peek_offset);
+                            ui.text(disassembled);
+                            peek_offset += next_size;
+                        }
+                    });
 
-            if ui.button("Run") {
-                debugger.state = DebugState::Run;
-            }
+                if ui.button("Run") {
+                    debugger.state = DebugState::Run;
+                }
 
-            ui.same_line();
-            let should_step = ui.button("Step");
+                ui.same_line();
+                let should_step = ui.button("Step");
 
-            ui.same_line();
-            let steps = unsafe {
-                let _width = ui.push_item_width(40.0);
-                let _ = imgui::Drag::new("##Steps")
-                    .range(1, 1000)
-                    .build(ui, &mut DISASSEMBLY_STEPS);
-                DISASSEMBLY_STEPS
-            };
+                ui.same_line();
+                let steps = {
+                    let _width = ui.push_item_width(40.0);
+                    let _ = imgui::Drag::new("##Steps")
+                        .range(1, 1000)
+                        .build(ui, &mut self.disassembly_steps);
+                    self.disassembly_steps
+                };
 
-            if should_step {
-                debugger.state = DebugState::Step;
-                debugger.steps = steps as u32;
-            }
+                if should_step {
+                    debugger.state = DebugState::Step;
+                    debugger.steps = steps as u32;
+                }
 
-            ui.same_line();
-            if ui.button("Reset") {
-                snes.cpu.reset(&mut snes.abus);
-                data.clear_history();
-                debugger.state = DebugState::Active;
-            }
+                ui.same_line();
+                if ui.button("Reset") {
+                    snes.cpu.reset(&mut snes.abus);
+                    data.clear_history();
+                    debugger.state = DebugState::Active;
+                }
 
-            {
-                let _width = ui.push_item_width(106.0);
-                let mut bp = debugger.breakpoint as i32;
-                // TODO: Remove +-
-                let _ = ui
-                    .input_int("Breakpoint", &mut bp)
-                    .chars_hexadecimal(true)
-                    .display_format("$%06X")
-                    .build();
-                debugger.breakpoint = bp.max(0).min(0xFFFFFF) as u32;
-            }
+                {
+                    let _width = ui.push_item_width(106.0);
+                    let mut bp = debugger.breakpoint as i32;
+                    // TODO: Remove +-
+                    let _ = ui
+                        .input_int("Breakpoint", &mut bp)
+                        .chars_hexadecimal(true)
+                        .display_format("$%06X")
+                        .build();
+                    debugger.breakpoint = bp.max(0).min(0xFFFFFF) as u32;
+                }
 
-            unsafe {
-                ui.checkbox("Scroll to current", &mut DISASSEMBLY_SCROLL_TO_CURRENT);
-            }
-        });
+                ui.checkbox("Scroll to current", &mut self.disassembly_scroll_to_current);
+            });
+    }
 }
 
 fn mem_window(

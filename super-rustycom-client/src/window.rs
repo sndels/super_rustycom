@@ -18,7 +18,7 @@ use crate::{
     draw_data::DrawData,
     expect,
     time_source::TimeSource,
-    ui::UI,
+    ui::{UIContext, UIState},
 };
 
 const SHOWN_HISTORY_LINES: usize = 1000;
@@ -28,7 +28,7 @@ pub struct Window {
     event_loop: EventLoop<()>,
     display: glium::Display,
 
-    ui: UI,
+    ui: UIContext,
 
     snes: SNES,
     debugger: Debugger,
@@ -38,21 +38,24 @@ impl Window {
     pub fn new(title: &str, config: &Config, snes: SNES, debugger: Debugger) -> Self {
         // Create window and gl context
         let event_loop = EventLoop::new();
+
         let window_builder = WindowBuilder::new()
             .with_title(title.to_owned())
             .with_inner_size(PhysicalSize::new(
                 config.resolution.width as f64,
                 config.resolution.height as f64,
             ));
+
         let context_builder = glutin::ContextBuilder::new()
             .with_vsync(true)
             .with_double_buffer(Some(true));
+
         let display = expect!(
             glium::Display::new(window_builder, context_builder, &event_loop),
             "Failed to initialize glium display"
         );
 
-        let ui = UI::new(&display);
+        let ui = UIContext::new(&display);
 
         Window {
             event_loop,
@@ -74,7 +77,7 @@ impl Window {
 
         let mut quit = false;
         let mut last_frame_instant = Instant::now();
-        let mut any_item_active = false;
+        let mut ui_state = UIState::default();
         let time_source = TimeSource::new();
         let mut emulated_clock_ticks = 0;
         let mut draw_data = DrawData::new();
@@ -84,11 +87,15 @@ impl Window {
             let window = gl_window.window();
 
             event_loop.run_return(|event, _, control_flow| {
-                ui.handle_event(window, &event);
+                ui.platform
+                    .handle_event(ui.context.io_mut(), window, &event);
+
                 match event {
                     Event::NewEvents(_) => {
                         let now = Instant::now();
-                        ui.update_delta_time(now - last_frame_instant);
+                        ui.context
+                            .io_mut()
+                            .update_delta_time(now - last_frame_instant);
                         last_frame_instant = now;
                     }
                     Event::MainEventsCleared => {
@@ -111,7 +118,7 @@ impl Window {
                                 },
                             ..
                         } => {
-                            if !any_item_active {
+                            if !ui_state.is_any_item_active {
                                 // We only want to handle keypresses if we're not interacting with imgui
                                 match key {
                                     VirtualKeyCode::Space => {
@@ -182,18 +189,34 @@ impl Window {
                 }
             }
 
-            let mut render_target = display.draw();
-            render_target.clear_color_srgb(0.0, 0.0, 0.0, 0.0);
+            // Need to do ui prepare, draw and render here instead of wrapping in methods.
+            // Context::frame() requires &mut, so any calls/references to the wrapping struct
+            // would be invalid while frame_ui is alive if it came from a member fn.
+            // Wrapping everything in a single UI::render() also couldn't have any calls to
+            // member methods after frame start for the same reason.
+            expect!(
+                ui.platform.prepare_frame(ui.context.io_mut(), window),
+                "imgui prepare frame failed"
+            );
+            let mut frame_ui = ui.context.frame();
 
-            let ui_state = ui.render(
-                &window,
-                &mut render_target,
+            ui_state = ui.ui.draw(
+                &mut frame_ui,
+                &window.inner_size(),
                 &mut draw_data,
                 &mut snes,
                 &mut debugger,
             );
 
-            any_item_active = ui_state.is_any_item_active;
+            ui.platform.prepare_render(frame_ui, window);
+
+            let mut render_target = display.draw();
+            render_target.clear_color_srgb(0.0, 0.0, 0.0, 0.0);
+
+            expect!(
+                ui.renderer.render(&mut render_target, ui.context.render()),
+                "imgui render failed"
+            );
 
             // Finish frame
             expect!(render_target.finish(), "Frame::finish() failed");
