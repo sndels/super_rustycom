@@ -37,6 +37,10 @@ pub struct State {
 }
 
 impl Ui {
+    pub fn reset(&mut self) {
+        *self = Ui::default();
+    }
+
     pub fn draw(
         &mut self,
         ui: &mut imgui::Ui,
