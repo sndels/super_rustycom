@@ -124,6 +124,9 @@ impl Window {
                                     VirtualKeyCode::Space => {
                                         debugger.state = DebugState::Active;
                                     }
+                                    VirtualKeyCode::Escape => {
+                                        quit = true;
+                                    }
                                     _ => {}
                                 }
                             }
