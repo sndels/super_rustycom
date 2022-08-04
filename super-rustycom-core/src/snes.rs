@@ -7,17 +7,24 @@ pub struct Snes {
     pub abus: ABus,
     pub cpu: W65c816s,
     pub apu: Apu,
+    rom_bytes: Vec<u8>,
 }
 
 impl Snes {
     /// Initializes new instance with given ROM
     pub fn new(rom_bytes: Vec<u8>) -> Snes {
-        let mut abus = ABus::new(rom_bytes);
+        let mut abus = ABus::new(rom_bytes.clone());
         Snes {
             cpu: W65c816s::new(&mut abus),
             abus,
             apu: Apu::default(),
+            rom_bytes,
         }
+    }
+
+    /// Performs a full reset (off and on again)
+    pub fn reset(&mut self) {
+        *self = Snes::new(self.rom_bytes.clone());
     }
 
     /// Runs the hardware for given number of ticks and returns actual ticks emulated and wheter
