@@ -11,11 +11,7 @@ use log::{error, info};
 use std::{fs::File, io::prelude::*};
 use super_rustycom_core::snes::SNES;
 
-use crate::{
-    config::Config,
-    debugger::{DebugState, Debugger},
-    window::Window,
-};
+use crate::{config::Config, debugger::Debugger, window::Window};
 
 fn unwrap<T, E>(result: Result<T, E>) -> T
 where

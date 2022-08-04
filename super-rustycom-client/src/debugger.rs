@@ -1,5 +1,5 @@
 use std::fs::File;
-use std::io::{self, Write};
+use std::io::Write;
 use std::u32;
 
 use log::error;
@@ -19,7 +19,6 @@ pub enum DebugState {
     Active,
     Step,
     Run,
-    Quit,
 }
 
 impl Debugger {
@@ -32,144 +31,9 @@ impl Debugger {
             quit: false,
         }
     }
-
-    pub fn take_command(&mut self, cpu: &mut W65C816S, abus: &mut ABus) {
-        println!("PRG at");
-        println!("{}", disassemble_current(cpu, abus).0);
-        print!("(debug) ");
-        if let Err(why) = io::stdout().flush() {
-            error!("{}", why);
-            return;
-        }
-        let mut command_str = String::new();
-        if let Err(why) = io::stdin().read_line(&mut command_str) {
-            error!("{}", why);
-            return;
-        }
-        let arg_vec = command_str.split_whitespace().collect::<Vec<&str>>();
-        if !arg_vec.is_empty() {
-            match arg_vec[0] {
-                "disassemble" | "da" => {
-                    self.disassemble = !self.disassemble;
-                    if self.disassemble {
-                        println!("Toggled continious disassembly on");
-                    } else {
-                        println!("Toggled continious disassembly off");
-                    }
-                }
-                "dump" => {
-                    if arg_vec.len() > 1 {
-                        match arg_vec[1] {
-                            "rom" => unimplemented!(),
-                            "wram" => {
-                                if dump_memory("wramdump.bin", abus.wram()) {
-                                    println!("WRAM dumped");
-                                } else {
-                                    println!("Dumping WRAM failed!");
-                                }
-                            }
-                            "vram" => {
-                                if dump_memory("vramdump.bin", abus.vram()) {
-                                    println!("VRAM dumped");
-                                } else {
-                                    println!("Dumping VRAM failed!");
-                                }
-                            }
-                            "oam" => {
-                                if dump_memory("oamdump.bin", abus.oam()) {
-                                    println!("OAM dumped");
-                                } else {
-                                    println!("Dumping OAM failed!");
-                                }
-                            }
-                            "cgram" => {
-                                if dump_memory("cgrmdump.bin", abus.cgram()) {
-                                    println!("CGRAM dumped");
-                                } else {
-                                    println!("Dumping CGRAM failed!");
-                                }
-                            }
-                            &_ => println!("Invalid parameter \"{}\"", arg_vec[1]),
-                        }
-                    } else {
-                        if dump_memory("wramdump.bin", abus.wram()) {
-                            println!("WRAM dumped");
-                        } else {
-                            println!("Dumping WRAM failed!");
-                        }
-                        if dump_memory("vramdump.bin", abus.vram()) {
-                            println!("VRAM dumped");
-                        } else {
-                            println!("Dumping VRAM failed!");
-                        }
-                        if dump_memory("oamdump.bin", abus.oam()) {
-                            println!("OAM dumped");
-                        } else {
-                            println!("Dumping OAM failed!");
-                        }
-                        if dump_memory("cgrmdump.bin", abus.cgram()) {
-                            println!("CGRAM dumped");
-                        } else {
-                            println!("Dumping CGRAM failed!");
-                        }
-                    }
-                }
-                "peek" => {
-                    if arg_vec.len() == 2 {
-                        let ret = u32::from_str_radix(arg_vec[1], 16);
-                        match ret {
-                            Ok(addr) => println!("${:06X}", abus.addr_wrapping_cpu_read24(addr)),
-                            Err(_e) => println!("Invalid addr \"{}\"", arg_vec[1]),
-                        }
-                    }
-                }
-                "step" | "s" => {
-                    self.state = DebugState::Step;
-                    if arg_vec.len() == 1 {
-                        self.steps = 1;
-                    } else {
-                        let steps = arg_vec[1].parse::<u32>();
-                        match steps {
-                            Ok(s) => self.steps = s,
-                            Err(e) => println!("Error parsing step: {}", e),
-                        }
-                    }
-                }
-                "breakpoint" | "bp" => {
-                    if arg_vec.len() > 1 {
-                        let breakpoint = u32::from_str_radix(arg_vec[1], 16);
-                        match breakpoint {
-                            Ok(b) => self.breakpoint = b,
-                            Err(e) => println!("Error parsing step: {}", e),
-                        }
-                    }
-                }
-                "cpu" => println!("{}", cpu_status_str(cpu).join("\n")),
-                "run" | "r" => self.state = DebugState::Run,
-                "reset" => cpu.reset(abus),
-                "exit" => self.state = DebugState::Quit,
-                "help" | "h" => print_help(),
-                _ => println!("Unknown command \"{}\"", command_str.trim()),
-            }
-        } else {
-            print_help();
-        }
-    }
 }
 
-fn print_help() {
-    println!("disassemble, da        -- toggle on the fly disassembly");
-    println!("dump ([param])         -- dump wram, vram, oam, cgram to files");
-    println!("                          specify one to dump only it");
-    println!("peek [addr]            -- peek 24bits from addr");
-    println!("step, s ([param])      -- step to next instruction or by amount");
-    println!("breakpoint, bp [param] -- set execution breakpoint at hex address");
-    println!("cpu                    -- print out cpu state");
-    println!("run, r                 -- run until breakpoint is hit");
-    println!("reset                  -- reset cpu");
-    println!("exit                   -- stop emulation");
-}
-
+#[allow(dead_code)]
 // Dumps given array and returns if the operation succeeded
 fn dump_memory(file_path: &str, buf: &[u8]) -> bool {
     let mut f = match File::create(file_path) {
@@ -190,9 +54,6 @@ fn dump_memory(file_path: &str, buf: &[u8]) -> bool {
     true
 }
 
-// TODO:
-// This shouldn't have any side-effects. Implement separate read and assume
-// memory with side-effects is never needed (for simplicity)?
 pub fn disassemble_current(cpu: &W65C816S, abus: &ABus) -> (String, u32) {
     disassemble(cpu.current_address(), cpu, abus, true)
 }

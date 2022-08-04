@@ -137,10 +137,6 @@ impl Window {
                 }
             });
 
-            if let DebugState::Quit = debugger.state {
-                break;
-            }
-
             // "Tick" update
             match debugger.state {
                 DebugState::Step | DebugState::Run => {
