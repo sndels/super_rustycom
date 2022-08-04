@@ -124,6 +124,11 @@ impl Window {
                                     VirtualKeyCode::Escape => {
                                         quit = true;
                                     }
+                                    VirtualKeyCode::Return => {
+                                        if let DebugState::Active = debugger.state {
+                                            debugger.state = DebugState::Step;
+                                        }
+                                    }
                                     _ => {}
                                 }
                             }
