@@ -10,7 +10,7 @@ use glium::{
     Surface,
 };
 use std::time::Instant;
-use super_rustycom_core::snes::SNES;
+use super_rustycom_core::snes::Snes;
 
 use crate::{
     config::Config,
@@ -30,12 +30,12 @@ pub struct Window {
 
     ui: ui::Context,
 
-    snes: SNES,
+    snes: Snes,
     debugger: Debugger,
 }
 
 impl Window {
-    pub fn new(title: &str, config: &Config, snes: SNES, debugger: Debugger) -> Self {
+    pub fn new(title: &str, config: &Config, snes: Snes, debugger: Debugger) -> Self {
         // Create window and gl context
         let event_loop = EventLoop::new();
 

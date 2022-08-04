@@ -1,6 +1,6 @@
 use super::bus::Bus;
 
-pub struct SPC700 {
+pub struct Spc700 {
     /// 8bit accumulator
     a: u8,
     /// 8bit index
@@ -33,9 +33,9 @@ pub struct SPC700 {
     mode: Mode,
 }
 
-impl SPC700 {
-    pub fn default() -> SPC700 {
-        SPC700 {
+impl Spc700 {
+    pub fn default() -> Spc700 {
+        Spc700 {
             a: 0x00,
             x: 0x00,
             y: 0x00,

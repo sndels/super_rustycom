@@ -2,11 +2,11 @@ use imgui::{FontConfig, FontSource};
 use imgui_glium_renderer::Renderer;
 use imgui_winit_support::{HiDpiMode, WinitPlatform};
 
-use super::UI;
+use super::Ui;
 use crate::expect;
 
 pub struct Context {
-    pub ui: UI,
+    pub ui: Ui,
     pub context: imgui::Context,
     pub platform: WinitPlatform,
     pub renderer: Renderer,
@@ -57,7 +57,7 @@ impl Context {
         );
 
         Self {
-            ui: UI::default(),
+            ui: Ui::default(),
             context,
             platform,
             renderer,

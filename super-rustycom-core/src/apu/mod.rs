@@ -2,18 +2,18 @@ pub mod bus;
 pub mod smp;
 
 use self::bus::Bus;
-use self::smp::SPC700;
+use self::smp::Spc700;
 use super::apu_io::ApuIo;
 
-pub struct APU {
-    pub smp: SPC700,
+pub struct Apu {
+    pub smp: Spc700,
     pub bus: Bus,
 }
 
-impl APU {
-    pub fn default() -> APU {
-        APU {
-            smp: SPC700::default(),
+impl Apu {
+    pub fn default() -> Apu {
+        Apu {
+            smp: Spc700::default(),
             bus: Bus::default(),
         }
     }

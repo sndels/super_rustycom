@@ -4,7 +4,7 @@ use crate::abus::ABus;
 use log::error;
 
 /// The cpu core in Ricoh 5A22 powering the Super Nintendo
-pub struct W65C816S {
+pub struct W65c816s {
     /// Accumulator
     ///
     /// Whole register denoted with `A`, high byte with `AH` and low byte with `AL`
@@ -62,14 +62,14 @@ pub struct W65C816S {
     waiting: bool,
 }
 
-impl W65C816S {
+impl W65c816s {
     /// Initializes a new instance with default values
     ///
     /// The processor starts in emulation mode, `PC` is set to the reset vector,
     /// `S` is set to `$01FF`, `A`, `X` and `Y` are 8bits wide
     /// and interrupts are disabled. Other values are zeroed.
-    pub fn new(abus: &mut ABus) -> W65C816S {
-        W65C816S {
+    pub fn new(abus: &mut ABus) -> W65c816s {
+        W65c816s {
             a: 0x00,
             x: 0x00,
             y: 0x00,

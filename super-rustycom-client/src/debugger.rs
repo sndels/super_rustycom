@@ -4,8 +4,8 @@ use std::u32;
 
 use log::error;
 use super_rustycom_core::abus::ABus;
-use super_rustycom_core::apu::smp::SPC700;
-use super_rustycom_core::cpu::W65C816S;
+use super_rustycom_core::apu::smp::Spc700;
+use super_rustycom_core::cpu::W65c816s;
 
 pub struct Debugger {
     pub breakpoint: u32,
@@ -54,17 +54,17 @@ fn dump_memory(file_path: &str, buf: &[u8]) -> bool {
     true
 }
 
-pub fn disassemble_current(cpu: &W65C816S, abus: &ABus) -> (String, u32) {
+pub fn disassemble_current(cpu: &W65c816s, abus: &ABus) -> (String, u32) {
     disassemble(cpu.current_address(), cpu, abus, true)
 }
 
-pub fn disassemble_peek(cpu: &W65C816S, abus: &ABus, offset: u32) -> (String, u32) {
+pub fn disassemble_peek(cpu: &W65c816s, abus: &ABus, offset: u32) -> (String, u32) {
     disassemble(cpu.current_address() + offset, cpu, abus, false)
 }
 
 fn disassemble(
     addr: u32,
-    cpu: &W65C816S,
+    cpu: &W65c816s,
     abus: &ABus,
     include_effective_addr: bool,
 ) -> (String, u32) {
@@ -392,7 +392,7 @@ fn disassemble(
     }
 }
 
-fn cpu_status_reg_str(cpu: &W65C816S) -> String {
+fn cpu_status_reg_str(cpu: &W65c816s) -> String {
     let mut status = String::new();
     status.push(if cpu.e() { 'E' } else { 'e' });
     status.push(if cpu.p_n() { 'N' } else { 'n' });
@@ -406,7 +406,7 @@ fn cpu_status_reg_str(cpu: &W65C816S) -> String {
     status
 }
 
-pub fn cpu_status_str(cpu: &W65C816S) -> [String; 12] {
+pub fn cpu_status_str(cpu: &W65c816s) -> [String; 12] {
     [
         format!("A: ${:04X}", cpu.a()),
         format!("X: ${:04X}", cpu.x()),
@@ -423,7 +423,7 @@ pub fn cpu_status_str(cpu: &W65C816S) -> [String; 12] {
     ]
 }
 
-fn smp_status_reg_str(smp: &SPC700) -> String {
+fn smp_status_reg_str(smp: &Spc700) -> String {
     let mut status = String::new();
     status.push(if smp.psw().n() { 'N' } else { 'n' });
     status.push(if smp.psw().v() { 'V' } else { 'v' });
@@ -436,7 +436,7 @@ fn smp_status_reg_str(smp: &SPC700) -> String {
     status
 }
 
-pub fn smp_status_str(smp: &SPC700) -> [String; 7] {
+pub fn smp_status_str(smp: &Spc700) -> [String; 7] {
     [
         format!("A:  ${:02X}", smp.a()),
         format!("X:  ${:02X}", smp.x()),

@@ -5,27 +5,27 @@ pub use context::Context;
 
 use glium::glutin;
 use std::time::Instant;
-use super_rustycom_core::snes::SNES;
+use super_rustycom_core::snes::Snes;
 
 use crate::{debugger::Debugger, draw_data::DrawData};
 
-pub struct UI {
+pub struct Ui {
     execution: windows::Execution,
     wram: windows::Memory,
     apu_ram: windows::Memory,
-    cpu: windows::CPU,
-    smp: windows::SMP,
+    cpu: windows::Cpu,
+    smp: windows::Smp,
     palettes: windows::Palettes,
 }
 
-impl Default for UI {
+impl Default for Ui {
     fn default() -> Self {
         Self {
             execution: windows::Execution::new(true),
             wram: windows::Memory::new("WRAM", false),
             apu_ram: windows::Memory::new("APU RAM", false),
-            cpu: windows::CPU::new(true),
-            smp: windows::SMP::new(false),
+            cpu: windows::Cpu::new(true),
+            smp: windows::Smp::new(false),
             palettes: windows::Palettes::new(true),
         }
     }
@@ -36,13 +36,13 @@ pub struct State {
     pub is_any_item_active: bool,
 }
 
-impl UI {
+impl Ui {
     pub fn draw(
         &mut self,
         ui: &mut imgui::Ui,
         resolution: &glutin::dpi::PhysicalSize<u32>,
         data: &mut DrawData,
-        snes: &mut SNES,
+        snes: &mut Snes,
         debugger: &mut Debugger,
     ) -> State {
         let ui_start = Instant::now();

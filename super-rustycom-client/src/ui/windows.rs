@@ -1,6 +1,6 @@
 use glium::glutin;
 use itertools::Itertools;
-use super_rustycom_core::snes::SNES;
+use super_rustycom_core::snes::Snes;
 
 use crate::{
     debugger::{
@@ -37,7 +37,7 @@ impl Execution {
     pub fn draw(
         &mut self,
         ui: &mut imgui::Ui,
-        snes: &mut SNES,
+        snes: &mut Snes,
         data: &mut DrawData,
         debugger: &mut Debugger,
     ) {
@@ -212,7 +212,7 @@ impl Palettes {
         Self { opened }
     }
 
-    pub fn draw(&mut self, ui: &mut imgui::Ui, snes: &SNES) {
+    pub fn draw(&mut self, ui: &mut imgui::Ui, snes: &Snes) {
         fn palette_color(bgr555: u16) -> [f32; 4] {
             [
                 ((((bgr555 << 3) & 0b1111_1000) | 0b111) as f32) / 255.0,
@@ -262,11 +262,11 @@ impl Palettes {
     }
 }
 
-pub struct CPU {
+pub struct Cpu {
     pub opened: bool,
 }
 
-impl CPU {
+impl Cpu {
     pub fn new(opened: bool) -> Self {
         Self { opened }
     }
@@ -274,7 +274,7 @@ impl CPU {
     pub fn draw(
         &mut self,
         ui: &mut imgui::Ui,
-        snes: &SNES,
+        snes: &Snes,
         resolution: &glutin::dpi::PhysicalSize<u32>,
     ) {
         if self.opened {
@@ -299,18 +299,18 @@ impl CPU {
     }
 }
 
-pub struct SMP {
+pub struct Smp {
     pub opened: bool,
 }
 
-impl SMP {
+impl Smp {
     pub fn new(opened: bool) -> Self {
         Self { opened }
     }
     pub fn draw(
         &mut self,
         ui: &mut imgui::Ui,
-        snes: &SNES,
+        snes: &Snes,
         resolution: &glutin::dpi::PhysicalSize<u32>,
     ) {
         if self.opened {

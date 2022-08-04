@@ -1,5 +1,5 @@
 use crate::apu_io::ApuIo;
-use crate::cgram::CGRAM;
+use crate::cgram::Cgram;
 use crate::dma::Dma;
 use crate::joypad::JoyIo;
 use crate::mmap;
@@ -26,7 +26,7 @@ pub struct ABus {
     /// Object Attribute Memory, used for sprite info
     oam: Box<[u8]>,
     /// Color palette memory
-    cgram: CGRAM,
+    cgram: Cgram,
     /// The loaded ROM instance
     rom: Rom,
     /// Combined multiplication and division register
@@ -70,7 +70,7 @@ impl ABus {
             wram: Box::new([0; WRAM_SIZE]),
             vram: Box::new([0; VRAM_SIZE]),
             oam: Box::new([0; OAM_SIZE]),
-            cgram: CGRAM::default(),
+            cgram: Cgram::default(),
             rom: Rom::new(rom_bytes),
             mpy_div: MpyDiv::new(),
             ppu_io: PpuIo::new(),
@@ -98,7 +98,7 @@ impl ABus {
             wram: Box::new([0; WRAM_SIZE]),
             vram: Box::new([0; VRAM_SIZE]),
             oam: Box::new([0; OAM_SIZE]),
-            cgram: CGRAM::default(),
+            cgram: Cgram::default(),
             rom: Rom::new_empty(),
             mpy_div: MpyDiv::new(),
             ppu_io: PpuIo::new(),
@@ -129,7 +129,7 @@ impl ABus {
         &self.oam
     }
     pub fn cgram(&self) -> &[u8] {
-        &self.cgram.mem()
+        self.cgram.mem()
     }
 
     pub fn apu_io(&self) -> ApuIo {

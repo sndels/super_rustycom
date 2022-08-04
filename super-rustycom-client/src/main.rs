@@ -9,7 +9,7 @@ mod window;
 use clap::{arg, Command};
 use log::{error, info};
 use std::{fs::File, io::prelude::*};
-use super_rustycom_core::snes::SNES;
+use super_rustycom_core::snes::Snes;
 
 use crate::{config::Config, debugger::Debugger, window::Window};
 
@@ -79,7 +79,7 @@ fn main() {
     };
 
     // Init hardware
-    let snes = SNES::new(rom_bytes);
+    let snes = Snes::new(rom_bytes);
     let debugger = Debugger::new();
 
     // TODO: Give mutable config, update window size for write out

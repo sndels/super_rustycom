@@ -1,14 +1,14 @@
 /// 512 bytes of color palette memory
 const CGRAM_SIZE: usize = 512;
 
-pub struct CGRAM {
+pub struct Cgram {
     cgadd: u8,
     odd_access: bool,
     cg_data_lsb: u8,
     mem: Box<[u8]>,
 }
 
-impl CGRAM {
+impl Cgram {
     pub fn mem(&self) -> &[u8] {
         &self.mem
     }
@@ -49,9 +49,9 @@ impl CGRAM {
     }
 }
 
-impl Default for CGRAM {
+impl Default for Cgram {
     fn default() -> Self {
-        CGRAM {
+        Cgram {
             cgadd: 0x0,
             odd_access: true,
             cg_data_lsb: 0x0,

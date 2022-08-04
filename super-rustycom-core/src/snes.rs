@@ -1,22 +1,22 @@
 use crate::abus::ABus;
-use crate::apu::APU;
-use crate::cpu::W65C816S;
+use crate::apu::Apu;
+use crate::cpu::W65c816s;
 
 /// Abstraction around the actual emu implementation
-pub struct SNES {
+pub struct Snes {
     pub abus: ABus,
-    pub cpu: W65C816S,
-    pub apu: APU,
+    pub cpu: W65c816s,
+    pub apu: Apu,
 }
 
-impl SNES {
+impl Snes {
     /// Initializes new instance with given ROM
-    pub fn new(rom_bytes: Vec<u8>) -> SNES {
+    pub fn new(rom_bytes: Vec<u8>) -> Snes {
         let mut abus = ABus::new(rom_bytes);
-        SNES {
-            cpu: W65C816S::new(&mut abus),
+        Snes {
+            cpu: W65c816s::new(&mut abus),
             abus,
-            apu: APU::default(),
+            apu: Apu::default(),
         }
     }
 
@@ -29,7 +29,7 @@ impl SNES {
         mut disassemble_func: F,
     ) -> (u128, bool)
     where
-        F: FnMut(&W65C816S, &mut ABus),
+        F: FnMut(&W65c816s, &mut ABus),
     {
         let ticks_per_cycle = 8;
         let target_cpu_cycles = clock_ticks / ticks_per_cycle; // SlowROM (?)
@@ -52,7 +52,7 @@ impl SNES {
     /// Runs the hardware for given number instructions
     pub fn run_steps<F>(&mut self, instructions: u32, mut disassemble_func: F)
     where
-        F: FnMut(&W65C816S, &mut ABus),
+        F: FnMut(&W65c816s, &mut ABus),
     {
         for _ in 0..instructions {
             disassemble_func(&self.cpu, &mut self.abus);
