@@ -38,6 +38,7 @@ impl Execution {
         snes: &mut Snes,
         data: &mut DrawData,
         debugger: &mut Debugger,
+        full_reset_triggered: &mut bool,
     ) {
         if self.opened {
             let scroll_to_current = &mut self.scroll_to_current;
@@ -101,11 +102,14 @@ impl Execution {
                     }
 
                     ui.same_line();
-                    if ui.button("Reset") {
+                    if ui.button("Cpu reset") {
                         snes.cpu.reset(&mut snes.abus);
                         data.clear_history();
                         debugger.state = DebugState::Active;
                     }
+
+                    ui.same_line();
+                    *full_reset_triggered = ui.button("Full reset");
 
                     {
                         let _width = ui.push_item_width(58.0);

@@ -34,6 +34,7 @@ impl Default for Ui {
 #[derive(Default)]
 pub struct State {
     pub is_any_item_active: bool,
+    pub full_reset_triggered: bool,
 }
 
 impl Ui {
@@ -53,7 +54,9 @@ impl Ui {
 
         self.menu_bar(ui);
 
-        self.execution.draw(ui, snes, data, debugger);
+        let mut full_reset_triggered = false;
+        self.execution
+            .draw(ui, snes, data, debugger, &mut full_reset_triggered);
         self.wram.draw(ui, snes.abus.wram());
         self.apu_ram.draw(ui, snes.apu.bus.ram());
         self.palettes.draw(ui, snes);
@@ -66,6 +69,7 @@ impl Ui {
 
         State {
             is_any_item_active: ui.is_any_item_active(),
+            full_reset_triggered,
         }
     }
 

@@ -219,6 +219,12 @@ impl Window {
 
             // Finish frame
             expect!(render_target.finish(), "Frame::finish() failed");
+
+            if ui_state.full_reset_triggered {
+                snes.reset();
+                debugger.reset();
+                ui.ui.reset();
+            }
         }
     }
 }
