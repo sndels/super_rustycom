@@ -145,12 +145,9 @@ impl ABus {
             mmap::WRAM_MIRR_FIRST..=mmap::WRAM_MIRR_LAST => self.wram[addr],
             mmap::PPU_IO_FIRST..=mmap::PPU_IO_LAST => {
                 // PPU IO
-                if addr < mmap::MPYL {
-                    error!("Read ${:06X}: PPU IO write-only for cpu", addr);
-                }
                 match addr {
-                    mmap::CGADD => {
-                        error!("CGADD is write-only for cpu");
+                    mmap::INIDISP..=mmap::SETINI => {
+                        error!("Read ${:06X}: PPU IO write-only for cpu", addr);
                         0
                     }
                     mmap::RDCGRAM => self.cgram.read_data(),
@@ -231,12 +228,9 @@ impl ABus {
             mmap::WRAM_MIRR_FIRST..=mmap::WRAM_MIRR_LAST => self.wram[addr],
             mmap::PPU_IO_FIRST..=mmap::PPU_IO_LAST => {
                 // PPU IO
-                if addr < mmap::MPYL {
-                    error!("Read ${:06X}: PPU IO write-only for cpu", addr);
-                }
                 match addr {
-                    mmap::CGADD => {
-                        error!("CGADD is write-only for cpu");
+                    mmap::INIDISP..=mmap::SETINI => {
+                        error!("Read ${:06X}: PPU IO write-only for cpu", addr);
                         0
                     }
                     mmap::RDCGRAM => self.cgram.peek_data(),
@@ -427,14 +421,13 @@ impl ABus {
             }
             mmap::PPU_IO_FIRST..=mmap::PPU_IO_LAST => {
                 // PPU IO
-                if addr <= mmap::SETINI {
-                    match addr {
-                        mmap::CGADD => self.cgram.write_addr(value),
-                        mmap::CGDATA => self.cgram.write_data(value),
-                        _ => self.ppu_io.write(addr, value),
+                match addr {
+                    mmap::CGADD => self.cgram.write_addr(value),
+                    mmap::CGDATA => self.cgram.write_data(value),
+                    mmap::MPYL..=mmap::STAT78 => {
+                        error!("Write ${:06X}: PPU IO read-only for cpu", addr)
                     }
-                } else {
-                    error!("Write ${:06X}: PPU IO read-only for cpu", addr);
+                    _ => self.ppu_io.write(addr, value),
                 }
             }
             mmap::APU_IO_FIRST..=mmap::APU_IO_LAST => {
