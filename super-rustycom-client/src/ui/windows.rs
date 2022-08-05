@@ -1,5 +1,15 @@
-use glium::glutin;
+use glium::{
+    backend::Facade,
+    glutin,
+    texture::RawImage2d,
+    uniforms::{MagnifySamplerFilter, MinifySamplerFilter, SamplerBehavior},
+    Rect, Texture2d,
+};
+use imgui::{Image, TextureId, Textures};
+use imgui_glium_renderer::Texture;
 use itertools::Itertools;
+use std::{rc::Rc, str::FromStr, string::ToString};
+use strum::{Display, EnumString, EnumVariantNames, VariantNames};
 use super_rustycom_core::snes::Snes;
 
 use crate::{
@@ -12,13 +22,22 @@ use crate::{
 const REAL_TIME_FRAME_NANOS: u128 = 16666667;
 const MENU_BAR_HEIGHT: f32 = 19.0;
 const TOP_LEFT: [f32; 2] = [0.0, MENU_BAR_HEIGHT];
-const MEMORY_WINDOW_SIZE: [f32; 2] = [388.0, 344.0];
 const EXECUTION_WINDOW_SIZE: [f32; 2] = [360.0, 424.0];
 const EXECUTION_CHILD_WINDOW_SIZE: [f32; 2] = [EXECUTION_WINDOW_SIZE[0] - 10.0, 320.0];
 const CPU_WINDOW_SIZE: [f32; 2] = [110.0, 236.0];
 const SMP_WINDOW_SIZE: [f32; 2] = [CPU_WINDOW_SIZE[0], 152.0];
 const PERF_WINDOW_SIZE: [f32; 2] = [204.0, 47.0];
-const PALETTES_WINDOW_SIZE: [f32; 2] = [336.0, 340.0];
+const PALETTES_WINDOW_SIZE: [f32; 2] = [334.0, 340.0];
+
+const MEMORY_HEX_WINDOW_SIZE: [f32; 2] = [388.0, 344.0];
+const MEMORY_TILE_WINDOW_SIZE: [f32; 2] = [528.0, 382.0];
+const MEMORY_TILE_CHILD_WINDOW_SIZE: [f32; 2] = [527.0, 324.0];
+const MEMORY_TILE_WINDOW_TEXTURE_SCALE: f32 = 4.0;
+const ROWS_IN_TILE: u16 = 8;
+const COLUMNS_IN_TILE: u16 = 8;
+const PIXELS_IN_TILE: u16 = ROWS_IN_TILE * COLUMNS_IN_TILE;
+const MEMORY_TILE_WINDOW_ROW_LENGTH: u16 = 16;
+const MEMORY_TILE_WINDOW_ROW_COUNT: u16 = 10;
 
 pub struct Execution {
     pub opened: bool,
@@ -131,75 +150,275 @@ impl Execution {
 
 pub struct Memory {
     pub opened: bool,
+    mode: MemoryMode,
     name: String,
+    // HexDump
     start_byte: u16,
+    // Tiles
+    start_row: u16,
+    palette: u8,
+    tile_texture: Rc<Texture2d>,
+    tile_texture_id: TextureId,
+}
+
+#[derive(Display, EnumVariantNames, EnumString)]
+pub enum MemoryMode {
+    HexDump,
+    Tiles,
 }
 
 impl Memory {
-    pub fn new(name: &str, opened: bool) -> Self {
+    pub fn new<F>(
+        name: &str,
+        opened: bool,
+        mode: MemoryMode,
+        context: &F,
+        textures: &mut Textures<Texture>,
+    ) -> Self
+    where
+        F: ?Sized + Facade,
+    {
+        let tile_texture = Rc::new(
+            Texture2d::empty(
+                context,
+                (COLUMNS_IN_TILE as u32) * (MEMORY_TILE_WINDOW_ROW_LENGTH as u32),
+                (ROWS_IN_TILE as u32) * (MEMORY_TILE_WINDOW_ROW_COUNT as u32),
+            )
+            .expect("Failed to create a tile view texture"),
+        );
+        let sampler = SamplerBehavior {
+            magnify_filter: MagnifySamplerFilter::Nearest,
+            minify_filter: MinifySamplerFilter::Nearest,
+            ..SamplerBehavior::default()
+        };
+
+        let tile_texture_id = textures.insert(Texture {
+            texture: Rc::clone(&tile_texture),
+            sampler,
+        });
+
         Self {
             opened,
+            mode,
             name: String::from(name),
             start_byte: 0x0,
+            start_row: 0,
+            palette: 8, // Sprite palette 0
+            tile_texture,
+            tile_texture_id,
         }
     }
 
-    pub fn draw(&mut self, ui: &mut imgui::Ui, memory: &[u8]) {
+    pub fn draw(&mut self, ui: &mut imgui::Ui, memory: &[u8], cgram: &[u8]) {
         if self.opened {
-            let shown_row_count: usize = 16;
-            // Drop one line since we have the column header
-            let end_byte = (self.start_byte as usize) + shown_row_count * 0x0010;
-
-            let mut text = vec![String::from(
-                "      00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F",
-            )];
-            text.extend(
-                memory[self.start_byte as usize..end_byte]
-                    .chunks(0x10)
-                    .into_iter()
-                    // Zip line addrs with lines
-                    .zip((self.start_byte as usize..memory.len()).step_by(0x0010))
-                    // Create line string with space between bytes
-                    .map(|(line, addr)| {
-                        format!(
-                            "${:04X} {}",
-                            addr,
-                            line.iter()
-                                .format_with(" ", |elt, f| f(&format_args!("{:02X}", elt)))
-                        )
-                    })
-                    .collect_vec(),
-            );
-
-            // Explicit ref to avoid closure trying (and failing) to capture settings as a whole
-            let start_byte = &mut self.start_byte;
-            ui.window(&self.name)
-                .position(TOP_LEFT, imgui::Condition::Appearing)
-                .size(MEMORY_WINDOW_SIZE, imgui::Condition::Appearing)
-                .resizable(false)
-                .collapsible(false)
-                .opened(&mut self.opened)
-                .build(|| {
-                    for row in text {
-                        ui.text(row);
-                    }
-
-                    {
-                        let _width = ui.push_item_width(106.0);
-                        let mut addr = *start_byte as i32;
-                        let _ = ui
-                            .input_int("Start addr", &mut addr)
-                            .chars_hexadecimal(true)
-                            .step(16)
-                            .step_fast(16)
-                            .display_format("$%04X")
-                            .build();
-                        // Each row should be 16 bytes starting at XXX0
-                        *start_byte = (addr - addr % 16).max(0) as u16;
-                    }
-                });
+            match self.mode {
+                MemoryMode::HexDump => self.draw_hex_dump(ui, memory),
+                MemoryMode::Tiles => self.draw_tiles(ui, memory, cgram),
+            }
         }
     }
+
+    fn draw_hex_dump(&mut self, ui: &mut imgui::Ui, memory: &[u8]) {
+        let shown_row_count: usize = 16;
+        // Drop one line since we have the column header
+        let end_byte = (self.start_byte as usize) + shown_row_count * 0x0010;
+
+        let mut text = vec![String::from(
+            "      00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F",
+        )];
+        text.extend(
+            memory[self.start_byte as usize..end_byte]
+                .chunks(0x10)
+                .into_iter()
+                // Zip line addrs with lines
+                .zip((self.start_byte as usize..memory.len()).step_by(0x0010))
+                // Create line string with space between bytes
+                .map(|(line, addr)| {
+                    format!(
+                        "${:04X} {}",
+                        addr,
+                        line.iter()
+                            .format_with(" ", |elt, f| f(&format_args!("{:02X}", elt)))
+                    )
+                })
+                .collect_vec(),
+        );
+
+        // Explicit refs to avoid closure trying (and failing) to capture self
+        let start_byte = &mut self.start_byte;
+        let name = &self.name;
+        let mode = &mut self.mode;
+        ui.window(name)
+            .position(TOP_LEFT, imgui::Condition::Appearing)
+            .size(MEMORY_HEX_WINDOW_SIZE, imgui::Condition::Always)
+            .resizable(false)
+            .collapsible(false)
+            .opened(&mut self.opened)
+            .build(|| {
+                for row in text {
+                    ui.text(row);
+                }
+
+                {
+                    let _width = ui.push_item_width(106.0);
+                    enum_combo_box(ui, &(String::from("Mode##") + name), mode);
+                }
+                {
+                    let _width = ui.push_item_width(106.0);
+                    let mut addr = *start_byte as i32;
+                    ui.same_line();
+                    let _ = ui
+                        .input_int("Start addr", &mut addr)
+                        .chars_hexadecimal(true)
+                        .step(16)
+                        .step_fast(16)
+                        .display_format("$%04X")
+                        .build();
+                    // Each row should be 16 bytes starting at XXX0
+                    *start_byte = (addr - addr % 16).max(0) as u16;
+                }
+            });
+    }
+
+    fn draw_tiles(&mut self, ui: &mut imgui::Ui, memory: &[u8], cgram: &[u8]) {
+        const SHOWN_PX_COUNT: usize = (PIXELS_IN_TILE as usize)
+            * (MEMORY_TILE_WINDOW_ROW_LENGTH as usize)
+            * (MEMORY_TILE_WINDOW_ROW_COUNT as usize);
+        assert!(memory.len() % (32 * MEMORY_TILE_WINDOW_ROW_LENGTH as usize) == 0);
+        let memory_row_count =
+            (memory.len() / 32 / (MEMORY_TILE_WINDOW_ROW_LENGTH as usize)) as u16;
+
+        let mut pixels = Vec::with_capacity(SHOWN_PX_COUNT * 3);
+        for r in 0..MEMORY_TILE_WINDOW_ROW_COUNT {
+            for tr in 0..ROWS_IN_TILE {
+                for t in 0..MEMORY_TILE_WINDOW_ROW_LENGTH {
+                    let tile_index = (self.start_row + r) * MEMORY_TILE_WINDOW_ROW_LENGTH + t;
+                    let tile_row_pixels = read_tile32_row(tile_index, tr as u8, memory);
+                    for px in tile_row_pixels {
+                        let colors = get_palette_color(self.palette, px, cgram);
+                        pixels.push((colors[0] * 255.0) as u8);
+                        pixels.push((colors[1] * 255.0) as u8);
+                        pixels.push((colors[2] * 255.0) as u8);
+                    }
+                }
+            }
+        }
+        // TODO: Don't allocate new backing and texture for every frame
+        let image = RawImage2d::from_raw_rgb(
+            pixels,
+            (
+                (MEMORY_TILE_WINDOW_ROW_LENGTH * COLUMNS_IN_TILE) as u32,
+                (MEMORY_TILE_WINDOW_ROW_COUNT * ROWS_IN_TILE) as u32,
+            ),
+        );
+
+        self.tile_texture.write(
+            Rect {
+                left: 0,
+                bottom: 0,
+                width: self.tile_texture.width(),
+                height: self.tile_texture.height(),
+            },
+            image,
+        );
+
+        // Explicit refs to avoid closure trying (and failing) to capture self
+        let name = &self.name;
+        let mode = &mut self.mode;
+        let start_row = &mut self.start_row;
+        let palette = &mut self.palette; // TODO: Wrap in MemoryMode
+        let tile_texture = &mut self.tile_texture;
+        let tile_texture_id = self.tile_texture_id;
+        ui.window(name)
+            .position(TOP_LEFT, imgui::Condition::Appearing)
+            .size(MEMORY_TILE_WINDOW_SIZE, imgui::Condition::Always)
+            .resizable(false)
+            .collapsible(false)
+            .opened(&mut self.opened)
+            .build(|| {
+                ui.child_window("Disassembly")
+                    .size(MEMORY_TILE_CHILD_WINDOW_SIZE)
+                    .scroll_bar(true)
+                    .build(|| {
+                        Image::new(
+                            tile_texture_id,
+                            [
+                                (tile_texture.width() as f32) * MEMORY_TILE_WINDOW_TEXTURE_SCALE,
+                                (tile_texture.height() as f32) * MEMORY_TILE_WINDOW_TEXTURE_SCALE,
+                            ],
+                        )
+                        .build(ui);
+                    });
+                {
+                    let _width = ui.push_item_width(106.0);
+                    enum_combo_box(ui, &(String::from("Mode##") + name), mode);
+                }
+                {
+                    let _width = ui.push_item_width(24.0);
+                    ui.same_line();
+                    let _ = ui
+                        .input_scalar("Palette", palette)
+                        .chars_hexadecimal(true)
+                        .display_format("%X")
+                        .build();
+                    *palette = (*palette).max(0).min(0xF);
+                }
+                {
+                    let _width = ui.push_item_width(75.0);
+                    ui.same_line();
+                    let _ = ui
+                        .input_scalar("Start row", start_row)
+                        .step(1)
+                        .step_fast(1)
+                        .build();
+                    *start_row = (*start_row)
+                        .max(0)
+                        .min(memory_row_count - MEMORY_TILE_WINDOW_ROW_COUNT);
+                }
+            });
+    }
+}
+
+pub fn read_tile32_row(tile: u16, row: u8, memory: &[u8]) -> [u8; 8] {
+    assert!((tile as usize) < memory.len() / 32);
+
+    let mut planes = [0; 4];
+    // 8x8 tiles stored 4bits per pixel as 4 planes
+    // Plane N is the Nth bits of each pixel, stored byte per row
+    // Planes 0 and 1, 2 and 3 are stored as interleaved
+    // So p0r0, p1r0, p0r1, p1r1, ... , p1r7, p2r0, p3r0, ... , p3r7
+    planes[0] = memory[(tile as usize) * 32 + 2 * (row as usize)];
+    planes[1] = memory[(tile as usize) * 32 + 2 * (row as usize) + 1];
+    planes[2] = memory[(tile as usize) * 32 + 16 + 2 * (row as usize)];
+    planes[3] = memory[(tile as usize) * 32 + 16 + 2 * (row as usize) + 1];
+
+    let mut pixels = [0; 8];
+    for px in 0..8 {
+        for pl in 0..3 {
+            pixels[px] |= ((planes[pl] >> (7 - px)) & 0x1) << pl;
+        }
+    }
+
+    pixels
+}
+
+fn enum_combo_box<T>(ui: &imgui::Ui, name: &str, value: &mut T) -> bool
+where
+    T: VariantNames + ToString + FromStr,
+    T::Err: std::fmt::Debug,
+{
+    let mut current_t = T::VARIANTS
+        .iter()
+        .position(|&n| n == value.to_string())
+        .unwrap();
+
+    let changed = ui.combo_simple_string(name, &mut current_t, T::VARIANTS);
+
+    if changed {
+        *value = T::from_str(T::VARIANTS[current_t]).unwrap();
+    }
+
+    changed
 }
 
 pub struct Palettes {
@@ -261,6 +480,7 @@ fn get_palette_color(palette: u8, color: u8, cgram: &[u8]) -> [f32; 4] {
         1.0,
     ]
 }
+
 pub struct Cpu {
     pub opened: bool,
 }

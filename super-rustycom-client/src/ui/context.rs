@@ -1,3 +1,4 @@
+use glium::backend::Facade;
 use imgui::{FontConfig, FontSource};
 use imgui_glium_renderer::Renderer;
 use imgui_winit_support::{HiDpiMode, WinitPlatform};
@@ -44,7 +45,7 @@ impl Context {
             style.window_border_size = 0.0;
         }
 
-        let renderer = expect!(
+        let mut renderer = expect!(
             Renderer::init(&mut context, display),
             "Failed to initialize renderer"
         );
@@ -57,7 +58,7 @@ impl Context {
         );
 
         Self {
-            ui: Ui::default(),
+            ui: Ui::new(display.get_context(), renderer.textures()),
             context,
             platform,
             renderer,

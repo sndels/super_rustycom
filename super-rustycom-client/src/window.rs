@@ -1,5 +1,6 @@
 use glium::glutin;
 use glium::{
+    backend::Facade,
     glutin::{
         dpi::PhysicalSize,
         event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
@@ -221,7 +222,7 @@ impl Window {
             if ui_state.full_reset_triggered {
                 snes.reset();
                 debugger.reset();
-                ui.ui.reset();
+                ui.ui.reset(display.get_context(), ui.renderer.textures());
             }
         }
     }

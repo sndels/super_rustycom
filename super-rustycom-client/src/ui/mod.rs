@@ -2,8 +2,11 @@ mod context;
 mod windows;
 
 pub use context::Context;
+use windows::MemoryMode;
 
-use glium::glutin;
+use glium::{backend::Facade, glutin};
+use imgui::Textures;
+use imgui_glium_renderer::Texture;
 use std::time::Instant;
 use super_rustycom_core::snes::Snes;
 
@@ -13,22 +16,10 @@ pub struct Ui {
     execution: windows::Execution,
     wram: windows::Memory,
     apu_ram: windows::Memory,
+    vram: windows::Memory,
     cpu: windows::Cpu,
     smp: windows::Smp,
     palettes: windows::Palettes,
-}
-
-impl Default for Ui {
-    fn default() -> Self {
-        Self {
-            execution: windows::Execution::new(true),
-            wram: windows::Memory::new("WRAM", false),
-            apu_ram: windows::Memory::new("APU RAM", false),
-            cpu: windows::Cpu::new(true),
-            smp: windows::Smp::new(false),
-            palettes: windows::Palettes::new(true),
-        }
-    }
 }
 
 #[derive(Default)]
@@ -38,8 +29,26 @@ pub struct State {
 }
 
 impl Ui {
-    pub fn reset(&mut self) {
-        *self = Ui::default();
+    fn new<F>(context: &F, textures: &mut Textures<Texture>) -> Self
+    where
+        F: ?Sized + Facade,
+    {
+        Self {
+            execution: windows::Execution::new(true),
+            wram: windows::Memory::new("WRAM", false, MemoryMode::HexDump, context, textures),
+            apu_ram: windows::Memory::new("APU RAM", false, MemoryMode::HexDump, context, textures),
+            vram: windows::Memory::new("VRAM", true, MemoryMode::Tiles, context, textures),
+            cpu: windows::Cpu::new(true),
+            smp: windows::Smp::new(false),
+            palettes: windows::Palettes::new(true),
+        }
+    }
+
+    pub fn reset<F>(&mut self, context: &F, textures: &mut Textures<Texture>)
+    where
+        F: ?Sized + Facade,
+    {
+        *self = Ui::new(context, textures);
     }
 
     pub fn draw(
@@ -57,8 +66,9 @@ impl Ui {
         let mut full_reset_triggered = false;
         self.execution
             .draw(ui, snes, data, debugger, &mut full_reset_triggered);
-        self.wram.draw(ui, snes.abus.wram());
-        self.apu_ram.draw(ui, snes.apu.bus.ram());
+        self.wram.draw(ui, snes.abus.wram(), snes.abus.cgram());
+        self.apu_ram.draw(ui, snes.apu.bus.ram(), snes.abus.cgram());
+        self.vram.draw(ui, snes.abus.vram(), snes.abus.cgram());
         self.palettes.draw(ui, snes);
         self.cpu.draw(ui, snes, resolution);
         self.smp.draw(ui, snes, resolution);
