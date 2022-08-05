@@ -9,6 +9,7 @@ use crate::{
     draw_data::DrawData,
 };
 
+const REAL_TIME_FRAME_NANOS: u128 = 16666667;
 const MENU_BAR_HEIGHT: f32 = 19.0;
 const TOP_LEFT: [f32; 2] = [0.0, MENU_BAR_HEIGHT];
 const MEMORY_WINDOW_SIZE: [f32; 2] = [388.0, 344.0];
@@ -353,16 +354,27 @@ pub fn performance(
         .build(|| {
             ui.text(format!("Debug draw took {:>5.2}ms!", ui_millis));
             {
-                let (message, color) = if data.missing_nanos > 0 {
+                let (message, color) = if data.emulated_nanos < data.spent_nanos {
                     (
-                        format!("Lagged {:>5.2}ms behind!", data.missing_nanos as f32 * 1e-6),
+                        format!(
+                            "Lagged by {:>5.2}ms",
+                            (data.spent_nanos - data.emulated_nanos) as f32 * 1e-6
+                        ),
+                        [1.0, 1.0, 0.0, 1.0],
+                    )
+                } else if data.spent_nanos > REAL_TIME_FRAME_NANOS {
+                    (
+                        format!(
+                            "Not real-time! ({:>5.2}ms)",
+                            (data.spent_nanos as f32) * 1e-6
+                        ),
                         [1.0, 0.0, 0.0, 1.0],
                     )
                 } else {
                     (
                         format!(
-                            "Emulation is {:>5.2}ms ahead!",
-                            data.extra_nanos as f32 * 1e-6
+                            "Ahead by {:>5.2}ms",
+                            (data.emulated_nanos - data.spent_nanos) as f32 * 1e-6
                         ),
                         [1.0, 1.0, 1.0, 1.0],
                     )

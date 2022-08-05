@@ -2,18 +2,16 @@ use std::collections::VecDeque;
 
 pub struct DrawData {
     disassembled_history: VecDeque<String>,
-    // Emulation headroom
-    pub extra_nanos: u128,
-    // Emulation lag
-    pub missing_nanos: u128,
+    pub emulated_nanos: u128,
+    pub spent_nanos: u128,
 }
 
 impl DrawData {
     pub fn new() -> DrawData {
         DrawData {
             disassembled_history: VecDeque::new(),
-            extra_nanos: 0,
-            missing_nanos: 0,
+            emulated_nanos: 0,
+            spent_nanos: 0,
         }
     }
 

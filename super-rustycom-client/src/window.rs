@@ -169,10 +169,8 @@ impl Window {
                                 debugger.state = DebugState::Active;
                             }
 
-                            let emulated_nanos = TimeSource::to_nanos(ticks);
-                            let spent_nanos = t_run.elapsed().as_nanos();
-                            draw_data.extra_nanos = emulated_nanos.saturating_sub(spent_nanos);
-                            draw_data.missing_nanos = spent_nanos.saturating_sub(emulated_nanos);
+                            draw_data.emulated_nanos = TimeSource::to_nanos(ticks);
+                            draw_data.spent_nanos = t_run.elapsed().as_nanos();
 
                             // Update actual number of emulated cycles
                             emulated_clock_ticks += ticks;
