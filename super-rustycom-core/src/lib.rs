@@ -10,3 +10,4 @@ mod mpydiv;
 mod ppu_io;
 mod rom;
 pub mod snes;
+mod vram;

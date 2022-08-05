@@ -6,6 +6,7 @@ use crate::mmap;
 use crate::mpydiv::MpyDiv;
 use crate::ppu_io::PpuIo;
 use crate::rom::Rom;
+use crate::vram::Vram;
 
 use log::{error, warn};
 
@@ -22,7 +23,7 @@ pub struct ABus {
     /// "Work"RAM
     wram: Box<[u8]>,
     /// VideoRAM
-    vram: Box<[u8]>,
+    vram: Vram,
     /// Object Attribute Memory, used for sprite info
     oam: Box<[u8]>,
     /// Color palette memory
@@ -68,7 +69,7 @@ impl ABus {
         // TODO: Randomize values?
         ABus {
             wram: Box::new([0; WRAM_SIZE]),
-            vram: Box::new([0; VRAM_SIZE]),
+            vram: Vram::default(),
             oam: Box::new([0; OAM_SIZE]),
             cgram: Cgram::default(),
             rom: Rom::new(rom_bytes),
@@ -96,7 +97,7 @@ impl ABus {
     pub fn new_empty_rom() -> ABus {
         ABus {
             wram: Box::new([0; WRAM_SIZE]),
-            vram: Box::new([0; VRAM_SIZE]),
+            vram: Vram::default(),
             oam: Box::new([0; OAM_SIZE]),
             cgram: Cgram::default(),
             rom: Rom::new_empty(),
@@ -123,7 +124,7 @@ impl ABus {
         &self.wram
     }
     pub fn vram(&self) -> &[u8] {
-        &self.vram
+        self.vram.mem()
     }
     pub fn oam(&self) -> &[u8] {
         &self.oam
@@ -151,7 +152,8 @@ impl ABus {
                         0
                     }
                     mmap::RDCGRAM => self.cgram.read_data(),
-
+                    mmap::RDVRAML => self.vram.read_low(),
+                    mmap::RDVRAMH => self.vram.read_high(),
                     _ => self.ppu_io.read(addr),
                 }
             }
@@ -234,6 +236,8 @@ impl ABus {
                         0
                     }
                     mmap::RDCGRAM => self.cgram.peek_data(),
+                    mmap::RDVRAML => self.vram.peek_low(),
+                    mmap::RDVRAMH => self.vram.peek_high(),
                     _ => self.ppu_io.peek(addr),
                 }
             }
@@ -424,6 +428,11 @@ impl ABus {
                 match addr {
                     mmap::CGADD => self.cgram.write_addr(value),
                     mmap::CGDATA => self.cgram.write_data(value),
+                    mmap::VMAIN => self.vram.write_vmain(value),
+                    mmap::VMADDL => self.vram.write_vmaddl(value),
+                    mmap::VMADDH => self.vram.write_vmaddh(value),
+                    mmap::VMDATAL => self.vram.write_vmdatal(value),
+                    mmap::VMDATAH => self.vram.write_vmdatah(value),
                     mmap::MPYL..=mmap::STAT78 => {
                         error!("Write ${:06X}: PPU IO read-only for cpu", addr)
                     }
