@@ -212,15 +212,6 @@ impl Palettes {
     }
 
     pub fn draw(&mut self, ui: &mut imgui::Ui, snes: &Snes) {
-        fn palette_color(bgr555: u16) -> [f32; 4] {
-            [
-                ((((bgr555 << 3) & 0b1111_1000) | 0b111) as f32) / 255.0,
-                ((((bgr555 >> 2) & 0b1111_1000) | 0b111) as f32) / 255.0,
-                ((((bgr555 >> 7) & 0b1111_1000) | 0b111) as f32) / 255.0,
-                1.0,
-            ]
-        }
-
         if self.opened {
             ui.window("Palettes")
                 .position(
@@ -232,26 +223,21 @@ impl Palettes {
                 .collapsible(false)
                 .opened(&mut self.opened)
                 .build(|| {
-                    let cgram = snes.abus.cgram();
-                    for (ip, palette) in cgram.iter().chunks(32).into_iter().enumerate() {
-                        for (ic, color_chunk) in
-                            palette.into_iter().chunks(2).into_iter().enumerate()
-                        {
-                            if ic == 0 {
-                                ui.text(format!("{:X}", ip));
+                    for p in 0..=0xF {
+                        for c in 0..=0xF {
+                            if c == 0 {
+                                ui.text(format!("{:X}", p));
+                                // this before no spacing forces a space
                                 ui.same_line();
                             }
                             let _no_spacing =
                                 ui.push_style_var(imgui::StyleVar::ItemSpacing([0.0, 0.0]));
-
-                            let color_bytes: Vec<u8> = color_chunk.cloned().collect();
-                            let packed_color =
-                                ((color_bytes[1] as u16) << 8) | (color_bytes[0] as u16);
                             ui.color_button(
-                                format!("##palette{}{}", ip, ic),
-                                palette_color(packed_color),
+                                format!("##palette{}{}", p, c),
+                                get_palette_color(p, c, snes.abus.cgram()),
                             );
-                            if ic < 15 {
+                            if c < 15 {
+                                // _no_spacing so next elem will be tight if it also has _no_spacing
                                 ui.same_line();
                             }
                         }
@@ -261,6 +247,20 @@ impl Palettes {
     }
 }
 
+fn get_palette_color(palette: u8, color: u8, cgram: &[u8]) -> [f32; 4] {
+    let word_addr = (palette as usize) * 16 + (color as usize);
+    let low_byte = cgram[word_addr * 2];
+    let high_byte = cgram[word_addr * 2 + 1];
+
+    let bgr555 = ((high_byte as u16) << 8) | (low_byte as u16);
+
+    [
+        ((((bgr555 << 3) & 0b1111_1000) | 0b111) as f32) / 255.0,
+        ((((bgr555 >> 2) & 0b1111_1000) | 0b111) as f32) / 255.0,
+        ((((bgr555 >> 7) & 0b1111_1000) | 0b111) as f32) / 255.0,
+        1.0,
+    ]
+}
 pub struct Cpu {
     pub opened: bool,
 }
