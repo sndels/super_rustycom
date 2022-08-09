@@ -43,6 +43,8 @@ PaletteData:  .incbin "sprite.cgram"
         stz VMADDH
         lda #$80
         sta VMAINC              ; increment VRAM addr by 1 when writing to VMDATAH
+        ldy #$00
+VRAMHighLoop:
         ldx #$00                ; loop counter and offset
 VRAMLoop: ; copy sprite, rows from two planes at a time
         lda SpriteData, X       ; write bitplane 0/2 byte to VRAM
@@ -54,6 +56,34 @@ VRAMLoop: ; copy sprite, rows from two planes at a time
         cpx #$20                ; check if we have written the full sprite
                                 ; 4 bitplanes with 8 rows each, byte per row
         bcc VRAMLoop
+
+        iny
+        cpy #$10                ; check if we've written the sprite 16 times
+        bcc VRAMHighLoop
+
+        lda #$00
+        sta VMADDL              ; set VRAM addr to the last 'row' in tile ui
+        lda #$7F
+        sta VMADDH
+        lda #$80
+        sta VMAINC              ; increment VRAM addr by 1 when writing to VMDATAH
+        ldy #$00
+VRAMHighLoop2:
+        ldx #$00                ; loop counter and offset
+VRAMLoop2: ; copy sprite, rows from two planes at a time
+        lda SpriteData, X       ; write bitplane 0/2 byte to VRAM
+        sta VMDATAL
+        inx
+        lda SpriteData, X       ; write bitplane 1/3 byte to VRAM
+        sta VMDATAH
+        inx
+        cpx #$20                ; check if we have written the full sprite
+                                ; 4 bitplanes with 8 rows each, byte per row
+        bcc VRAMLoop2
+
+        iny
+        cpy #$10                ; check if we've written the sprite 16 times
+        bcc VRAMHighLoop2
 
         ; transfer cgram data
         lda #$80                ; set CGRAM addr to $80
