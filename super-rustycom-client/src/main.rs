@@ -6,7 +6,6 @@ mod time_source;
 mod ui;
 mod window;
 
-use clap::{arg, Command};
 use log::{error, info};
 use std::{fs::File, io::prelude::*};
 use super_rustycom_core::snes::Snes;
@@ -48,11 +47,35 @@ fn setup_logger() -> Result<(), fern::InitError> {
     Ok(())
 }
 
+const HELP: &str = "\
+--rom [FILE]      Sets the rom file to use, previous file used if not given
+";
+
+struct Args {
+    rom: Option<String>,
+}
+
+fn parse_args() -> Result<Args, pico_args::Error> {
+    let mut pargs = pico_args::Arguments::from_env();
+    if pargs.contains(["-h", "--help"]) {
+        print!("{}", HELP);
+        std::process::exit(0);
+    }
+
+    let args = Args {
+        rom: pargs.opt_value_from_str("--rom")?,
+    };
+
+    let remaining = pargs.finish();
+    if !remaining.is_empty() {
+        eprintln!("Unused arguments: {:?}", remaining);
+    }
+
+    Ok(args)
+}
+
 fn main() {
-    let args = Command::new("super_rustycom_client")
-        .about("Very WIP Super Nintendo emulation")
-        .args(&[arg!(--rom [FILE] "Sets the rom file to use, previous file used if not given")])
-        .get_matches();
+    let args = unwrap(parse_args());
 
     if let Err(why) = setup_logger() {
         panic!("{}", why);
@@ -61,8 +84,8 @@ fn main() {
     let mut config = Config::load();
 
     // Get ROM path from first argument
-    if let Some(rom_path) = args.value_of("rom") {
-        config.rom_path = rom_path.to_string();
+    if let Some(rom_path) = args.rom {
+        config.rom_path = rom_path;
     }
     if config.rom_path.is_empty() {
         error!("No ROM given in args or in config");
