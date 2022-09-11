@@ -4,6 +4,7 @@ use crate::dma::Dma;
 use crate::joypad::JoyIo;
 use crate::mmap;
 use crate::mpydiv::MpyDiv;
+use crate::oam::Oam;
 use crate::ppu_io::PpuIo;
 use crate::rom::Rom;
 use crate::vram::Vram;
@@ -12,10 +13,6 @@ use log::{error, warn};
 
 /// 128 kB of "work" memory
 const WRAM_SIZE: usize = 128 * 1024;
-/// 64 kB of video memory
-const VRAM_SIZE: usize = 64 * 1024;
-/// 544 bytes of Object Attribute Memory used for sprite info
-const OAM_SIZE: usize = 544;
 
 /// Main interface for accessing different memory chunks and common registers
 pub struct ABus {
@@ -24,8 +21,8 @@ pub struct ABus {
     wram: Box<[u8]>,
     /// VideoRAM
     vram: Vram,
-    /// Object Attribute Memory, used for sprite info
-    oam: Box<[u8]>,
+    /// Sprite attribute memory
+    oam: Oam,
     /// Color palette memory
     cgram: Cgram,
     /// The loaded ROM instance
@@ -70,7 +67,7 @@ impl ABus {
         ABus {
             wram: Box::new([0; WRAM_SIZE]),
             vram: Vram::default(),
-            oam: Box::new([0; OAM_SIZE]),
+            oam: Oam::default(),
             cgram: Cgram::default(),
             rom: Rom::new(rom_bytes),
             mpy_div: MpyDiv::new(),
@@ -98,7 +95,7 @@ impl ABus {
         ABus {
             wram: Box::new([0; WRAM_SIZE]),
             vram: Vram::default(),
-            oam: Box::new([0; OAM_SIZE]),
+            oam: Oam::default(),
             cgram: Cgram::default(),
             rom: Rom::new_empty(),
             mpy_div: MpyDiv::new(),
@@ -127,7 +124,7 @@ impl ABus {
         self.vram.mem()
     }
     pub fn oam(&self) -> &[u8] {
-        &self.oam
+        self.oam.mem()
     }
     pub fn cgram(&self) -> &[u8] {
         self.cgram.mem()
@@ -152,6 +149,7 @@ impl ABus {
                         0
                     }
                     mmap::RDCGRAM => self.cgram.read_data(),
+                    mmap::RDOAM => self.oam.read_data(),
                     mmap::RDVRAML => self.vram.read_low(),
                     mmap::RDVRAMH => self.vram.read_high(),
                     _ => self.ppu_io.read(addr),
@@ -236,6 +234,7 @@ impl ABus {
                         0
                     }
                     mmap::RDCGRAM => self.cgram.peek_data(),
+                    mmap::RDOAM => self.oam.peek_data(),
                     mmap::RDVRAML => self.vram.peek_low(),
                     mmap::RDVRAMH => self.vram.peek_high(),
                     _ => self.ppu_io.peek(addr),
@@ -428,6 +427,9 @@ impl ABus {
                 match addr {
                     mmap::CGADD => self.cgram.write_addr(value),
                     mmap::CGDATA => self.cgram.write_data(value),
+                    mmap::OAMADDL => self.oam.write_oamddl(value),
+                    mmap::OAMADDH => self.oam.write_oamddh(value),
+                    mmap::OAMDATA => self.oam.write_data(value),
                     mmap::VMAIN => self.vram.write_vmain(value),
                     mmap::VMADDL => self.vram.write_vmaddl(value),
                     mmap::VMADDH => self.vram.write_vmaddh(value),
