@@ -249,7 +249,10 @@ impl Memory {
         let name = &self.name;
         let mode = &mut self.mode;
         ui.window(name)
-            .position(TOP_LEFT, imgui::Condition::Appearing)
+            .position(
+                [EXECUTION_WINDOW_SIZE[0], MENU_BAR_HEIGHT],
+                imgui::Condition::Appearing,
+            )
             .size(MEMORY_HEX_WINDOW_SIZE, imgui::Condition::Always)
             .resizable(false)
             .collapsible(false)
@@ -330,7 +333,10 @@ impl Memory {
         let tile_texture = &mut self.tile_texture;
         let tile_texture_id = self.tile_texture_id;
         ui.window(name)
-            .position(TOP_LEFT, imgui::Condition::Appearing)
+            .position(
+                [EXECUTION_WINDOW_SIZE[0], MENU_BAR_HEIGHT],
+                imgui::Condition::Appearing,
+            )
             .size(MEMORY_TILE_WINDOW_SIZE, imgui::Condition::Always)
             .resizable(false)
             .collapsible(false)
@@ -434,7 +440,7 @@ impl Palettes {
         if self.opened {
             ui.window("Palettes")
                 .position(
-                    [EXECUTION_WINDOW_SIZE[0], MENU_BAR_HEIGHT],
+                    [0.0, MENU_BAR_HEIGHT + EXECUTION_WINDOW_SIZE[1]],
                     imgui::Condition::Appearing,
                 )
                 .size(PALETTES_WINDOW_SIZE, imgui::Condition::Appearing)
