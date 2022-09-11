@@ -14,6 +14,7 @@
             "cwd": "${workspaceFolder}",
             "environment": [],
             "console": "integratedTerminal",
+            "preLaunchTask": "Build Release Client"
         },
         {
             "name": "(LLDB) Client Release",
@@ -33,6 +34,7 @@
             "cwd": "${workspaceFolder}",
             "environment": [],
             "console": "integratedTerminal",
+            "preLaunchTask": "Build Debug Client"
         },
         {
             "name": "(LLDB) Client Debug",
