@@ -1,6 +1,6 @@
 target/
 super-rustycom-core/Cargo.lock
-config.yaml
+config.ron
 emu.log
 
 *.bak

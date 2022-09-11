@@ -1,13 +1,9 @@
 use log::{error, info};
-use serde::{Deserialize, Serialize};
+use nanoserde::{DeRon, SerRon};
 
-use std::{
-    fs::File,
-    io::{BufReader, BufWriter},
-    string::String,
-};
+use std::{fs::File, io::Write, string::String};
 
-#[derive(Serialize, Deserialize)]
+#[derive(SerRon, DeRon)]
 pub struct Resolution {
     pub width: usize,
     pub height: usize,
@@ -19,13 +15,13 @@ impl Resolution {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(SerRon, DeRon)]
 pub struct Config {
     pub rom_path: String,
     pub resolution: Resolution,
 }
 
-static CONFIG_PATH: &str = "config.yaml";
+static CONFIG_PATH: &str = "config.ron";
 
 impl Config {
     pub fn new() -> Config {
@@ -36,16 +32,13 @@ impl Config {
     }
 
     pub fn load() -> Config {
-        match File::open(CONFIG_PATH) {
-            Ok(config_file) => {
-                let reader = BufReader::new(config_file);
-                match serde_yaml::from_reader(reader) {
-                    Ok(config) => return config,
-                    Err(why) => {
-                        error!("{}", why);
-                    }
+        match std::fs::read_to_string(CONFIG_PATH) {
+            Ok(ron) => match DeRon::deserialize_ron(&ron) {
+                Ok(config) => return config,
+                Err(why) => {
+                    error!("{}", why);
                 }
-            }
+            },
             Err(why) => {
                 error!("{}", why);
             }
@@ -55,16 +48,16 @@ impl Config {
     }
 
     pub fn save(&self) {
-        let config_file = match File::create(CONFIG_PATH) {
-            Ok(file) => file,
+        let ron = self.serialize_ron();
+        match File::create(CONFIG_PATH) {
+            Ok(mut file) => {
+                if let Err(why) = file.write_all(ron.as_bytes()) {
+                    error!("{}", why);
+                }
+            }
             Err(why) => {
                 error!("{}", why);
-                return;
             }
         };
-        let writer = BufWriter::new(config_file);
-        if let Err(why) = serde_yaml::to_writer(writer, &self) {
-            error!("{}", why);
-        }
     }
 }
