@@ -28,6 +28,11 @@ const CPU_WINDOW_SIZE: [f32; 2] = [110.0, 236.0];
 const SMP_WINDOW_SIZE: [f32; 2] = [CPU_WINDOW_SIZE[0], 152.0];
 const PERF_WINDOW_SIZE: [f32; 2] = [204.0, 47.0];
 const PALETTES_WINDOW_SIZE: [f32; 2] = [334.0, 340.0];
+const SPRITE_ATTRIBUTES_WINDOW_SIZE: [f32; 2] = [334.0, 310.0];
+const SPRITE_ATTRIBUTES_CHILD_WINDOW_SIZE: [f32; 2] = [
+    SPRITE_ATTRIBUTES_WINDOW_SIZE[0] - 10.0,
+    SPRITE_ATTRIBUTES_WINDOW_SIZE[1] - 35.0,
+];
 
 const MEMORY_HEX_WINDOW_SIZE: [f32; 2] = [388.0, 344.0];
 const MEMORY_TILE_WINDOW_SIZE: [f32; 2] = [528.0, 382.0];
@@ -485,6 +490,76 @@ fn get_palette_color(palette: u8, color: u8, cgram: &[u8]) -> [f32; 4] {
         ((((bgr555 >> 7) & 0b1111_1000) | 0b111) as f32) / 255.0,
         1.0,
     ]
+}
+
+pub struct SpriteAttributes {
+    pub opened: bool,
+}
+
+impl SpriteAttributes {
+    pub fn new(opened: bool) -> Self {
+        Self { opened }
+    }
+
+    pub fn draw(&mut self, ui: &mut imgui::Ui, snes: &Snes) {
+        if self.opened {
+            ui.window("Sprite Attributes")
+                .position(
+                    [
+                        EXECUTION_WINDOW_SIZE[0],
+                        MENU_BAR_HEIGHT + MEMORY_TILE_WINDOW_SIZE[1],
+                    ],
+                    imgui::Condition::Appearing,
+                )
+                .size(SPRITE_ATTRIBUTES_WINDOW_SIZE, imgui::Condition::Appearing)
+                .resizable(false)
+                .collapsible(false)
+                .opened(&mut self.opened)
+                .build(|| {
+                    ui.child_window("Disassembly")
+                        .size(SPRITE_ATTRIBUTES_CHILD_WINDOW_SIZE)
+                        .scroll_bar(true)
+                        .build(|| {
+                            const SPRITE_COUNT: usize = 128;
+                            const MAIN_BANK_BYTESIZE: usize = 4 * SPRITE_COUNT;
+                            let oam = snes.abus.oam();
+                            for i in 0..SPRITE_COUNT {
+                                // 4 bytes indexed from the start of the memory
+                                let bytes = &oam[(i * 4)..((i + 1) * 4)];
+                                // Additional 2 bits at the end, indexed from the end of the 4byte entries
+                                let additional_bits =
+                                    (oam[MAIN_BANK_BYTESIZE + i / 4] >> ((i % 4) * 2)) & 0b11;
+
+                                let x_coord =
+                                    (((additional_bits & 0b1) as u16) << 8) | (bytes[0] as u16);
+                                let y_coord = bytes[1];
+
+                                let attributes = bytes[3];
+                                let tile = (((attributes & 0b1) as u16) << 8) | (bytes[2] as u16);
+                                let palette = (attributes >> 1) & 0b111;
+                                let priority = (attributes >> 4) & 0b11;
+                                let mirror_x = (attributes >> 6) & 0b1;
+                                let mirror_y = (attributes >> 7) & 0b1;
+                                let size = additional_bits >> 1;
+
+                                ui.text(format!(
+                                    "{i:<3}      X: {x_coord:<3}  Mirror: {}",
+                                    if mirror_x == 1 { "Y" } else { "N" },
+                                ));
+                                ui.text(format!(
+                                    "         Y: {y_coord:<3}  Mirror: {}",
+                                    if mirror_y == 1 { "Y" } else { "N" },
+                                ));
+                                ui.text(format!("      Tile: {tile:<3} Palette: {palette}"));
+                                ui.text(format!(
+                                    "  Priority: {priority}      Size: {}",
+                                    if size == 1 { "Large" } else { "Small" }
+                                ));
+                            }
+                        })
+                });
+        }
+    }
 }
 
 pub struct Cpu {

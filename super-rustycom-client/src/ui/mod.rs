@@ -20,6 +20,7 @@ pub struct Ui {
     cpu: windows::Cpu,
     smp: windows::Smp,
     palettes: windows::Palettes,
+    oam: windows::SpriteAttributes,
 }
 
 #[derive(Default)]
@@ -41,6 +42,7 @@ impl Ui {
             cpu: windows::Cpu::new(true),
             smp: windows::Smp::new(false),
             palettes: windows::Palettes::new(true),
+            oam: windows::SpriteAttributes::new(true),
         }
     }
 
@@ -70,6 +72,7 @@ impl Ui {
         self.apu_ram.draw(ui, snes.apu.bus.ram(), snes.abus.cgram());
         self.vram.draw(ui, snes.abus.vram(), snes.abus.cgram());
         self.palettes.draw(ui, snes);
+        self.oam.draw(ui, snes);
         self.cpu.draw(ui, snes, resolution);
         self.smp.draw(ui, snes, resolution);
 
@@ -104,6 +107,9 @@ impl Ui {
             });
             ui.menu("PPU", || {
                 toggle!(ui.menu_item("Palettes"), self.palettes.opened);
+            });
+            ui.menu("PPU", || {
+                toggle!(ui.menu_item("Sprites"), self.oam.opened);
             });
         });
     }
