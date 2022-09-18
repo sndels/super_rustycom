@@ -181,9 +181,9 @@ impl W65c816s {
             self.p.d = false;
             self.pb = 0x00;
             if self.e {
-                self.pc = NMI8;
+                self.pc = abus.page_wrapping_cpu_read16(NMI8);
             } else {
-                self.pc = NMI16;
+                self.pc = abus.page_wrapping_cpu_read16(NMI16);
             }
         }
     }
@@ -2271,7 +2271,7 @@ const BRK16: u32 = 0x00FFE6;
 #[allow(dead_code)]
 const ABORT16: u32 = 0x00FFE8;
 /// Native mode non-maskable interrupt vector. Called on vblank
-const NMI16: u16 = 0xFFEA;
+const NMI16: u32 = 0x00FFEA;
 /// Native mode interrupt request
 #[allow(dead_code)]
 const IRQ16: u32 = 0x00FFEE;
@@ -2281,7 +2281,7 @@ const COP8: u32 = 0x00FFF4;
 #[allow(dead_code)]
 const ABORT8: u32 = 0x00FFF8;
 /// Emulation mode non-maskable interrupt vector. Called on vblank
-const NMI8: u16 = 0xFFFA;
+const NMI8: u32 = 0x00FFFA;
 /// Reset vector, execution begins from this
 const RESET8: u32 = 0x00FFFC;
 /// Emulation mode interrupt request / BRK vector
