@@ -138,6 +138,26 @@ impl ABus {
         self.apu_io_r = io;
     }
 
+    pub fn set_vblank(&mut self) {
+        self.hvb_joy |= 0b1000_0000;
+    }
+
+    pub fn clear_vblank(&mut self) {
+        self.hvb_joy &= 0b0111_1111;
+    }
+
+    pub fn set_vblank_nmi(&mut self) {
+        self.rd_nmi |= 0b1000_0000;
+    }
+
+    pub fn clear_vblank_nmi(&mut self) {
+        self.rd_nmi &= 0b0111_1111;
+    }
+
+    pub fn nmi_enabled(&mut self) -> bool {
+        self.nmitimen & 0b1000_0000 == 0b1000_0000
+    }
+
     fn cpu_read_sys(&mut self, addr: usize) -> u8 {
         match addr {
             mmap::WRAM_MIRR_FIRST..=mmap::WRAM_MIRR_LAST => self.wram[addr],
@@ -183,7 +203,7 @@ impl ABus {
             mmap::JOYB => self.joy_io.joy_b(),
             mmap::RDNMI => {
                 let val = self.rd_nmi;
-                self.rd_nmi &= 0b0111_1111;
+                self.clear_vblank_nmi();
                 val
             }
             mmap::TIMEUP => {
