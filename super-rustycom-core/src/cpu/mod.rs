@@ -170,10 +170,10 @@ impl W65c816s {
         ((self.pb as u32) << 16) + self.pc as u32
     }
 
-    /// Executes the instruction at `[$PBPCHPCL]` and returns the number of cycles it took
+    /// Executes the instruction at `[$PBPCHPCL]` and returns the number of master clock ticks it took
     ///
     /// `abus` is used for memory addressing as needed
-    pub fn step(&mut self, abus: &mut ABus) -> u8 {
+    pub fn step(&mut self, abus: &mut ABus) -> u32 {
         let addr = self.current_address();
         let opcode = abus.cpu_read8(addr);
 
@@ -326,7 +326,7 @@ impl W65c816s {
         let x = if self.p.x { 1 } else { 0 };
 
         // Execute opcodes, utilize macros and op_funcs in common cases
-        match opcode {
+        let cycles = match opcode {
             op::ADC_61 => op!(dir_x_ptr16, op_adc, 2, 7 - m + dl_zero),
             op::ADC_63 => op!(stack, op_adc, 2, 5 - m),
             op::ADC_65 => op!(dir, op_adc, 2, 4 - m + dl_zero),
@@ -814,7 +814,9 @@ impl W65c816s {
                 self.pc = self.pc.wrapping_add(1);
                 2
             }
-        }
+        };
+
+        (cycles as u32) * 8 // SlowROM
     }
 
     // Addressing modes

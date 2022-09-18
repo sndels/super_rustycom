@@ -38,14 +38,14 @@ impl Snes {
     where
         F: FnMut(&W65c816s, &mut ABus),
     {
-        let ticks_per_cycle = 8;
-        let target_cpu_cycles = clock_ticks / ticks_per_cycle; // SlowROM (?)
-        let mut cpu_cycles = 0;
+        let mut emulated_ticks = 0;
         let mut hit_breakpoint = false;
-        while cpu_cycles < target_cpu_cycles {
-            if cpu_cycles == 0 || self.cpu.current_address() != breakpoint {
+        while emulated_ticks < clock_ticks {
+            if emulated_ticks == 0 || self.cpu.current_address() != breakpoint {
                 disassemble_func(&self.cpu, &mut self.abus);
-                cpu_cycles += self.cpu.step(&mut self.abus) as u128;
+                emulated_ticks += self.cpu.step(&mut self.abus) as u128;
+                // TODO:
+                // APU might run ahead or fall behind noticeably?
                 let (_, apu_io) = self.apu.step(self.abus.apu_io());
                 self.abus.write_smp_io(apu_io);
             } else {
@@ -53,7 +53,7 @@ impl Snes {
                 break;
             }
         }
-        (cpu_cycles * ticks_per_cycle, hit_breakpoint) // SlowROM
+        (emulated_ticks, hit_breakpoint)
     }
 
     /// Runs the hardware for given number instructions
