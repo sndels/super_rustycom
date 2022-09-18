@@ -604,24 +604,24 @@ impl W65c816s {
             }
             op::BRK => {
                 if self.e {
+                    self.p.x = true;
                     let pc = self.pc;
                     self.push16(pc.wrapping_add(2), abus);
-                    let p = self.p.value();
-                    self.push8(p | P_X, abus); // B(RK)-flag is set to distinguish BRK from IRQ
-                    self.pb = 0x00;
+                } else {
+                    let pc = self.pc;
+                    self.push16(pc.wrapping_add(2), abus);
+                    self.push8(self.pb, abus);
+                }
+                self.push8(self.p.value(), abus);
+                self.p.d = false;
+                self.p.i = true;
+
+                self.pb = 0x00;
+                if self.e {
                     self.pc = abus.page_wrapping_cpu_read16(IRQBRK8);
                 } else {
-                    let pb = self.pb;
-                    self.push8(pb, abus);
-                    let pc = self.pc;
-                    self.push16(pc.wrapping_add(2), abus);
-                    let p = self.p.value();
-                    self.push8(p, abus);
-                    self.pb = 0x00;
                     self.pc = abus.page_wrapping_cpu_read16(BRK16);
                 }
-                self.p.i = true;
-                self.p.d = false;
                 8 - e
             }
             op::COP => {
@@ -649,12 +649,12 @@ impl W65c816s {
             op::RTI => {
                 let p = self.pull8(abus);
                 self.p.set_value(p);
-                let pc = self.pull16(abus);
-                self.pc = pc;
                 if !self.e {
                     let pb = self.pull8(abus);
                     self.pb = pb;
                 }
+                let pc = self.pull16(abus);
+                self.pc = pc;
                 7 - e
             }
             op::CLC => cl_se!(self.p.c, false),
