@@ -170,6 +170,24 @@ impl W65c816s {
         ((self.pb as u32) << 16) + self.pc as u32
     }
 
+    pub fn request_nmi(&mut self, abus: &mut ABus) {
+        if self.waiting {
+            if self.e {
+                self.p.x = false; // 0 is IRQ/NMI
+            }
+            self.push16(self.pc, abus);
+            self.push8(self.p.value(), abus);
+            self.p.i = true;
+            self.p.d = false;
+            self.pb = 0x00;
+            if self.e {
+                self.pc = NMI8;
+            } else {
+                self.pc = NMI16;
+            }
+        }
+    }
+
     /// Executes the instruction at `[$PBPCHPCL]` and returns the number of master clock ticks it took
     ///
     /// `abus` is used for memory addressing as needed
@@ -2253,8 +2271,7 @@ const BRK16: u32 = 0x00FFE6;
 #[allow(dead_code)]
 const ABORT16: u32 = 0x00FFE8;
 /// Native mode non-maskable interrupt vector. Called on vblank
-#[allow(dead_code)]
-const NMI16: u32 = 0x00FFEA;
+const NMI16: u16 = 0xFFEA;
 /// Native mode interrupt request
 #[allow(dead_code)]
 const IRQ16: u32 = 0x00FFEE;
@@ -2264,8 +2281,7 @@ const COP8: u32 = 0x00FFF4;
 #[allow(dead_code)]
 const ABORT8: u32 = 0x00FFF8;
 /// Emulation mode non-maskable interrupt vector. Called on vblank
-#[allow(dead_code)]
-const NMI8: u32 = 0x00FFFA;
+const NMI8: u16 = 0xFFFA;
 /// Reset vector, execution begins from this
 const RESET8: u32 = 0x00FFFC;
 /// Emulation mode interrupt request / BRK vector
