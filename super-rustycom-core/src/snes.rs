@@ -33,7 +33,7 @@ impl Snes {
         &mut self,
         clock_ticks: u128,
         breakpoint: u32,
-        mut disassemble_func: F,
+        disassemble_func: &mut F,
     ) -> (u128, bool)
     where
         F: FnMut(&W65c816s, &mut ABus),
@@ -57,15 +57,12 @@ impl Snes {
     }
 
     /// Runs the hardware for given number instructions
-    pub fn run_steps<F>(&mut self, instructions: u32, mut disassemble_func: F)
+    pub fn run_steps<F>(&mut self, instructions: u32, disassemble_func: &mut F)
     where
         F: FnMut(&W65c816s, &mut ABus),
     {
         for _ in 0..instructions {
-            disassemble_func(&self.cpu, &mut self.abus);
-            self.cpu.step(&mut self.abus);
-            let (_, apu_io) = self.apu.step(self.abus.apu_io());
-            self.abus.write_smp_io(apu_io);
+            self.run(1, 0, disassemble_func);
         }
     }
 }

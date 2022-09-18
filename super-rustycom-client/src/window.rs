@@ -148,7 +148,7 @@ impl Window {
                     match debugger.state {
                         DebugState::Step => {
                             // Go through steps
-                            snes.run_steps(debugger.steps, |cpu, abus| {
+                            snes.run_steps(debugger.steps, &mut |cpu, abus| {
                                 new_disassembly.push(disassemble_current(cpu, abus).0)
                             });
                             debugger.state = DebugState::Active;
@@ -162,7 +162,7 @@ impl Window {
 
                             let t_run = Instant::now();
                             let (ticks, hit_breakpoint) =
-                                snes.run(diff_ticks, debugger.breakpoint, |cpu, abus| {
+                                snes.run(diff_ticks, debugger.breakpoint, &mut |cpu, abus| {
                                     new_disassembly.push(disassemble_current(cpu, abus).0)
                                 });
 
