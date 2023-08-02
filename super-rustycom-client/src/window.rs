@@ -49,7 +49,7 @@ impl Window {
 
         let context_builder = glutin::ContextBuilder::new()
             .with_vsync(true)
-            .with_double_buffer(Some(true));
+            .with_pixel_format(24, 0);
 
         let display = expect!(
             glium::Display::new(window_builder, context_builder, &event_loop),
@@ -209,7 +209,7 @@ impl Window {
             ui.platform.prepare_render(frame_ui, window);
 
             let mut render_target = display.draw();
-            render_target.clear_color_srgb(0.0, 0.0, 0.0, 0.0);
+            render_target.clear_color_srgb(0.0, 0.0, 0.0, 1.0);
 
             expect!(
                 ui.renderer.render(&mut render_target, ui.context.render()),
