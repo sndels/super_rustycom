@@ -88,54 +88,50 @@ impl Window {
             let window = gl_window.window();
 
             event_loop.run_return(|event, _, control_flow| {
-                ui.platform
-                    .handle_event(ui.context.io_mut(), window, &event);
-
                 match event {
                     Event::NewEvents(_) => {
-                        let now = Instant::now();
-                        ui.context
-                            .io_mut()
-                            .update_delta_time(now - last_frame_instant);
-                        last_frame_instant = now;
+                        // TODO: delta time tracking needed?
                     }
                     Event::MainEventsCleared => {
                         // Ran out of events so let's jump back out
                         *control_flow = ControlFlow::Exit;
                     }
-                    Event::WindowEvent { event, .. } => match event {
-                        WindowEvent::CloseRequested => {
-                            quit = true;
-                        }
-                        WindowEvent::Resized(size) => {
-                            display.gl_window().resize(size);
-                        }
-                        WindowEvent::KeyboardInput {
-                            input:
-                                KeyboardInput {
-                                    virtual_keycode: Some(key),
-                                    state: ElementState::Pressed,
-                                    ..
-                                },
-                            ..
-                        } => {
-                            if !ui_state.is_any_item_active {
-                                // We only want to handle keypresses if we're not interacting with imgui
-                                match key {
-                                    VirtualKeyCode::Escape => {
-                                        quit = true;
-                                    }
-                                    VirtualKeyCode::Return => {
-                                        if let DebugState::Active = debugger.state {
-                                            debugger.state = DebugState::Step;
+                    Event::WindowEvent { event, .. } => {
+                        match event {
+                            WindowEvent::CloseRequested => {
+                                quit = true;
+                            }
+                            WindowEvent::Resized(size) => {
+                                display.gl_window().resize(size);
+                            }
+                            WindowEvent::KeyboardInput {
+                                input:
+                                    KeyboardInput {
+                                        virtual_keycode: Some(key),
+                                        state: ElementState::Pressed,
+                                        ..
+                                    },
+                                ..
+                            } => {
+                                if !ui_state.is_any_item_active {
+                                    // We only want to handle keypresses if we're not interacting with imgui
+                                    match key {
+                                        VirtualKeyCode::Escape => {
+                                            quit = true;
                                         }
+                                        VirtualKeyCode::Return => {
+                                            if let DebugState::Active = debugger.state {
+                                                debugger.state = DebugState::Step;
+                                            }
+                                        }
+                                        _ => {}
                                     }
-                                    _ => {}
                                 }
                             }
+                            _ => {}
                         }
-                        _ => {}
-                    },
+                        ui.egui_glium.on_event(&event);
+                    }
                     _ => {}
                 }
             });
@@ -187,34 +183,16 @@ impl Window {
                 }
             }
 
-            // Need to do ui prepare, draw and render here instead of wrapping in methods.
-            // Context::frame() requires &mut, so any calls/references to the wrapping struct
-            // would be invalid while frame_ui is alive if it came from a member fn.
-            // Wrapping everything in a single UI::render() also couldn't have any calls to
-            // member methods after frame start for the same reason.
-            expect!(
-                ui.platform.prepare_frame(ui.context.io_mut(), window),
-                "imgui prepare frame failed"
-            );
-            let frame_ui = ui.context.frame();
-
-            ui_state = ui.ui.draw(
-                frame_ui,
-                &window.inner_size(),
-                &mut draw_data,
-                &mut snes,
-                &mut debugger,
-            );
-
-            ui.platform.prepare_render(frame_ui, window);
+            let egui_glium = &mut ui.egui_glium;
+            let sub_ui = &mut ui.ui;
+            egui_glium.run(&display, |ctx| {
+                ui_state = sub_ui.draw(ctx, &mut draw_data, &mut snes, &mut debugger);
+            });
 
             let mut render_target = display.draw();
             render_target.clear_color_srgb(0.0, 0.0, 0.0, 1.0);
 
-            expect!(
-                ui.renderer.render(&mut render_target, ui.context.render()),
-                "imgui render failed"
-            );
+            ui.egui_glium.paint(&display, &mut render_target);
 
             // Finish frame
             expect!(render_target.finish(), "Frame::finish() failed");
@@ -222,7 +200,7 @@ impl Window {
             if ui_state.full_reset_triggered {
                 snes.reset();
                 debugger.reset();
-                ui.ui.reset(display.get_context(), ui.renderer.textures());
+                ui.ui.reset();
             }
         }
     }

@@ -9,11 +9,13 @@ super-rustycom-core = { path = "../super-rustycom-core" }
 chrono = "0.4"
 fern = "0.6"
 glium = "0.31"
-imgui = { git = "https://github.com/imgui-rs/imgui-rs", rev = "592af95" }
-imgui-glium-renderer = { git = "https://github.com/imgui-rs/imgui-rs", rev = "592af95" }
-imgui-winit-support = { git = "https://github.com/imgui-rs/imgui-rs", rev = "592af95" }
+# Matches our glium
+egui = "0.18"
+egui-winit = "0.18"
+egui_glium = "0.18"
 itertools = "0.11"
 log = "0.4"
 nanoserde = "0.1"
+num-traits = "0.2"
 pico-args = "0.5"
 strum = { version = "0.25", features = ["derive"] }
