@@ -5,7 +5,7 @@ use crate::joypad::JoyIo;
 use crate::mmap;
 use crate::mpydiv::MpyDiv;
 use crate::oam::Oam;
-use crate::ppu_io::PpuIo;
+use crate::ppu;
 use crate::rom::Rom;
 use crate::vram::Vram;
 
@@ -30,7 +30,7 @@ pub struct ABus {
     /// Combined multiplication and division register
     mpy_div: MpyDiv,
     /// Registers for CPU<->PPU communication
-    ppu_io: PpuIo,
+    ppu_io: ppu::Io,
     /// Joypad registers
     joy_io: JoyIo,
     /// Dma controller
@@ -71,7 +71,7 @@ impl ABus {
             cgram: Cgram::default(),
             rom: Rom::new(rom_bytes),
             mpy_div: MpyDiv::new(),
-            ppu_io: PpuIo::new(),
+            ppu_io: ppu::Io::new(),
             joy_io: JoyIo::new(),
             dma: Dma::new(),
             nmitimen: 0x00,
@@ -99,7 +99,7 @@ impl ABus {
             cgram: Cgram::default(),
             rom: Rom::new_empty(),
             mpy_div: MpyDiv::new(),
-            ppu_io: PpuIo::new(),
+            ppu_io: puIo::new(),
             joy_io: JoyIo::new(),
             dma: Dma::new(),
             nmitimen: 0x00,

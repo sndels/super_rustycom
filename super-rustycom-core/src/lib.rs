@@ -8,7 +8,7 @@ mod joypad;
 pub mod mmap;
 mod mpydiv;
 mod oam;
-mod ppu_io;
+mod ppu;
 mod rom;
 pub mod snes;
 mod vram;

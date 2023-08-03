@@ -1,12 +1,14 @@
 use crate::abus::ABus;
 use crate::apu::Apu;
 use crate::cpu::W65c816s;
+use crate::ppu::Ppu;
 
 /// Abstraction around the actual emu implementation
 pub struct Snes {
     pub abus: ABus,
     pub cpu: W65c816s,
     pub apu: Apu,
+    ppu: Ppu,
     rom_bytes: Vec<u8>,
 }
 
@@ -18,6 +20,7 @@ impl Snes {
             cpu: W65c816s::new(&mut abus),
             abus,
             apu: Apu::default(),
+            ppu: Ppu::default(),
             rom_bytes,
         }
     }
@@ -40,17 +43,30 @@ impl Snes {
     {
         let mut emulated_ticks = 0;
         let mut hit_breakpoint = false;
-        while emulated_ticks < clock_ticks {
-            if emulated_ticks == 0 || self.cpu.current_address() != breakpoint {
-                disassemble_func(&self.cpu, &mut self.abus);
-                emulated_ticks += self.cpu.step(&mut self.abus) as u128;
-                // TODO:
-                // APU might run ahead or fall behind noticeably?
-                let (_, apu_io) = self.apu.step(self.abus.apu_io());
-                self.abus.write_smp_io(apu_io);
-            } else {
-                hit_breakpoint = true;
-                break;
+        'top: while emulated_ticks < clock_ticks {
+            let step_ticks =
+                (self.ppu.clocks_until_signal_change() as u128).min(clock_ticks - emulated_ticks);
+            let mut emulated_step_ticks = 0;
+            while emulated_step_ticks < step_ticks {
+                if (emulated_step_ticks == 0 && emulated_ticks == 0)
+                    || self.cpu.current_address() != breakpoint
+                {
+                    disassemble_func(&self.cpu, &mut self.abus);
+                    emulated_step_ticks += self.cpu.step(&mut self.abus) as u128;
+                    // TODO:
+                    // APU might run ahead or fall behind noticeably?
+                    let (_, apu_io) = self.apu.step(self.abus.apu_io());
+                    self.abus.write_smp_io(apu_io);
+                } else {
+                    hit_breakpoint = true;
+                    emulated_ticks += emulated_step_ticks;
+                    break 'top;
+                }
+
+                self.ppu
+                    .run(emulated_step_ticks as u32, &mut self.cpu, &mut self.abus);
+
+                emulated_ticks += emulated_step_ticks;
             }
         }
         (emulated_ticks, hit_breakpoint)

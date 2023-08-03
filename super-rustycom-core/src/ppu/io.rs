@@ -1,6 +1,6 @@
 use crate::mmap;
 
-pub struct PpuIo {
+pub struct Io {
     // Cpu write
     pub ini_disp: u8,
     pub ob_sel: u8,
@@ -67,10 +67,10 @@ pub struct PpuIo {
     pub stat_78: u8,
 }
 
-impl PpuIo {
-    pub fn new() -> PpuIo {
+impl Io {
+    pub fn new() -> Io {
         // TODO: Randomize non spec'd values?
-        let mut ppu_io = PpuIo {
+        let mut ppu_io = Io {
             ini_disp: 0x08,
             ob_sel: 0x00,
             oam_add_l: 0x00,
