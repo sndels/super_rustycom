@@ -1,9 +1,9 @@
+use egui::FontFamily::Proportional;
+use egui::FontId;
+use egui::TextStyle::*;
 use egui_glium;
-use egui_winit;
-use glium::backend::Facade;
 
 use super::Ui;
-use crate::expect;
 
 pub struct Context {
     pub ui: Ui,
@@ -13,6 +13,24 @@ pub struct Context {
 impl Context {
     pub fn new(display: &glium::Display) -> Self {
         let mut egui_glium = egui_glium::EguiGlium::new(display);
+
+        let ctx = &egui_glium.egui_ctx;
+
+        let mut style = (*ctx.style()).clone();
+
+        style.text_styles = [
+            (Heading, FontId::new(13.0, Proportional)),
+            (Name("Heading2".into()), FontId::new(13.0, Proportional)),
+            (Name("Context".into()), FontId::new(13.0, Proportional)),
+            (Body, FontId::new(13.0, Proportional)),
+            (Monospace, FontId::new(13.0, Proportional)),
+            (Button, FontId::new(13.0, Proportional)),
+            (Small, FontId::new(13.0, Proportional)),
+        ]
+        .into();
+
+        // Mutate global style with above changes
+        ctx.set_style(style);
 
         // context.set_ini_filename(None);
 
